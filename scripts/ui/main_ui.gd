@@ -6,6 +6,11 @@ const HAND_PLAYABLE := "hand_playable"
 const HAND_UNPLAYABLE := "hand_unplayable"
 const MARKET_AFFORDABLE := "market_affordable"
 const MARKET_UNAFFORDABLE := "market_unaffordable"
+const CARD_HOVER_SCALE := Vector2(1.025, 1.025)
+const CARD_NORMAL_SCALE := Vector2.ONE
+const HOVER_ANIMATION_SECONDS := 0.08
+const PREVIEW_SIZE := Vector2(300, 300)
+const PREVIEW_EDGE_MARGIN := 24.0
 
 var game_state := GameState.new()
 var turn_manager := TurnManager.new()
@@ -31,6 +36,12 @@ var turn_manager := TurnManager.new()
 @onready var hand_container: HBoxContainer = (
 	$Margin/Layout/HandPanel/HandMargin/HandScroll/HandContainer
 )
+@onready var card_preview: PanelContainer = $CardPreview
+@onready var preview_location_label: Label = $CardPreview/Margin/Layout/LocationLabel
+@onready var preview_state_label: Label = $CardPreview/Margin/Layout/StateLabel
+@onready var preview_name_label: Label = $CardPreview/Margin/Layout/NameLabel
+@onready var preview_meta_label: Label = $CardPreview/Margin/Layout/MetaLabel
+@onready var preview_description_label: Label = $CardPreview/Margin/Layout/DescriptionLabel
 
 
 func _ready() -> void:
@@ -52,6 +63,7 @@ func _ready() -> void:
 
 
 func _refresh_ui() -> void:
+	_hide_card_preview()
 	var player := game_state.player
 	turn_label.text = "%d / %d" % [turn_manager.turn_number, turn_manager.maximum_turns]
 	deck_label.text = str(player.draw_pile.size())
@@ -169,6 +181,11 @@ func _create_card_button(
 	button.set_meta("card_id", card.id)
 	button.set_meta("visual_state", visual_state)
 	button.tooltip_text = "%s — %s" % [card.card_name, card.description]
+	button.resized.connect(_update_card_pivot.bind(button))
+	button.mouse_entered.connect(
+		_on_card_mouse_entered.bind(card, button, visual_state, status_text)
+	)
+	button.mouse_exited.connect(_on_card_mouse_exited.bind(button))
 	button.add_theme_stylebox_override(
 		"normal",
 		_make_card_style(palette.base, palette.border, 2)
@@ -248,6 +265,85 @@ func _create_card_button(
 	return button
 
 
+func _update_card_pivot(button: Button) -> void:
+	button.pivot_offset = button.size * 0.5
+
+
+func _on_card_mouse_entered(
+	card: CardDefinition,
+	button: Button,
+	visual_state: String,
+	status_text: String
+) -> void:
+	_animate_card_scale(button, CARD_HOVER_SCALE)
+	button.z_index = 10
+	_show_card_preview(card, button, visual_state, status_text)
+
+
+func _on_card_mouse_exited(button: Button) -> void:
+	_animate_card_scale(button, CARD_NORMAL_SCALE)
+	button.z_index = 0
+	_hide_card_preview()
+
+
+func _animate_card_scale(button: Button, target_scale: Vector2) -> void:
+	if not is_instance_valid(button):
+		return
+
+	if button.has_meta("hover_tween"):
+		var active_tween = button.get_meta("hover_tween")
+		if active_tween != null and active_tween.is_valid():
+			active_tween.kill()
+
+	var tween := create_tween()
+	tween.bind_node(button)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.tween_property(button, "scale", target_scale, HOVER_ANIMATION_SECONDS)
+	button.set_meta("hover_tween", tween)
+
+
+func _show_card_preview(
+	card: CardDefinition,
+	source_button: Button,
+	visual_state: String,
+	status_text: String
+) -> void:
+	var palette := _get_card_palette(visual_state)
+	var is_market_card := visual_state.begins_with("market_")
+	preview_location_label.text = "MARKET PREVIEW" if is_market_card else "HAND PREVIEW"
+	preview_state_label.text = status_text
+	preview_name_label.text = card.card_name
+	preview_meta_label.text = "%s  •  COST %d" % [card.card_type.to_upper(), card.cost]
+	preview_description_label.text = card.description
+	preview_state_label.add_theme_color_override("font_color", palette.status)
+	card_preview.add_theme_stylebox_override(
+		"panel",
+		_make_preview_style(palette.base, palette.border)
+	)
+	card_preview.position = _get_preview_position(source_button)
+	card_preview.show()
+
+
+func _get_preview_position(source_button: Button) -> Vector2:
+	var viewport_size := get_viewport_rect().size
+	var source_rect := source_button.get_global_rect()
+	var source_center := source_rect.get_center()
+	var preview_x := PREVIEW_EDGE_MARGIN
+	if source_center.x < viewport_size.x * 0.5:
+		preview_x = viewport_size.x - PREVIEW_SIZE.x - PREVIEW_EDGE_MARGIN
+
+	var preview_y := PREVIEW_EDGE_MARGIN + 68.0
+	if source_center.y < viewport_size.y * 0.5:
+		preview_y = viewport_size.y - PREVIEW_SIZE.y - PREVIEW_EDGE_MARGIN
+
+	return Vector2(preview_x, preview_y)
+
+
+func _hide_card_preview() -> void:
+	card_preview.hide()
+
+
 func _create_played_card_chip(card: CardDefinition) -> PanelContainer:
 	var chip := PanelContainer.new()
 	chip.custom_minimum_size = Vector2(150, 36)
@@ -314,6 +410,14 @@ func _make_card_style(color: Color, border_color: Color, border_width: int) -> S
 	style.set_corner_radius_all(8)
 	style.shadow_color = Color(0, 0, 0, 0.25)
 	style.shadow_size = 3
+	return style
+
+
+func _make_preview_style(color: Color, border_color: Color) -> StyleBoxFlat:
+	var style := _make_card_style(color.darkened(0.08), border_color.lightened(0.1), 3)
+	style.set_corner_radius_all(12)
+	style.shadow_color = Color(0, 0, 0, 0.65)
+	style.shadow_size = 16
 	return style
 
 

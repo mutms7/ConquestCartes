@@ -19,6 +19,20 @@ func _initialize() -> void:
 	_check(resource_button != null, "A Pebble Coin button should render in hand.")
 	if resource_button != null:
 		_check(not resource_button.disabled, "A resource card should be visibly playable.")
+		resource_button.mouse_entered.emit()
+		await create_timer(0.1).timeout
+		_check(_card_preview().visible, "Hovering a hand card should show its preview.")
+		_check(
+			_preview_name_label().text == "Pebble Coin",
+			"Hand preview should show the hovered card name."
+		)
+		_check(
+			resource_button.scale.x > 1.0,
+			"Hovered hand card should receive subtle scale feedback."
+		)
+		resource_button.mouse_exited.emit()
+		await process_frame
+		_check(not _card_preview().visible, "Leaving a hand card should hide its preview.")
 		resource_button.pressed.emit()
 		await process_frame
 		_check(_hud_value("CoinStat") == "1", "Coin HUD should update after playing a resource.")
@@ -35,6 +49,15 @@ func _initialize() -> void:
 			market_button.get_meta("visual_state") == "market_affordable",
 			"Affordable market card should use its distinct visual state."
 		)
+		market_button.mouse_entered.emit()
+		await process_frame
+		_check(_card_preview().visible, "Hovering a market card should show its preview.")
+		_check(
+			_preview_name_label().text == "Royal Charter",
+			"Market preview should show the hovered card name."
+		)
+		market_button.mouse_exited.emit()
+		await process_frame
 		var discard_before: int = main_ui.game_state.player.discard_pile.size()
 		market_button.pressed.emit()
 		await process_frame
@@ -84,6 +107,14 @@ func _play_area_container() -> HBoxContainer:
 
 func _end_turn_button() -> Button:
 	return main_ui.get_node("Margin/Layout/HudPanel/HudMargin/Hud/EndTurnButton")
+
+
+func _card_preview() -> PanelContainer:
+	return main_ui.get_node("CardPreview")
+
+
+func _preview_name_label() -> Label:
+	return main_ui.get_node("CardPreview/Margin/Layout/NameLabel")
 
 
 func _hud_value(stat_name: String) -> String:
