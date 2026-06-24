@@ -6,7 +6,18 @@ const STARTING_CARD_COUNTS := {
 	"homestead": 3,
 }
 
-const MARKET_SIZE := 6
+# Target market makeup. Every game offers a fixed spread of economy, action, and
+# scoring options. Victory cards are split between plain victory cards and
+# "hybrid" victory cards (playable cards that also score points); each game draws
+# MARKET_VICTORY_TOTAL victory cards, of which a random 1-2 are hybrids.
+const MARKET_RESOURCE_COUNT := 2
+const MARKET_ACTION_COUNT := 6
+const MARKET_VICTORY_TOTAL := 4
+const MARKET_HYBRID_VICTORY_MIN := 1
+const MARKET_HYBRID_VICTORY_MAX := 2
+
+# Total cards in a market (sum of the counts above).
+const MARKET_SIZE := MARKET_RESOURCE_COUNT + MARKET_ACTION_COUNT + MARKET_VICTORY_TOTAL
 
 var player := PlayerState.new()
 var card_catalog: Dictionary = {}
@@ -75,27 +86,96 @@ func get_market_candidates() -> Array[CardDefinition]:
 
 
 func _setup_random_market(previous_market_ids: Array[String]) -> bool:
-	var candidates := get_market_candidates()
-	if candidates.size() < MARKET_SIZE:
-		push_error(
-			"Not enough non-starter cards for a market of %d cards." % MARKET_SIZE
-		)
-		return false
+	var pools := _categorize_candidates()
 
-	candidates.shuffle()
+	# Pick how many of the victory cards are hybrids this game; the rest are plain.
+	var hybrid_count := MARKET_HYBRID_VICTORY_MIN
+	var hybrid_span := MARKET_HYBRID_VICTORY_MAX - MARKET_HYBRID_VICTORY_MIN
+	if hybrid_span > 0:
+		hybrid_count += randi() % (hybrid_span + 1)
+	hybrid_count = mini(hybrid_count, pools["hybrid_victory"].size())
+	var normal_victory_count := MARKET_VICTORY_TOTAL - hybrid_count
+
+	var requirements := [
+		["resource", MARKET_RESOURCE_COUNT],
+		["action", MARKET_ACTION_COUNT],
+		["normal_victory", normal_victory_count],
+		["hybrid_victory", hybrid_count],
+	]
+
 	var selected: Array[CardDefinition] = []
-	for index in range(MARKET_SIZE):
-		selected.append(candidates[index])
+	for requirement in requirements:
+		var pool_key: String = requirement[0]
+		var needed: int = requirement[1]
+		var pool: Array = pools[pool_key]
+		if pool.size() < needed:
+			push_error(
+				"Not enough '%s' cards for the market (need %d, have %d)."
+				% [pool_key, needed, pool.size()]
+			)
+			return false
+
+		pool.shuffle()
+		for index in range(needed):
+			selected.append(pool[index])
 
 	if _has_same_card_ids(selected, previous_market_ids):
-		for candidate in candidates:
-			if not previous_market_ids.has(candidate.id):
-				selected[MARKET_SIZE - 1] = candidate
-				break
+		_swap_one_card(selected, pools, previous_market_ids)
 
 	market.assign(selected)
 	print("[Game] Market setup: %s" % ", ".join(get_market_card_ids()))
 	return true
+
+
+func _card_category(card: CardDefinition) -> String:
+	# Victory cards (plain or playable hybrids) are grouped apart from pure
+	# economy and action cards so the market can balance scoring options.
+	if card.card_type == "victory":
+		return "normal_victory"
+	if card.victory_points > 0:
+		return "hybrid_victory"
+	return card.card_type
+
+
+func _categorize_candidates() -> Dictionary:
+	var pools := {
+		"resource": [],
+		"action": [],
+		"normal_victory": [],
+		"hybrid_victory": [],
+	}
+	for card in get_market_candidates():
+		var category := _card_category(card)
+		if pools.has(category):
+			pools[category].append(card)
+	return pools
+
+
+func _swap_one_card(
+	selected: Array[CardDefinition],
+	pools: Dictionary,
+	previous_market_ids: Array[String]
+) -> void:
+	# Replace a single card with a same-category alternative so a fresh game shows
+	# a different market while keeping the configured composition intact.
+	for category in pools:
+		var pool: Array = pools[category]
+		for candidate in pool:
+			if previous_market_ids.has(candidate.id):
+				continue
+			if _selection_has_id(selected, candidate.id):
+				continue
+			for index in range(selected.size()):
+				if _card_category(selected[index]) == category:
+					selected[index] = candidate
+					return
+
+
+func _selection_has_id(cards: Array[CardDefinition], card_id: String) -> bool:
+	for card in cards:
+		if card.id == card_id:
+			return true
+	return false
 
 
 func _has_same_card_ids(cards: Array[CardDefinition], card_ids: Array[String]) -> bool:

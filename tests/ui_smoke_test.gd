@@ -14,7 +14,7 @@ func _initialize() -> void:
 	_check(_hand_container().get_child_count() == 5, "Initial hand should render five cards.")
 	_check(
 		_market_container().get_child_count() == GameState.MARKET_SIZE,
-		"Market should render six randomly selected cards."
+		"Market should render the configured number of randomly selected cards."
 	)
 	_check(_play_area_container().get_child_count() == 1, "Empty play area should show its hint.")
 	_check(main_ui.title_font != null, "Imported title font should load.")

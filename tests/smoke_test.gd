@@ -19,6 +19,13 @@ const NEW_CARD_IDS := [
 	"amber_circlet",
 	"firefly_supper",
 	"wishing_stone",
+	"weavers_loom",
+	"dawn_whistle",
+	"scholars_hall",
+	"gilded_reliquary",
+	"orchard_estate",
+	"sunspire_monument",
+	"astral_vault",
 ]
 
 var failure_count := 0
@@ -133,7 +140,7 @@ func _test_expanded_card_set() -> void:
 	if game_state == null:
 		return
 
-	_check(NEW_CARD_IDS.size() == 16, "Expanded set should contain sixteen new cards.")
+	_check(NEW_CARD_IDS.size() == 23, "Expanded set should contain twenty-three new cards.")
 	for card_id in NEW_CARD_IDS:
 		_check(game_state.card_catalog.has(card_id), "Card data should include %s." % card_id)
 		if not game_state.card_catalog.has(card_id):
@@ -144,13 +151,15 @@ func _test_expanded_card_set() -> void:
 			game_state.get_market_candidates().has(card),
 			"%s should be eligible for random markets." % card.card_name
 		)
-		_check(card.cost >= 2 and card.cost <= 7, "%s should use a supported cost tier." % card.card_name)
+		_check(card.cost >= 2 and card.cost <= 9, "%s should use a supported cost tier." % card.card_name)
 		_test_card_purchase(game_state, card)
 
 		if card.card_type == "victory":
 			_test_victory_card(game_state, card)
 		else:
 			_test_playable_card(game_state, card)
+			if card.victory_points > 0:
+				_test_victory_card(game_state, card)
 
 
 func _test_card_purchase(game_state: GameState, card: CardDefinition) -> void:
@@ -214,13 +223,48 @@ func _test_random_market_setup() -> void:
 		return
 
 	var first_market := game_state.get_market_card_ids()
-	_check(first_market.size() == GameState.MARKET_SIZE, "Market should contain six cards.")
+	_check(first_market.size() == GameState.MARKET_SIZE, "Market should contain the configured number of cards.")
 	_check(
 		game_state.get_market_candidates().size() == game_state.card_catalog.size() - 2,
 		"Every non-starter card should be market-eligible."
 	)
 	for starter_id in GameState.STARTING_CARD_COUNTS:
 		_check(not first_market.has(starter_id), "Starter cards should not enter the market.")
+
+	var resource_count := 0
+	var action_count := 0
+	var normal_victory_count := 0
+	var hybrid_victory_count := 0
+	for card in game_state.market:
+		if card.card_type == "victory":
+			normal_victory_count += 1
+		elif card.victory_points > 0:
+			hybrid_victory_count += 1
+		elif card.card_type == "resource":
+			resource_count += 1
+		elif card.card_type == "action":
+			action_count += 1
+	_check(
+		resource_count == GameState.MARKET_RESOURCE_COUNT,
+		"Market should contain %d resource cards." % GameState.MARKET_RESOURCE_COUNT
+	)
+	_check(
+		action_count == GameState.MARKET_ACTION_COUNT,
+		"Market should contain %d action cards." % GameState.MARKET_ACTION_COUNT
+	)
+	_check(
+		normal_victory_count + hybrid_victory_count == GameState.MARKET_VICTORY_TOTAL,
+		"Market should contain %d victory cards in total." % GameState.MARKET_VICTORY_TOTAL
+	)
+	_check(
+		(
+			hybrid_victory_count >= GameState.MARKET_HYBRID_VICTORY_MIN
+			and hybrid_victory_count <= GameState.MARKET_HYBRID_VICTORY_MAX
+		),
+		"Market should contain %d-%d hybrid victory cards." % [
+			GameState.MARKET_HYBRID_VICTORY_MIN, GameState.MARKET_HYBRID_VICTORY_MAX
+		]
+	)
 
 	game_state.player.discard_pile.append(game_state.card_catalog["silver_leaf"])
 	game_state.player.coins = 9
