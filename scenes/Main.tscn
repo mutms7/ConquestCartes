@@ -1,3 +1,134 @@
-[gd_scene format=3 uid="uid://155xx7s6y6ta"]
+[gd_scene load_steps=2 format=3 uid="uid://155xx7s6y6ta"]
 
-[node name="Main" type="Node2D" unique_id=1400720324]
+[ext_resource type="Script" path="res://scripts/ui/main_ui.gd" id="1_main_ui"]
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main_ui")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.105882, 0.14902, 0.137255, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 22
+
+[node name="Layout" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="StatsBar" type="HBoxContainer" parent="Margin/Layout"]
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="TurnLabel" type="Label" parent="Margin/Layout/StatsBar"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.941176, 0.901961, 0.741176, 1)
+theme_override_font_sizes/font_size = 20
+text = "Turn: 1/15"
+
+[node name="DeckLabel" type="Label" parent="Margin/Layout/StatsBar"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Deck: 0"
+
+[node name="DiscardLabel" type="Label" parent="Margin/Layout/StatsBar"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Discard: 0"
+
+[node name="CoinLabel" type="Label" parent="Margin/Layout/StatsBar"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Coins: 0"
+
+[node name="ActionLabel" type="Label" parent="Margin/Layout/StatsBar"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Actions: 1"
+
+[node name="BuyLabel" type="Label" parent="Margin/Layout/StatsBar"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Buys: 1"
+
+[node name="Spacer" type="Control" parent="Margin/Layout/StatsBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="EndTurnButton" type="Button" parent="Margin/Layout/StatsBar"]
+custom_minimum_size = Vector2(130, 38)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_font_sizes/font_size = 17
+text = "End Turn"
+
+[node name="MarketTitle" type="Label" parent="Margin/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.941176, 0.901961, 0.741176, 1)
+theme_override_font_sizes/font_size = 22
+text = "Shared Market"
+horizontal_alignment = 1
+
+[node name="MarketScroll" type="ScrollContainer" parent="Margin/Layout"]
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 2
+vertical_scroll_mode = 0
+
+[node name="MarketContainer" type="HBoxContainer" parent="Margin/Layout/MarketScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="StatusLabel" type="Label" parent="Margin/Layout"]
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.803922, 0.858824, 0.752941, 1)
+theme_override_font_sizes/font_size = 17
+text = "Preparing the table..."
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HandTitle" type="Label" parent="Margin/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.941176, 0.901961, 0.741176, 1)
+theme_override_font_sizes/font_size = 22
+text = "Your Hand"
+horizontal_alignment = 1
+
+[node name="HandScroll" type="ScrollContainer" parent="Margin/Layout"]
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 2
+vertical_scroll_mode = 0
+
+[node name="HandContainer" type="HBoxContainer" parent="Margin/Layout/HandScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+alignment = 1
