@@ -73,10 +73,12 @@ func reset_turn_resources() -> void:
 
 
 func draw_cards(amount: int) -> void:
+	var drawn_count := 0
 	for _draw_index in range(amount):
 		if player.draw_pile.is_empty():
 			if player.discard_pile.is_empty():
-				return
+				print("[Game] Draw stopped: no cards available (%d/%d drawn)" % [drawn_count, amount])
+				break
 			player.draw_pile.append_array(player.discard_pile)
 			player.discard_pile.clear()
 			player.draw_pile.shuffle()
@@ -84,6 +86,7 @@ func draw_cards(amount: int) -> void:
 
 		var card: CardDefinition = player.draw_pile.pop_back()
 		player.hand.append(card)
+		drawn_count += 1
 		print("[Game] Draw: %s" % card.card_name)
 
 
@@ -122,20 +125,38 @@ func buy_card(card: CardDefinition) -> bool:
 	player.coins -= card.cost
 	player.buys -= 1
 	player.discard_pile.append(card)
-	print("[Game] Buy card: %s for %d coins" % [card.card_name, card.cost])
+	print(
+		"[Game] Buy card: %s for %d coins (discard: %d)"
+		% [card.card_name, card.cost, player.discard_pile.size()]
+	)
 	return true
 
 
 func discard_hand_and_play_area() -> void:
+	var hand_count := player.hand.size()
+	var play_count := player.play_area.size()
 	player.discard_pile.append_array(player.hand)
 	player.discard_pile.append_array(player.play_area)
 	player.hand.clear()
 	player.play_area.clear()
+	print(
+		"[Game] Cleanup: discarded %d hand and %d played cards (discard: %d)"
+		% [hand_count, play_count, player.discard_pile.size()]
+	)
 
 
 func calculate_score() -> int:
 	var score := 0
 	for card in player.get_all_cards():
 		score += card.victory_points
-	print("[Game] Scoring: %d victory points" % score)
+	print(
+		"[Game] Scoring: %d victory points (draw: %d, hand: %d, play: %d, discard: %d)"
+		% [
+			score,
+			player.draw_pile.size(),
+			player.hand.size(),
+			player.play_area.size(),
+			player.discard_pile.size(),
+		]
+	)
 	return score

@@ -29,6 +29,7 @@ func end_turn() -> void:
 
 	print("[Game] End turn %d" % turn_number)
 	game_state.discard_hand_and_play_area()
+	game_state.reset_turn_resources()
 
 	if turn_number >= maximum_turns:
 		game_over = true
@@ -37,6 +38,5 @@ func end_turn() -> void:
 		return
 
 	turn_number += 1
-	game_state.reset_turn_resources()
 	game_state.draw_cards(5)
 	print("[Game] Start turn %d" % turn_number)
