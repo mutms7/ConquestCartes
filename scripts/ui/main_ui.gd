@@ -21,6 +21,7 @@ var turn_manager := TurnManager.new()
 @onready var coin_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/CoinStat/Value
 @onready var action_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/ActionStat/Value
 @onready var buy_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/BuyStat/Value
+@onready var new_game_button: Button = $Margin/Layout/HudPanel/HudMargin/Hud/NewGameButton
 @onready var end_turn_button: Button = $Margin/Layout/HudPanel/HudMargin/Hud/EndTurnButton
 @onready var market_container: HBoxContainer = (
 	$Margin/Layout/MarketPanel/MarketMargin/MarketScroll/MarketContainer
@@ -45,20 +46,30 @@ var turn_manager := TurnManager.new()
 
 
 func _ready() -> void:
+	new_game_button.pressed.connect(_on_new_game_pressed)
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
 	turn_manager.configure(game_state)
 
 	if not game_state.load_cards(CARD_DATA_PATH):
 		status_label.text = "Could not load card data. Check the Godot output."
+		new_game_button.disabled = true
 		end_turn_button.disabled = true
 		return
+
+	_start_new_game(false)
+
+
+func _start_new_game(is_restart: bool) -> void:
 	if not game_state.setup_starting_game():
-		status_label.text = "Could not prepare the starting deck. Check the Godot output."
+		status_label.text = "Could not prepare a new game. Check the Godot output."
 		end_turn_button.disabled = true
 		return
 
 	turn_manager.start_first_turn()
-	status_label.text = "Start by clicking a purple resource or action card in your hand."
+	if is_restart:
+		status_label.text = "New game started with a fresh deck and random market."
+	else:
+		status_label.text = "Start by clicking a purple resource or action card in your hand."
 	_refresh_ui()
 
 
@@ -452,3 +463,7 @@ func _on_end_turn_pressed() -> void:
 			turn_manager.turn_number
 		)
 	_refresh_ui()
+
+
+func _on_new_game_pressed() -> void:
+	_start_new_game(true)

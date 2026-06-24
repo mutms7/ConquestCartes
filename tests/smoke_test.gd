@@ -29,6 +29,7 @@ func _initialize() -> void:
 	_test_draw_across_shuffle_boundary()
 	_test_scoring_includes_every_owned_zone()
 	_test_expanded_card_set()
+	_test_random_market_setup()
 
 	if failure_count > 0:
 		push_error("[Test] Rules smoke test failed with %d issue(s)." % failure_count)
@@ -61,8 +62,8 @@ func _test_full_game_loop() -> void:
 		_check(game_state.play_card(resource_card), "Resource card should be playable.")
 		_check(game_state.player.coins > 0, "Playing a resource should add coins.")
 
-	game_state.player.coins = 6
-	var purchased_card: CardDefinition = game_state.card_catalog["royal_charter"]
+	var purchased_card: CardDefinition = game_state.market[0]
+	game_state.player.coins = purchased_card.cost
 	_check(game_state.buy_card(purchased_card), "Affordable market card should be bought.")
 	_check(game_state.player.discard_pile.has(purchased_card), "Bought card should enter discard.")
 	_check(_owned_card_count(game_state) == 11, "Buying should add exactly one owned card.")
@@ -79,7 +80,10 @@ func _test_full_game_loop() -> void:
 
 	_check(purchased_card_cycled, "Bought card should later cycle out of discard.")
 	_check(turn_manager.turn_number == 15, "Game should end on turn 15.")
-	_check(turn_manager.final_score == 8, "Final score should include bought victory cards.")
+	_check(
+		turn_manager.final_score == 3 + purchased_card.victory_points,
+		"Final score should include the purchased card."
+	)
 	_check(game_state.player.hand.is_empty(), "Final cleanup should empty the hand.")
 	_check(game_state.player.play_area.is_empty(), "Final cleanup should empty the play area.")
 	_check(game_state.player.coins == 0, "Final cleanup should reset coins.")
@@ -136,7 +140,10 @@ func _test_expanded_card_set() -> void:
 			continue
 
 		var card: CardDefinition = game_state.card_catalog[card_id]
-		_check(game_state.market.has(card), "%s should appear in the market." % card.card_name)
+		_check(
+			game_state.get_market_candidates().has(card),
+			"%s should be eligible for random markets." % card.card_name
+		)
 		_check(card.cost >= 2 and card.cost <= 7, "%s should use a supported cost tier." % card.card_name)
 		_test_card_purchase(game_state, card)
 
@@ -148,6 +155,7 @@ func _test_expanded_card_set() -> void:
 
 func _test_card_purchase(game_state: GameState, card: CardDefinition) -> void:
 	game_state.player.clear_all()
+	game_state.market.assign([card])
 	game_state.player.coins = card.cost
 	_check(game_state.buy_card(card), "%s should be purchasable." % card.card_name)
 	_check(
@@ -197,6 +205,46 @@ func _test_victory_card(game_state: GameState, card: CardDefinition) -> void:
 		game_state.calculate_score() == card.victory_points,
 		"%s should contribute its configured victory points." % card.card_name
 	)
+
+
+func _test_random_market_setup() -> void:
+	seed(11)
+	var game_state := _create_game_state()
+	if game_state == null:
+		return
+
+	var first_market := game_state.get_market_card_ids()
+	_check(first_market.size() == GameState.MARKET_SIZE, "Market should contain six cards.")
+	_check(
+		game_state.get_market_candidates().size() == game_state.card_catalog.size() - 2,
+		"Every non-starter card should be market-eligible."
+	)
+	for starter_id in GameState.STARTING_CARD_COUNTS:
+		_check(not first_market.has(starter_id), "Starter cards should not enter the market.")
+
+	game_state.player.discard_pile.append(game_state.card_catalog["silver_leaf"])
+	game_state.player.coins = 9
+	_check(game_state.setup_starting_game(), "New game setup should succeed.")
+	var second_market := game_state.get_market_card_ids()
+
+	_check(
+		not _same_card_ids(first_market, second_market),
+		"An immediate new game should choose a different market."
+	)
+	_check(_owned_card_count(game_state) == 10, "New game should restore the ten-card deck.")
+	_check(game_state.player.discard_pile.is_empty(), "New game should clear discard.")
+	_check(game_state.player.hand.is_empty(), "New game setup should clear hand before drawing.")
+	_check(game_state.player.play_area.is_empty(), "New game should clear played cards.")
+	_check(game_state.player.coins == 0, "New game should reset coins.")
+
+
+func _same_card_ids(first: Array[String], second: Array[String]) -> bool:
+	if first.size() != second.size():
+		return false
+	for card_id in first:
+		if not second.has(card_id):
+			return false
+	return true
 
 
 func _create_game_state() -> GameState:

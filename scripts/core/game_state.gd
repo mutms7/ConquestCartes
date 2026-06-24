@@ -6,30 +6,7 @@ const STARTING_CARD_COUNTS := {
 	"homestead": 3,
 }
 
-const MARKET_CARD_IDS := [
-	"silver_leaf",
-	"village_bell",
-	"market_fox",
-	"scribe",
-	"stone_wall",
-	"royal_charter",
-	"candlecap",
-	"trail_biscuit",
-	"moss_thread",
-	"acorn_purse",
-	"hearthsong",
-	"orchard_map",
-	"river_courier",
-	"moonwell_token",
-	"tinker_wren",
-	"lantern_parade",
-	"quiet_archive",
-	"briar_gate",
-	"starlit_wagon",
-	"amber_circlet",
-	"firefly_supper",
-	"wishing_stone",
-]
+const MARKET_SIZE := 6
 
 var player := PlayerState.new()
 var card_catalog: Dictionary = {}
@@ -61,8 +38,8 @@ func load_cards(path: String) -> bool:
 
 
 func setup_starting_game() -> bool:
+	var previous_market_ids := get_market_card_ids()
 	player.clear_all()
-	market.clear()
 	print("[Game] Game start")
 
 	for card_id in STARTING_CARD_COUNTS:
@@ -75,12 +52,58 @@ func setup_starting_game() -> bool:
 	player.draw_pile.shuffle()
 	print("[Game] Shuffle starting deck (%d cards)" % player.draw_pile.size())
 
-	for card_id in MARKET_CARD_IDS:
-		if not card_catalog.has(card_id):
-			push_error("Missing market card definition: %s" % card_id)
-			return false
-		market.append(card_catalog[card_id])
+	if not _setup_random_market(previous_market_ids):
+		return false
 
+	return true
+
+
+func get_market_card_ids() -> Array[String]:
+	var card_ids: Array[String] = []
+	for card in market:
+		card_ids.append(card.id)
+	return card_ids
+
+
+func get_market_candidates() -> Array[CardDefinition]:
+	var candidates: Array[CardDefinition] = []
+	for card_id in card_catalog:
+		if STARTING_CARD_COUNTS.has(card_id):
+			continue
+		candidates.append(card_catalog[card_id])
+	return candidates
+
+
+func _setup_random_market(previous_market_ids: Array[String]) -> bool:
+	var candidates := get_market_candidates()
+	if candidates.size() < MARKET_SIZE:
+		push_error(
+			"Not enough non-starter cards for a market of %d cards." % MARKET_SIZE
+		)
+		return false
+
+	candidates.shuffle()
+	var selected: Array[CardDefinition] = []
+	for index in range(MARKET_SIZE):
+		selected.append(candidates[index])
+
+	if _has_same_card_ids(selected, previous_market_ids):
+		for candidate in candidates:
+			if not previous_market_ids.has(candidate.id):
+				selected[MARKET_SIZE - 1] = candidate
+				break
+
+	market.assign(selected)
+	print("[Game] Market setup: %s" % ", ".join(get_market_card_ids()))
+	return true
+
+
+func _has_same_card_ids(cards: Array[CardDefinition], card_ids: Array[String]) -> bool:
+	if cards.size() != card_ids.size():
+		return false
+	for card in cards:
+		if not card_ids.has(card.id):
+			return false
 	return true
 
 

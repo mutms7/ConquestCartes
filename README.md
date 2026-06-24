@@ -18,7 +18,8 @@ The project targets a 1280x720 desktop window.
 - Plays resource and action cards from the hand
 - Tracks coins, actions, buys, deck size, discard size, and turn number
 - Buys affordable cards from a fixed shared market
-- Includes a 24-card data-driven catalog with 22 purchasable market cards
+- Includes a 24-card data-driven catalog and random six-card market
+- Starts a fresh shuffled deck and market from the New Game button
 - Discards the hand and play area at end of turn
 - Reshuffles the discard pile when the draw pile is empty
 - Ends after turn 15 and shows the total victory-point score

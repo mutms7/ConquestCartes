@@ -18,5 +18,5 @@ The game ends after turn 15. Final score is the total victory points on cards in
 
 - Desktop, 1280x720, 2D interface
 - One local player
-- Fixed shared market with unlimited prototype supply
+- Random six-card shared market with unlimited prototype supply
 - No AI opponent, multiplayer, campaign, card art, audio, or save system
