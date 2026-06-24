@@ -12,17 +12,67 @@ const HOVER_ANIMATION_SECONDS := 0.08
 const PREVIEW_SIZE := Vector2(300, 300)
 const PREVIEW_EDGE_MARGIN := 24.0
 
+const TITLE_FONT_PATH := "res://assets/fonts/Cinzel/static/Cinzel-SemiBold.ttf"
+const BODY_FONT_PATH := "res://assets/fonts/Inter/static/Inter_18pt-Regular.ttf"
+const PANEL_TEXTURE_PATH := (
+	"res://assets/imported/kenney_fantasy-ui-borders/"
+	+ "PNG/Double/Panel/panel-024.png"
+)
+const CARD_FRAME_TEXTURE_PATH := (
+	"res://assets/imported/kenney_fantasy-ui-borders/"
+	+ "PNG/Double/Panel/panel-006.png"
+)
+const BUTTON_TEXTURE_PATH := (
+	"res://assets/imported/kenney_fantasy-ui-borders/"
+	+ "PNG/Double/Panel/panel-010.png"
+)
+const ICON_BASE_PATH := (
+	"res://assets/imported/kenney_board-game-icons/PNG/Default (64px)/"
+)
+const ICON_PATHS := {
+	"coin": ICON_BASE_PATH + "dollar.png",
+	"action": ICON_BASE_PATH + "hand.png",
+	"buy": ICON_BASE_PATH + "pouch.png",
+	"deck": ICON_BASE_PATH + "cards_stack.png",
+	"discard": ICON_BASE_PATH + "cards_return.png",
+	"victory": ICON_BASE_PATH + "award.png",
+}
+const SOUND_PATHS := {
+	"button_click": "res://assets/audio/kenney_ui-audio/Audio/click3.ogg",
+	"hover": "res://assets/audio/kenney_ui-audio/Audio/rollover2.ogg",
+	"play_card": "res://assets/audio/kenney_interface-sounds/Audio/drop_001.ogg",
+	"buy_card": "res://assets/audio/kenney_interface-sounds/Audio/confirmation_001.ogg",
+	"end_turn": "res://assets/audio/kenney_interface-sounds/Audio/switch_003.ogg",
+}
+
 var game_state := GameState.new()
 var turn_manager := TurnManager.new()
+var title_font: Font
+var body_font: Font
+var panel_texture: Texture2D
+var card_frame_texture: Texture2D
+var button_texture: Texture2D
+var icon_textures: Dictionary = {}
+var ui_sound_players: Dictionary = {}
+var last_ui_sound_name: String = ""
 
 @onready var turn_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/TurnStat/Value
-@onready var deck_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/DeckStat/Value
-@onready var discard_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/DiscardStat/Value
-@onready var coin_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/CoinStat/Value
-@onready var action_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/ActionStat/Value
-@onready var buy_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/BuyStat/Value
+@onready var deck_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/DeckStat/ValueRow/Value
+@onready var discard_label: Label = (
+	$Margin/Layout/HudPanel/HudMargin/Hud/DiscardStat/ValueRow/Value
+)
+@onready var coin_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/CoinStat/ValueRow/Value
+@onready var action_label: Label = (
+	$Margin/Layout/HudPanel/HudMargin/Hud/ActionStat/ValueRow/Value
+)
+@onready var buy_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/BuyStat/ValueRow/Value
 @onready var new_game_button: Button = $Margin/Layout/HudPanel/HudMargin/Hud/NewGameButton
 @onready var end_turn_button: Button = $Margin/Layout/HudPanel/HudMargin/Hud/EndTurnButton
+@onready var hud_panel: PanelContainer = $Margin/Layout/HudPanel
+@onready var market_panel: PanelContainer = $Margin/Layout/MarketPanel
+@onready var status_panel: PanelContainer = $Margin/Layout/StatusPanel
+@onready var play_area_panel: PanelContainer = $Margin/Layout/PlayAreaPanel
+@onready var hand_panel: PanelContainer = $Margin/Layout/HandPanel
 @onready var market_container: HBoxContainer = (
 	$Margin/Layout/MarketPanel/MarketMargin/MarketScroll/MarketContainer
 )
@@ -46,6 +96,8 @@ var turn_manager := TurnManager.new()
 
 
 func _ready() -> void:
+	_load_optional_assets()
+	_apply_imported_theme()
 	new_game_button.pressed.connect(_on_new_game_pressed)
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
 	turn_manager.configure(game_state)
@@ -71,6 +123,132 @@ func _start_new_game(is_restart: bool) -> void:
 	else:
 		status_label.text = "Start by clicking a purple resource or action card in your hand."
 	_refresh_ui()
+
+
+func _load_optional_assets() -> void:
+	title_font = _load_optional_font(TITLE_FONT_PATH)
+	body_font = _load_optional_font(BODY_FONT_PATH)
+	panel_texture = _load_optional_texture(PANEL_TEXTURE_PATH)
+	card_frame_texture = _load_optional_texture(CARD_FRAME_TEXTURE_PATH)
+	button_texture = _load_optional_texture(BUTTON_TEXTURE_PATH)
+
+	for icon_name in ICON_PATHS:
+		var texture := _load_optional_texture(ICON_PATHS[icon_name])
+		if texture != null:
+			icon_textures[icon_name] = texture
+
+	for sound_name in SOUND_PATHS:
+		if not ResourceLoader.exists(SOUND_PATHS[sound_name]):
+			continue
+		var stream := load(SOUND_PATHS[sound_name]) as AudioStream
+		if stream == null:
+			continue
+		var player := AudioStreamPlayer.new()
+		player.name = "UISound_%s" % sound_name
+		player.stream = stream
+		player.volume_db = -9.0
+		add_child(player)
+		ui_sound_players[sound_name] = player
+
+
+func _load_optional_font(path: String) -> Font:
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as Font
+
+
+func _load_optional_texture(path: String) -> Texture2D:
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as Texture2D
+
+
+func _apply_imported_theme() -> void:
+	if body_font != null:
+		_apply_body_font_recursive(self)
+
+	if title_font != null:
+		var title_paths := [
+			"Margin/Layout/HudPanel/HudMargin/Hud/Brand/Title",
+			"Margin/Layout/MarketHeader/Title",
+			"Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row/PlayAreaLabel",
+			"Margin/Layout/HandHeader/Title",
+			"CardPreview/Margin/Layout/NameLabel",
+		]
+		for path in title_paths:
+			var label := get_node_or_null(path) as Label
+			if label != null:
+				label.add_theme_font_override("font", title_font)
+
+	if panel_texture != null:
+		hud_panel.add_theme_stylebox_override(
+			"panel",
+			_make_asset_style(panel_texture, Color("#19352a"), 24.0)
+		)
+		market_panel.add_theme_stylebox_override(
+			"panel",
+			_make_asset_style(panel_texture, Color("#152b24"), 24.0)
+		)
+		play_area_panel.add_theme_stylebox_override(
+			"panel",
+			_make_asset_style(panel_texture, Color("#152b24"), 24.0)
+		)
+		hand_panel.add_theme_stylebox_override(
+			"panel",
+			_make_asset_style(panel_texture, Color("#152b24"), 24.0)
+		)
+		status_panel.add_theme_stylebox_override(
+			"panel",
+			_make_asset_style(panel_texture, Color("#34452f"), 24.0)
+		)
+
+	if button_texture != null:
+		_apply_button_asset_styles(new_game_button, Color("#28433a"))
+		_apply_button_asset_styles(end_turn_button, Color("#6a4c20"))
+
+	_set_hud_icon("CoinStat", "coin", Color("#f6c95d"))
+	_set_hud_icon("ActionStat", "action", Color("#a9cdf8"))
+	_set_hud_icon("BuyStat", "buy", Color("#a8e0ad"))
+	_set_hud_icon("DeckStat", "deck", Color("#e6dfcb"))
+	_set_hud_icon("DiscardStat", "discard", Color("#c7bda9"))
+
+
+func _apply_body_font_recursive(node: Node) -> void:
+	if node is Label:
+		(node as Label).add_theme_font_override("font", body_font)
+	elif node is Button:
+		(node as Button).add_theme_font_override("font", body_font)
+	for child in node.get_children():
+		_apply_body_font_recursive(child)
+
+
+func _set_hud_icon(stat_name: String, icon_name: String, color: Color) -> void:
+	var icon := get_node_or_null(
+		"Margin/Layout/HudPanel/HudMargin/Hud/%s/ValueRow/Icon" % stat_name
+	) as TextureRect
+	if icon == null:
+		return
+	if not icon_textures.has(icon_name):
+		icon.hide()
+		return
+	icon.texture = icon_textures[icon_name]
+	icon.modulate = color
+	icon.show()
+
+
+func _apply_button_asset_styles(button: Button, base_color: Color) -> void:
+	button.add_theme_stylebox_override(
+		"normal",
+		_make_asset_style(button_texture, base_color, 20.0)
+	)
+	button.add_theme_stylebox_override(
+		"hover",
+		_make_asset_style(button_texture, base_color.lightened(0.12), 20.0)
+	)
+	button.add_theme_stylebox_override(
+		"pressed",
+		_make_asset_style(button_texture, base_color.darkened(0.12), 20.0)
+	)
 
 
 func _refresh_ui() -> void:
@@ -249,15 +427,49 @@ func _create_card_button(
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.add_theme_color_override("font_color", palette.text)
 	name_label.add_theme_font_size_override("font_size", 19)
+	if title_font != null:
+		name_label.add_theme_font_override("font", title_font)
 	layout.add_child(name_label)
 
-	var meta_label := Label.new()
-	meta_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	meta_label.text = "%s  •  COST %d" % [card.card_type.to_upper(), card.cost]
-	meta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	meta_label.add_theme_color_override("font_color", palette.muted)
-	meta_label.add_theme_font_size_override("font_size", 12)
-	layout.add_child(meta_label)
+	var meta_row := HBoxContainer.new()
+	meta_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	meta_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	meta_row.add_theme_constant_override("separation", 4)
+	layout.add_child(meta_row)
+
+	var type_label := Label.new()
+	type_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	type_label.text = card.card_type.to_upper()
+	type_label.add_theme_color_override("font_color", palette.muted)
+	type_label.add_theme_font_size_override("font_size", 12)
+	if body_font != null:
+		type_label.add_theme_font_override("font", body_font)
+	meta_row.add_child(type_label)
+
+	if icon_textures.has("coin"):
+		meta_row.add_child(_create_icon(icon_textures["coin"], Vector2(14, 14), palette.muted))
+		var cost_label := Label.new()
+		cost_label.text = str(card.cost)
+		cost_label.add_theme_color_override("font_color", palette.muted)
+		cost_label.add_theme_font_size_override("font_size", 12)
+		if body_font != null:
+			cost_label.add_theme_font_override("font", body_font)
+		meta_row.add_child(cost_label)
+	else:
+		type_label.text += "  |  COST %d" % card.cost
+
+	if card.victory_points > 0:
+		if icon_textures.has("victory"):
+			meta_row.add_child(
+				_create_icon(icon_textures["victory"], Vector2(14, 14), Color("#e9d083"))
+			)
+		var victory_label := Label.new()
+		victory_label.text = "%d VP" % card.victory_points
+		victory_label.add_theme_color_override("font_color", Color("#e9d083"))
+		victory_label.add_theme_font_size_override("font_size", 12)
+		if body_font != null:
+			victory_label.add_theme_font_override("font", body_font)
+		meta_row.add_child(victory_label)
 
 	var separator := HSeparator.new()
 	separator.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -272,8 +484,21 @@ func _create_card_button(
 	description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	description_label.add_theme_color_override("font_color", palette.text)
 	description_label.add_theme_font_size_override("font_size", 13)
+	if body_font != null:
+		description_label.add_theme_font_override("font", body_font)
 	layout.add_child(description_label)
 	return button
+
+
+func _create_icon(texture: Texture2D, size: Vector2, color: Color) -> TextureRect:
+	var icon := TextureRect.new()
+	icon.custom_minimum_size = size
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.texture = texture
+	icon.modulate = color
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	return icon
 
 
 func _update_card_pivot(button: Button) -> void:
@@ -286,6 +511,7 @@ func _on_card_mouse_entered(
 	visual_state: String,
 	status_text: String
 ) -> void:
+	_play_ui_sound("hover")
 	_animate_card_scale(button, CARD_HOVER_SCALE)
 	button.z_index = 10
 	_show_card_preview(card, button, visual_state, status_text)
@@ -325,7 +551,9 @@ func _show_card_preview(
 	preview_location_label.text = "MARKET PREVIEW" if is_market_card else "HAND PREVIEW"
 	preview_state_label.text = status_text
 	preview_name_label.text = card.card_name
-	preview_meta_label.text = "%s  •  COST %d" % [card.card_type.to_upper(), card.cost]
+	preview_meta_label.text = "%s  |  COST %d" % [card.card_type.to_upper(), card.cost]
+	if card.victory_points > 0:
+		preview_meta_label.text += "  |  %d VP" % card.victory_points
 	preview_description_label.text = card.description
 	preview_state_label.add_theme_color_override("font_color", palette.status)
 	card_preview.add_theme_stylebox_override(
@@ -413,7 +641,17 @@ func _get_card_palette(visual_state: String) -> Dictionary:
 			}
 
 
-func _make_card_style(color: Color, border_color: Color, border_width: int) -> StyleBoxFlat:
+func _make_card_style(color: Color, border_color: Color, border_width: int) -> StyleBox:
+	if card_frame_texture != null:
+		return _make_asset_style(card_frame_texture, color, 22.0)
+	return _make_flat_card_style(color, border_color, border_width)
+
+
+func _make_flat_card_style(
+	color: Color,
+	border_color: Color,
+	border_width: int
+) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = color
 	style.border_color = border_color
@@ -424,12 +662,42 @@ func _make_card_style(color: Color, border_color: Color, border_width: int) -> S
 	return style
 
 
-func _make_preview_style(color: Color, border_color: Color) -> StyleBoxFlat:
-	var style := _make_card_style(color.darkened(0.08), border_color.lightened(0.1), 3)
+func _make_preview_style(color: Color, border_color: Color) -> StyleBox:
+	if panel_texture != null:
+		return _make_asset_style(panel_texture, color.darkened(0.08), 24.0)
+	var style := _make_flat_card_style(
+		color.darkened(0.08),
+		border_color.lightened(0.1),
+		3
+	)
 	style.set_corner_radius_all(12)
 	style.shadow_color = Color(0, 0, 0, 0.65)
 	style.shadow_size = 16
 	return style
+
+
+func _make_asset_style(texture: Texture2D, color: Color, margin: float) -> StyleBoxTexture:
+	var style := StyleBoxTexture.new()
+	style.texture = texture
+	style.modulate_color = color
+	style.texture_margin_left = margin
+	style.texture_margin_top = margin
+	style.texture_margin_right = margin
+	style.texture_margin_bottom = margin
+	style.content_margin_left = 10.0
+	style.content_margin_top = 8.0
+	style.content_margin_right = 10.0
+	style.content_margin_bottom = 8.0
+	return style
+
+
+func _play_ui_sound(sound_name: String) -> void:
+	if not ui_sound_players.has(sound_name):
+		return
+	var player: AudioStreamPlayer = ui_sound_players[sound_name]
+	last_ui_sound_name = sound_name
+	player.stop()
+	player.play()
 
 
 func _clear_container(container: Container) -> void:
@@ -440,6 +708,7 @@ func _clear_container(container: Container) -> void:
 
 func _on_hand_card_pressed(card: CardDefinition) -> void:
 	if game_state.play_card(card):
+		_play_ui_sound("play_card")
 		status_label.text = "Played %s. Its effects have been applied." % card.card_name
 	else:
 		status_label.text = "That card cannot be played right now."
@@ -448,6 +717,7 @@ func _on_hand_card_pressed(card: CardDefinition) -> void:
 
 func _on_market_card_pressed(card: CardDefinition) -> void:
 	if game_state.buy_card(card):
+		_play_ui_sound("buy_card")
 		status_label.text = "Bought %s. It is now in your discard pile." % card.card_name
 	else:
 		status_label.text = "That card requires enough coins and an available buy."
@@ -455,6 +725,7 @@ func _on_market_card_pressed(card: CardDefinition) -> void:
 
 
 func _on_end_turn_pressed() -> void:
+	_play_ui_sound("end_turn")
 	turn_manager.end_turn()
 	if turn_manager.game_over:
 		status_label.text = "Game complete — final score: %d victory points." % turn_manager.final_score
@@ -466,4 +737,5 @@ func _on_end_turn_pressed() -> void:
 
 
 func _on_new_game_pressed() -> void:
+	_play_ui_sound("button_click")
 	_start_new_game(true)

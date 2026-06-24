@@ -197,10 +197,22 @@ theme_override_font_sizes/font_size = 11
 text = "COINS"
 horizontal_alignment = 1
 
-[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/CoinStat"]
+[node name="ValueRow" type="HBoxContainer" parent="Margin/Layout/HudPanel/HudMargin/Hud/CoinStat"]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="Icon" type="TextureRect" parent="Margin/Layout/HudPanel/HudMargin/Hud/CoinStat/ValueRow"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 3
+stretch_mode = 5
+
+[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/CoinStat/ValueRow"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.996078, 0.792157, 0.298039, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 19
 text = "0"
 horizontal_alignment = 1
 
@@ -216,10 +228,22 @@ theme_override_font_sizes/font_size = 11
 text = "ACTIONS"
 horizontal_alignment = 1
 
-[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/ActionStat"]
+[node name="ValueRow" type="HBoxContainer" parent="Margin/Layout/HudPanel/HudMargin/Hud/ActionStat"]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="Icon" type="TextureRect" parent="Margin/Layout/HudPanel/HudMargin/Hud/ActionStat/ValueRow"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 3
+stretch_mode = 5
+
+[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/ActionStat/ValueRow"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.690196, 0.823529, 1, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 19
 text = "1"
 horizontal_alignment = 1
 
@@ -235,10 +259,22 @@ theme_override_font_sizes/font_size = 11
 text = "BUYS"
 horizontal_alignment = 1
 
-[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/BuyStat"]
+[node name="ValueRow" type="HBoxContainer" parent="Margin/Layout/HudPanel/HudMargin/Hud/BuyStat"]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="Icon" type="TextureRect" parent="Margin/Layout/HudPanel/HudMargin/Hud/BuyStat/ValueRow"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 3
+stretch_mode = 5
+
+[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/BuyStat/ValueRow"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.658824, 0.941176, 0.690196, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 19
 text = "1"
 horizontal_alignment = 1
 
@@ -257,9 +293,21 @@ theme_override_font_sizes/font_size = 11
 text = "DECK"
 horizontal_alignment = 1
 
-[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/DeckStat"]
+[node name="ValueRow" type="HBoxContainer" parent="Margin/Layout/HudPanel/HudMargin/Hud/DeckStat"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="Icon" type="TextureRect" parent="Margin/Layout/HudPanel/HudMargin/Hud/DeckStat/ValueRow"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 3
+stretch_mode = 5
+
+[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/DeckStat/ValueRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
 text = "0"
 horizontal_alignment = 1
 
@@ -275,9 +323,21 @@ theme_override_font_sizes/font_size = 11
 text = "DISCARD"
 horizontal_alignment = 1
 
-[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/DiscardStat"]
+[node name="ValueRow" type="HBoxContainer" parent="Margin/Layout/HudPanel/HudMargin/Hud/DiscardStat"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="Icon" type="TextureRect" parent="Margin/Layout/HudPanel/HudMargin/Hud/DiscardStat/ValueRow"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 3
+stretch_mode = 5
+
+[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/DiscardStat/ValueRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
 text = "0"
 horizontal_alignment = 1
 

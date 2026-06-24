@@ -17,14 +17,21 @@ func _initialize() -> void:
 		"Market should render six randomly selected cards."
 	)
 	_check(_play_area_container().get_child_count() == 1, "Empty play area should show its hint.")
+	_check(main_ui.title_font != null, "Imported title font should load.")
+	_check(main_ui.body_font != null, "Imported body font should load.")
+	_check(_hud_icon("CoinStat").texture != null, "Coin HUD icon should load.")
+	_check(_hud_icon("ActionStat").texture != null, "Action HUD icon should load.")
+	_check(_hud_icon("BuyStat").texture != null, "Buy HUD icon should load.")
+	_check(main_ui.ui_sound_players.size() == 5, "All configured UI sounds should load.")
 
 	var resource_button := _find_card_button(_hand_container(), "pebble_coin")
 	_check(resource_button != null, "A Pebble Coin button should render in hand.")
 	if resource_button != null:
 		_check(not resource_button.disabled, "A resource card should be visibly playable.")
 		resource_button.mouse_entered.emit()
-		await create_timer(0.1).timeout
+		await create_timer(0.2).timeout
 		_check(_card_preview().visible, "Hovering a hand card should show its preview.")
+		_check(main_ui.last_ui_sound_name == "hover", "Card hover should trigger its UI sound.")
 		_check(
 			_preview_name_label().text == "Pebble Coin",
 			"Hand preview should show the hovered card name."
@@ -38,6 +45,7 @@ func _initialize() -> void:
 		_check(not _card_preview().visible, "Leaving a hand card should hide its preview.")
 		resource_button.pressed.emit()
 		await process_frame
+		_check(main_ui.last_ui_sound_name == "play_card", "Playing a card should trigger its sound.")
 		_check(_hud_value("CoinStat") == "1", "Coin HUD should update after playing a resource.")
 		_check(_hand_container().get_child_count() == 4, "Played card should leave the hand UI.")
 		_check(_play_area_container().get_child_count() == 1, "Played card should render in play area.")
@@ -65,6 +73,7 @@ func _initialize() -> void:
 		var discard_before: int = main_ui.game_state.player.discard_pile.size()
 		market_button.pressed.emit()
 		await process_frame
+		_check(main_ui.last_ui_sound_name == "buy_card", "Buying a card should trigger its sound.")
 		_check(
 			main_ui.game_state.player.discard_pile.size() == discard_before + 1,
 			"Bought card should enter discard."
@@ -75,6 +84,7 @@ func _initialize() -> void:
 
 	_end_turn_button().pressed.emit()
 	await process_frame
+	_check(main_ui.last_ui_sound_name == "end_turn", "Ending a turn should trigger its sound.")
 	_check(_hand_container().get_child_count() == 5, "End turn should render a new five-card hand.")
 	_check(_hud_value("CoinStat") == "0", "Coin HUD should reset at end of turn.")
 	_check(_hud_value("ActionStat") == "1", "Action HUD should reset at end of turn.")
@@ -89,6 +99,7 @@ func _initialize() -> void:
 	main_ui.game_state.player.discard_pile.append(main_ui.game_state.card_catalog["silver_leaf"])
 	_new_game_button().pressed.emit()
 	await process_frame
+	_check(main_ui.last_ui_sound_name == "button_click", "New Game should trigger a button sound.")
 	var market_after_restart: Array[String] = main_ui.game_state.get_market_card_ids()
 	_check(
 		not _same_card_ids(market_before_restart, market_after_restart),
@@ -108,10 +119,18 @@ func _initialize() -> void:
 
 	if failure_count > 0:
 		push_error("[Test] UI smoke test failed with %d issue(s)." % failure_count)
+		_cleanup_main_ui()
+		await process_frame
+		await process_frame
+		await create_timer(0.1).timeout
 		quit(1)
 		return
 
 	print("[Test] UI smoke test passed.")
+	_cleanup_main_ui()
+	await process_frame
+	await process_frame
+	await create_timer(0.1).timeout
 	quit(0)
 
 
@@ -148,10 +167,17 @@ func _preview_name_label() -> Label:
 
 
 func _hud_value(stat_name: String) -> String:
-	var label: Label = main_ui.get_node(
-		"Margin/Layout/HudPanel/HudMargin/Hud/%s/Value" % stat_name
+	var stat: Control = main_ui.get_node(
+		"Margin/Layout/HudPanel/HudMargin/Hud/%s" % stat_name
 	)
+	var label := stat.find_child("Value", true, false) as Label
 	return label.text
+
+
+func _hud_icon(stat_name: String) -> TextureRect:
+	return main_ui.get_node(
+		"Margin/Layout/HudPanel/HudMargin/Hud/%s/ValueRow/Icon" % stat_name
+	)
 
 
 func _find_card_button(container: Container, card_id: String) -> Button:
@@ -168,6 +194,13 @@ func _same_card_ids(first: Array[String], second: Array[String]) -> bool:
 		if not second.has(card_id):
 			return false
 	return true
+
+
+func _cleanup_main_ui() -> void:
+	for player in main_ui.ui_sound_players.values():
+		(player as AudioStreamPlayer).stop()
+	main_ui.free()
+	main_ui = null
 
 
 func _check(condition: bool, message: String) -> void:

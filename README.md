@@ -34,13 +34,15 @@ Asset provenance is tracked in `assets/licenses/ASSET_SOURCES.md`.
 - Reshuffles the discard pile when the draw pile is empty
 - Ends after turn 15 and shows the total victory-point score
 - Loads all card definitions and numerical effects from JSON
+- Uses imported Kenney UI borders, board-game icons, and UI sound effects
+- Uses Cinzel for card titles and Inter for body text, with built-in fallbacks
 - Prints game events to the Godot output for debugging
 - Includes a headless rules smoke test in `tests/smoke_test.gd`
 
 ## Known Limitations
 
 - The market has unlimited copies of each card.
-- There is no opponent, campaign, multiplayer, save system, audio, or finished art.
+- There is no opponent, campaign, multiplayer, save system, music, or finished card art.
 - Card effects are limited to the numerical fields in the starter data schema.
 - There are no animations, card inspection view, settings, or accessibility options yet.
 - The smoke test covers the main loop, but detailed unit tests are not included yet.
