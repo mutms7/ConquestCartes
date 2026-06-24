@@ -11,6 +11,16 @@ An original, single-player Godot 4 deck-building prototype with placeholder tabl
 
 The project targets a 1280x720 desktop window.
 
+## Asset Organization
+
+- `assets/raw/` stores original downloaded packs and source artifacts.
+- `assets/imported/` stores usable imported visual assets.
+- `assets/audio/` stores sound and music files.
+- `assets/fonts/` stores font files.
+- `assets/licenses/` stores license, source, credit, and attribution notes.
+
+Asset provenance is tracked in `assets/licenses/ASSET_SOURCES.md`.
+
 ## Current Prototype
 
 - Starts with seven Pebble Coin cards and three Homestead cards
