@@ -1,6 +1,90 @@
-[gd_scene load_steps=2 format=3 uid="uid://155xx7s6y6ta"]
+[gd_scene load_steps=7 format=3 uid="uid://155xx7s6y6ta"]
 
 [ext_resource type="Script" path="res://scripts/ui/main_ui.gd" id="1_main_ui"]
+
+[sub_resource type="StyleBoxFlat" id="StyleHud"]
+bg_color = Color(0.0980392, 0.145098, 0.137255, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.352941, 0.478431, 0.411765, 0.7)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleSection"]
+bg_color = Color(0.0745098, 0.109804, 0.105882, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.278431, 0.376471, 0.329412, 0.65)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleStatus"]
+bg_color = Color(0.156863, 0.211765, 0.184314, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.572549, 0.631373, 0.419608, 0.8)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleButton"]
+bg_color = Color(0.345098, 0.258824, 0.145098, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.886275, 0.752941, 0.415686, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 16.0
+content_margin_top = 8.0
+content_margin_right = 16.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxFlat" id="StyleButtonHover"]
+bg_color = Color(0.431373, 0.329412, 0.184314, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.870588, 0.552941, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 16.0
+content_margin_top = 8.0
+content_margin_right = 16.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxFlat" id="StyleButtonPressed"]
+bg_color = Color(0.247059, 0.184314, 0.101961, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.827451, 0.67451, 0.352941, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 16.0
+content_margin_top = 8.0
+content_margin_right = 16.0
+content_margin_bottom = 8.0
 
 [node name="Main" type="Control"]
 layout_mode = 3
@@ -19,7 +103,16 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.105882, 0.14902, 0.137255, 1)
+color = Color(0.0431373, 0.0705882, 0.0666667, 1)
+
+[node name="TableGlow" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 330.0
+grow_horizontal = 2
+mouse_filter = 2
+color = Color(0.0941176, 0.160784, 0.137255, 0.55)
 
 [node name="Margin" type="MarginContainer" parent="."]
 layout_mode = 1
@@ -28,106 +121,323 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 28
-theme_override_constants/margin_top = 22
-theme_override_constants/margin_right = 28
-theme_override_constants/margin_bottom = 22
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 16
 
 [node name="Layout" type="VBoxContainer" parent="Margin"]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 
-[node name="StatsBar" type="HBoxContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 42)
+[node name="HudPanel" type="PanelContainer" parent="Margin/Layout"]
+custom_minimum_size = Vector2(0, 66)
 layout_mode = 2
-theme_override_constants/separation = 22
+theme_override_styles/panel = SubResource("StyleHud")
 
-[node name="TurnLabel" type="Label" parent="Margin/Layout/StatsBar"]
+[node name="HudMargin" type="MarginContainer" parent="Margin/Layout/HudPanel"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.941176, 0.901961, 0.741176, 1)
-theme_override_font_sizes/font_size = 20
-text = "Turn: 1/15"
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
 
-[node name="DeckLabel" type="Label" parent="Margin/Layout/StatsBar"]
+[node name="Hud" type="HBoxContainer" parent="Margin/Layout/HudPanel/HudMargin"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "Deck: 0"
+theme_override_constants/separation = 16
 
-[node name="DiscardLabel" type="Label" parent="Margin/Layout/StatsBar"]
+[node name="Brand" type="VBoxContainer" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
+custom_minimum_size = Vector2(205, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "Discard: 0"
+theme_override_constants/separation = 0
 
-[node name="CoinLabel" type="Label" parent="Margin/Layout/StatsBar"]
+[node name="Title" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/Brand"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "Coins: 0"
+theme_override_colors/font_color = Color(0.956863, 0.870588, 0.635294, 1)
+theme_override_font_sizes/font_size = 22
+text = "CONQUEST CARTES"
 
-[node name="ActionLabel" type="Label" parent="Margin/Layout/StatsBar"]
+[node name="Subtitle" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/Brand"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "Actions: 1"
+theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
+theme_override_font_sizes/font_size = 12
+text = "Cozy deck-builder prototype"
 
-[node name="BuyLabel" type="Label" parent="Margin/Layout/StatsBar"]
+[node name="Divider" type="VSeparator" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "Buys: 1"
 
-[node name="Spacer" type="Control" parent="Margin/Layout/StatsBar"]
+[node name="TurnStat" type="VBoxContainer" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
+custom_minimum_size = Vector2(92, 0)
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Title" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/TurnStat"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
+theme_override_font_sizes/font_size = 11
+text = "TURN"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/TurnStat"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.956863, 0.870588, 0.635294, 1)
+theme_override_font_sizes/font_size = 22
+text = "1 / 15"
+horizontal_alignment = 1
+
+[node name="CoinStat" type="VBoxContainer" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
+custom_minimum_size = Vector2(78, 0)
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Title" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/CoinStat"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
+theme_override_font_sizes/font_size = 11
+text = "COINS"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/CoinStat"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.996078, 0.792157, 0.298039, 1)
+theme_override_font_sizes/font_size = 22
+text = "0"
+horizontal_alignment = 1
+
+[node name="ActionStat" type="VBoxContainer" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
+custom_minimum_size = Vector2(78, 0)
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Title" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/ActionStat"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
+theme_override_font_sizes/font_size = 11
+text = "ACTIONS"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/ActionStat"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.690196, 0.823529, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "1"
+horizontal_alignment = 1
+
+[node name="BuyStat" type="VBoxContainer" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Title" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/BuyStat"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
+theme_override_font_sizes/font_size = 11
+text = "BUYS"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/BuyStat"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.658824, 0.941176, 0.690196, 1)
+theme_override_font_sizes/font_size = 22
+text = "1"
+horizontal_alignment = 1
+
+[node name="ZoneDivider" type="VSeparator" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
+layout_mode = 2
+
+[node name="DeckStat" type="VBoxContainer" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
+custom_minimum_size = Vector2(76, 0)
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Title" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/DeckStat"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
+theme_override_font_sizes/font_size = 11
+text = "DECK"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/DeckStat"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "0"
+horizontal_alignment = 1
+
+[node name="DiscardStat" type="VBoxContainer" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
+custom_minimum_size = Vector2(82, 0)
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Title" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/DiscardStat"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
+theme_override_font_sizes/font_size = 11
+text = "DISCARD"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/DiscardStat"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "0"
+horizontal_alignment = 1
+
+[node name="Spacer" type="Control" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="EndTurnButton" type="Button" parent="Margin/Layout/StatsBar"]
-custom_minimum_size = Vector2(130, 38)
+[node name="EndTurnButton" type="Button" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
+custom_minimum_size = Vector2(136, 44)
 layout_mode = 2
 mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(1, 0.929412, 0.741176, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(1, 0.929412, 0.741176, 1)
 theme_override_font_sizes/font_size = 17
-text = "End Turn"
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+text = "END TURN"
 
-[node name="MarketTitle" type="Label" parent="Margin/Layout"]
+[node name="MarketHeader" type="HBoxContainer" parent="Margin/Layout"]
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.941176, 0.901961, 0.741176, 1)
-theme_override_font_sizes/font_size = 22
-text = "Shared Market"
-horizontal_alignment = 1
 
-[node name="MarketScroll" type="ScrollContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 180)
+[node name="Title" type="Label" parent="Margin/Layout/MarketHeader"]
 layout_mode = 2
-size_flags_vertical = 3
-horizontal_scroll_mode = 2
+theme_override_colors/font_color = Color(0.956863, 0.870588, 0.635294, 1)
+theme_override_font_sizes/font_size = 19
+text = "SHARED MARKET"
+
+[node name="Spacer" type="Control" parent="Margin/Layout/MarketHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Hint" type="Label" parent="Margin/Layout/MarketHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
+theme_override_font_sizes/font_size = 13
+text = "Green cards are affordable  •  Bought cards go to discard"
+
+[node name="MarketPanel" type="PanelContainer" parent="Margin/Layout"]
+custom_minimum_size = Vector2(0, 190)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleSection")
+
+[node name="MarketMargin" type="MarginContainer" parent="Margin/Layout/MarketPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 9
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 9
+
+[node name="MarketScroll" type="ScrollContainer" parent="Margin/Layout/MarketPanel/MarketMargin"]
+layout_mode = 2
+horizontal_scroll_mode = 1
 vertical_scroll_mode = 0
 
-[node name="MarketContainer" type="HBoxContainer" parent="Margin/Layout/MarketScroll"]
+[node name="MarketContainer" type="HBoxContainer" parent="Margin/Layout/MarketPanel/MarketMargin/MarketScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 10
 alignment = 1
 
-[node name="StatusLabel" type="Label" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 34)
+[node name="StatusPanel" type="PanelContainer" parent="Margin/Layout"]
+custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.803922, 0.858824, 0.752941, 1)
-theme_override_font_sizes/font_size = 17
+theme_override_styles/panel = SubResource("StyleStatus")
+
+[node name="StatusLabel" type="Label" parent="Margin/Layout/StatusPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92549, 0.933333, 0.803922, 1)
+theme_override_font_sizes/font_size = 15
 text = "Preparing the table..."
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="HandTitle" type="Label" parent="Margin/Layout"]
+[node name="PlayAreaPanel" type="PanelContainer" parent="Margin/Layout"]
+custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.941176, 0.901961, 0.741176, 1)
-theme_override_font_sizes/font_size = 22
-text = "Your Hand"
-horizontal_alignment = 1
+theme_override_styles/panel = SubResource("StyleSection")
 
-[node name="HandScroll" type="ScrollContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 180)
+[node name="PlayAreaMargin" type="MarginContainer" parent="Margin/Layout/PlayAreaPanel"]
 layout_mode = 2
-size_flags_vertical = 3
-horizontal_scroll_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 8
+
+[node name="Row" type="HBoxContainer" parent="Margin/Layout/PlayAreaPanel/PlayAreaMargin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="PlayAreaLabel" type="Label" parent="Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row"]
+custom_minimum_size = Vector2(170, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.956863, 0.870588, 0.635294, 1)
+theme_override_font_sizes/font_size = 16
+text = "PLAYED THIS TURN  0"
+vertical_alignment = 1
+
+[node name="Divider" type="VSeparator" parent="Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row"]
+layout_mode = 2
+
+[node name="PlayAreaScroll" type="ScrollContainer" parent="Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_scroll_mode = 1
 vertical_scroll_mode = 0
 
-[node name="HandContainer" type="HBoxContainer" parent="Margin/Layout/HandScroll"]
+[node name="PlayAreaContainer" type="HBoxContainer" parent="Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row/PlayAreaScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="HandHeader" type="HBoxContainer" parent="Margin/Layout"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Margin/Layout/HandHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.956863, 0.870588, 0.635294, 1)
+theme_override_font_sizes/font_size = 19
+text = "YOUR HAND"
+
+[node name="HandCount" type="Label" parent="Margin/Layout/HandHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
+theme_override_font_sizes/font_size = 14
+text = "5 cards"
+vertical_alignment = 1
+
+[node name="Spacer" type="Control" parent="Margin/Layout/HandHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Hint" type="Label" parent="Margin/Layout/HandHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
+theme_override_font_sizes/font_size = 13
+text = "Purple cards can be played  •  Dim cards are unavailable"
+
+[node name="HandPanel" type="PanelContainer" parent="Margin/Layout"]
+custom_minimum_size = Vector2(0, 194)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleSection")
+
+[node name="HandMargin" type="MarginContainer" parent="Margin/Layout/HandPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 9
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 9
+
+[node name="HandScroll" type="ScrollContainer" parent="Margin/Layout/HandPanel/HandMargin"]
+layout_mode = 2
+horizontal_scroll_mode = 1
+vertical_scroll_mode = 0
+
+[node name="HandContainer" type="HBoxContainer" parent="Margin/Layout/HandPanel/HandMargin/HandScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 10
