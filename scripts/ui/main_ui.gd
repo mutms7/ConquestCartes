@@ -62,6 +62,7 @@ var icon_textures: Dictionary = {}
 var ui_sound_players: Dictionary = {}
 var last_ui_sound_name: String = ""
 var last_animation_event: String = ""
+var card_art_cache: Dictionary = {}
 
 @onready var turn_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/TurnStat/Value
 @onready var deck_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/DeckStat/ValueRow/Value
@@ -406,7 +407,7 @@ func _create_card_button(
 ) -> Button:
 	var palette := _get_card_palette(visual_state)
 	var button := Button.new()
-	button.custom_minimum_size = Vector2(184, 170)
+	button.custom_minimum_size = Vector2(184, 180)
 	button.focus_mode = Control.FOCUS_ALL
 	button.set_meta("card_id", card.id)
 	button.set_meta("visual_state", visual_state)
@@ -461,17 +462,56 @@ func _create_card_button(
 
 	var name_label := Label.new()
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	name_label.custom_minimum_size = Vector2(0, 40)
 	name_label.text = card.card_name
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.add_theme_color_override("font_color", palette.text)
-	name_label.add_theme_font_size_override("font_size", 19)
+	name_label.add_theme_font_size_override("font_size", 17)
 	if title_font != null:
 		name_label.add_theme_font_override("font", title_font)
 	layout.add_child(name_label)
 
+	# Card art window: the picture sits in a framed box, like a tabletop card.
+	var art_texture := _load_card_texture(card.id)
+	if art_texture != null:
+		var art_frame := PanelContainer.new()
+		art_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		art_frame.clip_contents = true
+		art_frame.custom_minimum_size = Vector2(0, 46)
+		art_frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		art_frame.add_theme_stylebox_override(
+			"panel",
+			_make_flat_card_style(Color("#15121d"), palette.border, 1)
+		)
+		var art_rect := TextureRect.new()
+		art_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		art_rect.texture = art_texture
+		art_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		art_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		art_rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		art_rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		art_frame.add_child(art_rect)
+		layout.add_child(art_frame)
+
+	var separator := HSeparator.new()
+	separator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layout.add_child(separator)
+
+	# Rules text sits below the art.
+	var description_label := Label.new()
+	description_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	description_label.text = card.description
+	description_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	description_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	description_label.add_theme_color_override("font_color", palette.text)
+	description_label.add_theme_font_size_override("font_size", 12)
+	if body_font != null:
+		description_label.add_theme_font_override("font", body_font)
+	layout.add_child(description_label)
+
+	# Footer: cost and type along the bottom edge.
 	var meta_row := HBoxContainer.new()
 	meta_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	meta_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -512,22 +552,6 @@ func _create_card_button(
 			victory_label.add_theme_font_override("font", body_font)
 		meta_row.add_child(victory_label)
 
-	var separator := HSeparator.new()
-	separator.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layout.add_child(separator)
-
-	var description_label := Label.new()
-	description_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	description_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	description_label.text = card.description
-	description_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	description_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	description_label.add_theme_color_override("font_color", palette.text)
-	description_label.add_theme_font_size_override("font_size", 13)
-	if body_font != null:
-		description_label.add_theme_font_override("font", body_font)
-	layout.add_child(description_label)
 	return button
 
 
@@ -540,6 +564,21 @@ func _create_icon(texture: Texture2D, size: Vector2, color: Color) -> TextureRec
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	return icon
+
+
+func _load_card_texture(card_id: String) -> Texture2D:
+	if card_art_cache.has(card_id):
+		return card_art_cache[card_id]
+	var path := "res://assets/cards/%s.png" % card_id
+	var texture: Texture2D = null
+	if ResourceLoader.exists(path):
+		texture = load(path) as Texture2D
+	elif FileAccess.file_exists(path):
+		var image := Image.new()
+		if image.load(path) == OK:
+			texture = ImageTexture.create_from_image(image)
+	card_art_cache[card_id] = texture
+	return texture
 
 
 func _update_card_pivot(button: Button) -> void:

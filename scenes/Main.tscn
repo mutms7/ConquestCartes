@@ -402,7 +402,7 @@ theme_override_font_sizes/font_size = 13
 text = "Green cards are affordable  •  Bought cards go to discard"
 
 [node name="MarketPanel" type="PanelContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 190)
+custom_minimum_size = Vector2(0, 214)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleSection")
 
@@ -425,7 +425,7 @@ theme_override_constants/separation = 10
 alignment = 1
 
 [node name="StatusPanel" type="PanelContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 42)
+custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleStatus")
 
@@ -503,7 +503,7 @@ theme_override_font_sizes/font_size = 13
 text = "Purple cards can be played  •  Dim cards are unavailable"
 
 [node name="HandPanel" type="PanelContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 194)
+custom_minimum_size = Vector2(0, 214)
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_styles/panel = SubResource("StyleSection")
