@@ -36,6 +36,7 @@ Asset provenance is tracked in `assets/licenses/ASSET_SOURCES.md`.
 - Loads all card definitions and numerical effects from JSON
 - Uses imported Kenney UI borders, board-game icons, and UI sound effects
 - Uses Cinzel for card titles and Inter for body text, with built-in fallbacks
+- Animates card play, purchases, cleanup, drawing, and final scoring
 - Prints game events to the Godot output for debugging
 - Includes a headless rules smoke test in `tests/smoke_test.gd`
 
@@ -44,7 +45,7 @@ Asset provenance is tracked in `assets/licenses/ASSET_SOURCES.md`.
 - The market has unlimited copies of each card.
 - There is no opponent, campaign, multiplayer, save system, music, or finished card art.
 - Card effects are limited to the numerical fields in the starter data schema.
-- There are no animations, card inspection view, settings, or accessibility options yet.
+- There are no settings or accessibility options yet.
 - The smoke test covers the main loop, but detailed unit tests are not included yet.
 
 ## Suggested Next Steps

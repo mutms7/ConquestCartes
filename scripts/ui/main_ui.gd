@@ -9,6 +9,9 @@ const MARKET_UNAFFORDABLE := "market_unaffordable"
 const CARD_HOVER_SCALE := Vector2(1.025, 1.025)
 const CARD_NORMAL_SCALE := Vector2.ONE
 const HOVER_ANIMATION_SECONDS := 0.08
+const CARD_MOVE_SECONDS := 0.18
+const CARD_DRAW_SECONDS := 0.16
+const CLEANUP_SECONDS := 0.2
 const PREVIEW_SIZE := Vector2(300, 300)
 const PREVIEW_EDGE_MARGIN := 24.0
 
@@ -43,6 +46,9 @@ const SOUND_PATHS := {
 	"play_card": "res://assets/audio/kenney_interface-sounds/Audio/drop_001.ogg",
 	"buy_card": "res://assets/audio/kenney_interface-sounds/Audio/confirmation_001.ogg",
 	"end_turn": "res://assets/audio/kenney_interface-sounds/Audio/switch_003.ogg",
+	"draw": "res://assets/audio/kenney_interface-sounds/Audio/open_002.ogg",
+	"discard": "res://assets/audio/kenney_interface-sounds/Audio/close_002.ogg",
+	"game_end": "res://assets/audio/kenney_interface-sounds/Audio/confirmation_004.ogg",
 }
 
 var game_state := GameState.new()
@@ -55,6 +61,7 @@ var button_texture: Texture2D
 var icon_textures: Dictionary = {}
 var ui_sound_players: Dictionary = {}
 var last_ui_sound_name: String = ""
+var last_animation_event: String = ""
 
 @onready var turn_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/TurnStat/Value
 @onready var deck_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/DeckStat/ValueRow/Value
@@ -87,6 +94,18 @@ var last_ui_sound_name: String = ""
 @onready var hand_container: HBoxContainer = (
 	$Margin/Layout/HandPanel/HandMargin/HandScroll/HandContainer
 )
+@onready var animation_layer: Control = $AnimationLayer
+@onready var end_game_overlay: Control = $EndGameOverlay
+@onready var end_game_panel: PanelContainer = $EndGameOverlay/Center/Panel
+@onready var final_score_label: Label = (
+	$EndGameOverlay/Center/Panel/Margin/Layout/ScoreRow/ScoreLabel
+)
+@onready var final_victory_icon: TextureRect = (
+	$EndGameOverlay/Center/Panel/Margin/Layout/ScoreRow/VictoryIcon
+)
+@onready var play_again_button: Button = (
+	$EndGameOverlay/Center/Panel/Margin/Layout/PlayAgainButton
+)
 @onready var card_preview: PanelContainer = $CardPreview
 @onready var preview_location_label: Label = $CardPreview/Margin/Layout/LocationLabel
 @onready var preview_state_label: Label = $CardPreview/Margin/Layout/StateLabel
@@ -100,6 +119,13 @@ func _ready() -> void:
 	_apply_imported_theme()
 	new_game_button.pressed.connect(_on_new_game_pressed)
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
+	play_again_button.pressed.connect(_on_play_again_pressed)
+	new_game_button.mouse_entered.connect(_on_hud_button_hovered.bind(new_game_button))
+	new_game_button.mouse_exited.connect(_on_hud_button_unhovered.bind(new_game_button))
+	end_turn_button.mouse_entered.connect(_on_hud_button_hovered.bind(end_turn_button))
+	end_turn_button.mouse_exited.connect(_on_hud_button_unhovered.bind(end_turn_button))
+	play_again_button.mouse_entered.connect(_on_hud_button_hovered.bind(play_again_button))
+	play_again_button.mouse_exited.connect(_on_hud_button_unhovered.bind(play_again_button))
 	turn_manager.configure(game_state)
 
 	if not game_state.load_cards(CARD_DATA_PATH):
@@ -112,6 +138,8 @@ func _ready() -> void:
 
 
 func _start_new_game(is_restart: bool) -> void:
+	_hide_end_game_overlay()
+	_clear_animation_layer()
 	if not game_state.setup_starting_game():
 		status_label.text = "Could not prepare a new game. Check the Godot output."
 		end_turn_button.disabled = true
@@ -123,6 +151,7 @@ func _start_new_game(is_restart: bool) -> void:
 	else:
 		status_label.text = "Start by clicking a purple resource or action card in your hand."
 	_refresh_ui()
+	call_deferred("_animate_draw_cards", game_state.player.hand.size())
 
 
 func _load_optional_assets() -> void:
@@ -174,6 +203,8 @@ func _apply_imported_theme() -> void:
 			"Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row/PlayAreaLabel",
 			"Margin/Layout/HandHeader/Title",
 			"CardPreview/Margin/Layout/NameLabel",
+			"EndGameOverlay/Center/Panel/Margin/Layout/Title",
+			"EndGameOverlay/Center/Panel/Margin/Layout/ScoreRow/ScoreLabel",
 		]
 		for path in title_paths:
 			var label := get_node_or_null(path) as Label
@@ -201,16 +232,26 @@ func _apply_imported_theme() -> void:
 			"panel",
 			_make_asset_style(panel_texture, Color("#34452f"), 24.0)
 		)
+		end_game_panel.add_theme_stylebox_override(
+			"panel",
+			_make_asset_style(panel_texture, Color("#163126"), 24.0)
+		)
 
 	if button_texture != null:
 		_apply_button_asset_styles(new_game_button, Color("#28433a"))
 		_apply_button_asset_styles(end_turn_button, Color("#6a4c20"))
+		_apply_button_asset_styles(play_again_button, Color("#6a4c20"))
 
 	_set_hud_icon("CoinStat", "coin", Color("#f6c95d"))
 	_set_hud_icon("ActionStat", "action", Color("#a9cdf8"))
 	_set_hud_icon("BuyStat", "buy", Color("#a8e0ad"))
 	_set_hud_icon("DeckStat", "deck", Color("#e6dfcb"))
 	_set_hud_icon("DiscardStat", "discard", Color("#c7bda9"))
+	if icon_textures.has("victory"):
+		final_victory_icon.texture = icon_textures["victory"]
+		final_victory_icon.modulate = Color("#f6d265")
+	else:
+		final_victory_icon.hide()
 
 
 func _apply_body_font_recursive(node: Node) -> void:
@@ -523,6 +564,15 @@ func _on_card_mouse_exited(button: Button) -> void:
 	_hide_card_preview()
 
 
+func _on_hud_button_hovered(button: Button) -> void:
+	_play_ui_sound("hover")
+	_animate_control_scale(button, Vector2(1.035, 1.035), HOVER_ANIMATION_SECONDS)
+
+
+func _on_hud_button_unhovered(button: Button) -> void:
+	_animate_control_scale(button, Vector2.ONE, HOVER_ANIMATION_SECONDS)
+
+
 func _animate_card_scale(button: Button, target_scale: Vector2) -> void:
 	if not is_instance_valid(button):
 		return
@@ -538,6 +588,15 @@ func _animate_card_scale(button: Button, target_scale: Vector2) -> void:
 	tween.set_ease(Tween.EASE_OUT)
 	tween.tween_property(button, "scale", target_scale, HOVER_ANIMATION_SECONDS)
 	button.set_meta("hover_tween", tween)
+
+
+func _animate_control_scale(control: Control, target_scale: Vector2, duration: float) -> void:
+	control.pivot_offset = control.size * 0.5
+	var tween := create_tween()
+	tween.bind_node(control)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.tween_property(control, "scale", target_scale, duration)
 
 
 func _show_card_preview(
@@ -586,6 +645,7 @@ func _hide_card_preview() -> void:
 func _create_played_card_chip(card: CardDefinition) -> PanelContainer:
 	var chip := PanelContainer.new()
 	chip.custom_minimum_size = Vector2(150, 36)
+	chip.set_meta("card_id", card.id)
 	chip.add_theme_stylebox_override(
 		"panel",
 		_make_card_style(Color("#302943"), Color("#8b79ad"), 1)
@@ -691,6 +751,185 @@ func _make_asset_style(texture: Texture2D, color: Color, margin: float) -> Style
 	return style
 
 
+func _create_moving_card(
+	card: CardDefinition,
+	source_rect: Rect2,
+	color: Color
+) -> PanelContainer:
+	var ghost := PanelContainer.new()
+	ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ghost.z_index = 1
+	ghost.position = source_rect.position
+	ghost.size = source_rect.size
+	ghost.pivot_offset = source_rect.size * 0.5
+	ghost.add_theme_stylebox_override(
+		"panel",
+		_make_card_style(color, color.lightened(0.35), 2)
+	)
+
+	var label := Label.new()
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.text = card.card_name
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.add_theme_color_override("font_color", Color("#fff9e8"))
+	label.add_theme_font_size_override("font_size", 16)
+	if title_font != null:
+		label.add_theme_font_override("font", title_font)
+	ghost.add_child(label)
+	animation_layer.add_child(ghost)
+	return ghost
+
+
+func _animate_moving_card(
+	ghost: Control,
+	target_center: Vector2,
+	duration: float,
+	target_scale: Vector2 = Vector2(0.34, 0.34)
+) -> void:
+	var target_position := target_center - ghost.size * 0.5
+	var tween := create_tween()
+	tween.bind_node(ghost)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_IN_OUT)
+	tween.set_parallel(true)
+	tween.tween_property(ghost, "position", target_position, duration)
+	tween.tween_property(ghost, "scale", target_scale, duration)
+	tween.tween_property(ghost, "rotation", 0.06, duration)
+	tween.tween_property(ghost, "modulate:a", 0.15, duration)
+	tween.set_parallel(false)
+	tween.tween_callback(ghost.queue_free)
+
+
+func _capture_cleanup_cards() -> Array[Control]:
+	var ghosts: Array[Control] = []
+	for child in hand_container.get_children():
+		if not child.has_meta("card_id"):
+			continue
+		var card_id := str(child.get_meta("card_id"))
+		if not game_state.card_catalog.has(card_id):
+			continue
+		ghosts.append(
+			_create_moving_card(
+				game_state.card_catalog[card_id],
+				(child as Control).get_global_rect(),
+				Color("#403453")
+			)
+		)
+
+	for child in play_area_container.get_children():
+		if not child.has_meta("card_id"):
+			continue
+		var card_id := str(child.get_meta("card_id"))
+		if not game_state.card_catalog.has(card_id):
+			continue
+		ghosts.append(
+			_create_moving_card(
+				game_state.card_catalog[card_id],
+				(child as Control).get_global_rect(),
+				Color("#403453")
+			)
+		)
+	return ghosts
+
+
+func _animate_cleanup_cards(ghosts: Array[Control]) -> void:
+	if ghosts.is_empty():
+		return
+	last_animation_event = "discard"
+	_play_ui_sound("discard")
+	var target := _get_hud_target_center("DiscardStat")
+	for ghost in ghosts:
+		_animate_moving_card(
+			ghost,
+			target,
+			CLEANUP_SECONDS,
+			Vector2(0.22, 0.22)
+		)
+	_pulse_control(discard_label, Color("#f0d4a0"))
+
+
+func _animate_draw_cards(card_count: int) -> void:
+	if card_count <= 0 or hand_container.get_child_count() == 0:
+		return
+	last_animation_event = "draw"
+	_play_ui_sound("draw")
+	var source := _get_hud_target_center("DeckStat")
+	var first_index := maxi(0, hand_container.get_child_count() - card_count)
+	for index in range(first_index, hand_container.get_child_count()):
+		var target_button := hand_container.get_child(index) as Control
+		if target_button == null or not target_button.has_meta("card_id"):
+			continue
+		var card_id := str(target_button.get_meta("card_id"))
+		if not game_state.card_catalog.has(card_id):
+			continue
+		var source_rect := Rect2(source - Vector2(24, 34), Vector2(48, 68))
+		var ghost := _create_moving_card(
+			game_state.card_catalog[card_id],
+			source_rect,
+			Color("#3b3153")
+		)
+		ghost.scale = Vector2(0.35, 0.35)
+		ghost.modulate.a = 0.35
+		_animate_draw_ghost(
+			ghost,
+			target_button.get_global_rect(),
+			CARD_DRAW_SECONDS
+		)
+	_pulse_control(deck_label, Color("#f4ecd6"))
+
+
+func _animate_draw_ghost(ghost: Control, target_rect: Rect2, duration: float) -> void:
+	var tween := create_tween()
+	tween.bind_node(ghost)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_parallel(true)
+	tween.tween_property(ghost, "position", target_rect.position, duration)
+	tween.tween_property(ghost, "size", target_rect.size, duration)
+	tween.tween_property(ghost, "scale", Vector2.ONE, duration)
+	tween.tween_property(ghost, "modulate:a", 0.85, duration)
+	tween.set_parallel(false)
+	tween.tween_callback(ghost.queue_free)
+
+
+func _get_hud_target_center(stat_name: String) -> Vector2:
+	var stat := get_node(
+		"Margin/Layout/HudPanel/HudMargin/Hud/%s" % stat_name
+	) as Control
+	return stat.get_global_rect().get_center()
+
+
+func _pulse_control(control: Control, color: Color) -> void:
+	var original_color := control.modulate
+	control.modulate = color
+	control.scale = Vector2(1.08, 1.08)
+	control.pivot_offset = control.size * 0.5
+	var tween := create_tween()
+	tween.bind_node(control)
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_parallel(true)
+	tween.tween_property(control, "scale", Vector2.ONE, 0.16)
+	tween.tween_property(control, "modulate", original_color, 0.2)
+
+
+func _pulse_status_panel() -> void:
+	status_panel.pivot_offset = status_panel.size * 0.5
+	status_panel.scale = Vector2(0.985, 0.985)
+	var tween := create_tween()
+	tween.bind_node(status_panel)
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.tween_property(status_panel, "scale", Vector2.ONE, 0.18)
+
+
+func _clear_animation_layer() -> void:
+	for child in animation_layer.get_children():
+		child.queue_free()
+
+
 func _play_ui_sound(sound_name: String) -> void:
 	if not ui_sound_players.has(sound_name):
 		return
@@ -707,24 +946,66 @@ func _clear_container(container: Container) -> void:
 
 
 func _on_hand_card_pressed(card: CardDefinition) -> void:
-	if game_state.play_card(card):
+	var source_button := _find_card_button(hand_container, card.id)
+	var ghost: Control = null
+	if source_button != null:
+		ghost = _create_moving_card(
+			card,
+			source_button.get_global_rect(),
+			Color("#4a3c69")
+		)
+	var played := game_state.play_card(card)
+	if played:
+		last_animation_event = "play"
 		_play_ui_sound("play_card")
 		status_label.text = "Played %s. Its effects have been applied." % card.card_name
 	else:
+		if ghost != null:
+			ghost.queue_free()
 		status_label.text = "That card cannot be played right now."
 	_refresh_ui()
+	if played and ghost != null:
+		_animate_moving_card(
+			ghost,
+			play_area_panel.get_global_rect().get_center(),
+			CARD_MOVE_SECONDS,
+			Vector2(0.48, 0.48)
+		)
+	if played and card.draw_cards > 0:
+		call_deferred("_animate_draw_cards", card.draw_cards)
 
 
 func _on_market_card_pressed(card: CardDefinition) -> void:
-	if game_state.buy_card(card):
+	var source_button := _find_card_button(market_container, card.id)
+	var ghost: Control = null
+	if source_button != null:
+		ghost = _create_moving_card(
+			card,
+			source_button.get_global_rect(),
+			Color("#2d5b48")
+		)
+	var bought := game_state.buy_card(card)
+	if bought:
+		last_animation_event = "buy"
 		_play_ui_sound("buy_card")
 		status_label.text = "Bought %s. It is now in your discard pile." % card.card_name
 	else:
+		if ghost != null:
+			ghost.queue_free()
 		status_label.text = "That card requires enough coins and an available buy."
 	_refresh_ui()
+	if bought and ghost != null:
+		_animate_moving_card(
+			ghost,
+			_get_hud_target_center("DiscardStat"),
+			CARD_MOVE_SECONDS,
+			Vector2(0.22, 0.22)
+		)
+		_pulse_control(discard_label, Color("#f0d4a0"))
 
 
 func _on_end_turn_pressed() -> void:
+	var cleanup_ghosts := _capture_cleanup_cards()
 	_play_ui_sound("end_turn")
 	turn_manager.end_turn()
 	if turn_manager.game_over:
@@ -734,8 +1015,48 @@ func _on_end_turn_pressed() -> void:
 			turn_manager.turn_number
 		)
 	_refresh_ui()
+	_animate_cleanup_cards(cleanup_ghosts)
+	_pulse_status_panel()
+	if turn_manager.game_over:
+		_show_final_score(turn_manager.final_score)
+	else:
+		call_deferred("_animate_draw_cards", game_state.player.hand.size())
 
 
 func _on_new_game_pressed() -> void:
 	_play_ui_sound("button_click")
 	_start_new_game(true)
+
+
+func _on_play_again_pressed() -> void:
+	_play_ui_sound("button_click")
+	_start_new_game(true)
+
+
+func _show_final_score(score: int) -> void:
+	last_animation_event = "game_end"
+	_play_ui_sound("game_end")
+	final_score_label.text = str(score)
+	end_game_overlay.modulate.a = 0.0
+	end_game_panel.scale = Vector2(0.9, 0.9)
+	end_game_panel.pivot_offset = end_game_panel.size * 0.5
+	end_game_overlay.show()
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_parallel(true)
+	tween.tween_property(end_game_overlay, "modulate:a", 1.0, 0.2)
+	tween.tween_property(end_game_panel, "scale", Vector2.ONE, 0.24)
+
+
+func _hide_end_game_overlay() -> void:
+	end_game_overlay.hide()
+	end_game_overlay.modulate.a = 1.0
+	end_game_panel.scale = Vector2.ONE
+
+
+func _find_card_button(container: Container, card_id: String) -> Button:
+	for child in container.get_children():
+		if child.get_meta("card_id", "") == card_id:
+			return child as Button
+	return null

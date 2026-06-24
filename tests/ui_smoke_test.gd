@@ -22,7 +22,7 @@ func _initialize() -> void:
 	_check(_hud_icon("CoinStat").texture != null, "Coin HUD icon should load.")
 	_check(_hud_icon("ActionStat").texture != null, "Action HUD icon should load.")
 	_check(_hud_icon("BuyStat").texture != null, "Buy HUD icon should load.")
-	_check(main_ui.ui_sound_players.size() == 5, "All configured UI sounds should load.")
+	_check(main_ui.ui_sound_players.size() == 8, "All configured UI sounds should load.")
 
 	var resource_button := _find_card_button(_hand_container(), "pebble_coin")
 	_check(resource_button != null, "A Pebble Coin button should render in hand.")
@@ -46,6 +46,7 @@ func _initialize() -> void:
 		resource_button.pressed.emit()
 		await process_frame
 		_check(main_ui.last_ui_sound_name == "play_card", "Playing a card should trigger its sound.")
+		_check(main_ui.last_animation_event == "play", "Playing should trigger card movement.")
 		_check(_hud_value("CoinStat") == "1", "Coin HUD should update after playing a resource.")
 		_check(_hand_container().get_child_count() == 4, "Played card should leave the hand UI.")
 		_check(_play_area_container().get_child_count() == 1, "Played card should render in play area.")
@@ -74,6 +75,7 @@ func _initialize() -> void:
 		market_button.pressed.emit()
 		await process_frame
 		_check(main_ui.last_ui_sound_name == "buy_card", "Buying a card should trigger its sound.")
+		_check(main_ui.last_animation_event == "buy", "Buying should trigger card movement.")
 		_check(
 			main_ui.game_state.player.discard_pile.size() == discard_before + 1,
 			"Bought card should enter discard."
@@ -84,7 +86,9 @@ func _initialize() -> void:
 
 	_end_turn_button().pressed.emit()
 	await process_frame
-	_check(main_ui.last_ui_sound_name == "end_turn", "Ending a turn should trigger its sound.")
+	await process_frame
+	_check(main_ui.last_ui_sound_name == "draw", "End turn should finish with draw feedback.")
+	_check(main_ui.last_animation_event == "draw", "End turn should animate the new hand.")
 	_check(_hand_container().get_child_count() == 5, "End turn should render a new five-card hand.")
 	_check(_hud_value("CoinStat") == "0", "Coin HUD should reset at end of turn.")
 	_check(_hud_value("ActionStat") == "1", "Action HUD should reset at end of turn.")
@@ -99,7 +103,8 @@ func _initialize() -> void:
 	main_ui.game_state.player.discard_pile.append(main_ui.game_state.card_catalog["silver_leaf"])
 	_new_game_button().pressed.emit()
 	await process_frame
-	_check(main_ui.last_ui_sound_name == "button_click", "New Game should trigger a button sound.")
+	await process_frame
+	_check(main_ui.last_ui_sound_name == "draw", "New Game should finish with draw feedback.")
 	var market_after_restart: Array[String] = main_ui.game_state.get_market_card_ids()
 	_check(
 		not _same_card_ids(market_before_restart, market_after_restart),
@@ -116,6 +121,23 @@ func _initialize() -> void:
 		main_ui.game_state.player.discard_pile.is_empty(),
 		"New Game should clear the discard pile."
 	)
+
+	main_ui.turn_manager.turn_number = 15
+	_end_turn_button().pressed.emit()
+	await process_frame
+	_check(_end_game_overlay().visible, "Final scoring should show an intentional overlay.")
+	_check(
+		_final_score_label().text == str(main_ui.turn_manager.final_score),
+		"Final score overlay should show the calculated score."
+	)
+	_check(main_ui.last_animation_event == "game_end", "Final scoring should animate its reveal.")
+	_check(main_ui.last_ui_sound_name == "game_end", "Final scoring should trigger its sound.")
+
+	_play_again_button().pressed.emit()
+	await process_frame
+	await process_frame
+	_check(not _end_game_overlay().visible, "Play Again should close the final score overlay.")
+	_check(_hud_value("TurnStat") == "1 / 15", "Play Again should start a fresh game.")
 
 	if failure_count > 0:
 		push_error("[Test] UI smoke test failed with %d issue(s)." % failure_count)
@@ -160,6 +182,22 @@ func _new_game_button() -> Button:
 
 func _card_preview() -> PanelContainer:
 	return main_ui.get_node("CardPreview")
+
+
+func _end_game_overlay() -> Control:
+	return main_ui.get_node("EndGameOverlay")
+
+
+func _final_score_label() -> Label:
+	return main_ui.get_node(
+		"EndGameOverlay/Center/Panel/Margin/Layout/ScoreRow/ScoreLabel"
+	)
+
+
+func _play_again_button() -> Button:
+	return main_ui.get_node(
+		"EndGameOverlay/Center/Panel/Margin/Layout/PlayAgainButton"
+	)
 
 
 func _preview_name_label() -> Label:
