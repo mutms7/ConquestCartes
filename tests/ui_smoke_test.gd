@@ -12,7 +12,10 @@ func _initialize() -> void:
 	await process_frame
 
 	_check(_hand_container().get_child_count() == 5, "Initial hand should render five cards.")
-	_check(_market_container().get_child_count() == 6, "Market should render six cards.")
+	_check(
+		_market_container().get_child_count() == main_ui.game_state.market.size(),
+		"Market should render every configured card."
+	)
 	_check(_play_area_container().get_child_count() == 1, "Empty play area should show its hint.")
 
 	var resource_button := _find_card_button(_hand_container(), "pebble_coin")

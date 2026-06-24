@@ -2,6 +2,25 @@ extends SceneTree
 
 const CARD_DATA_PATH := "res://data/cards/starter_cards.json"
 
+const NEW_CARD_IDS := [
+	"candlecap",
+	"trail_biscuit",
+	"moss_thread",
+	"acorn_purse",
+	"hearthsong",
+	"orchard_map",
+	"river_courier",
+	"moonwell_token",
+	"tinker_wren",
+	"lantern_parade",
+	"quiet_archive",
+	"briar_gate",
+	"starlit_wagon",
+	"amber_circlet",
+	"firefly_supper",
+	"wishing_stone",
+]
+
 var failure_count := 0
 
 
@@ -9,6 +28,7 @@ func _initialize() -> void:
 	_test_full_game_loop()
 	_test_draw_across_shuffle_boundary()
 	_test_scoring_includes_every_owned_zone()
+	_test_expanded_card_set()
 
 	if failure_count > 0:
 		push_error("[Test] Rules smoke test failed with %d issue(s)." % failure_count)
@@ -102,6 +122,81 @@ func _test_scoring_includes_every_owned_zone() -> void:
 	game_state.player.discard_pile.append(royal_charter)
 
 	_check(game_state.calculate_score() == 8, "Scoring should include draw, hand, play, and discard.")
+
+
+func _test_expanded_card_set() -> void:
+	var game_state := _create_game_state()
+	if game_state == null:
+		return
+
+	_check(NEW_CARD_IDS.size() == 16, "Expanded set should contain sixteen new cards.")
+	for card_id in NEW_CARD_IDS:
+		_check(game_state.card_catalog.has(card_id), "Card data should include %s." % card_id)
+		if not game_state.card_catalog.has(card_id):
+			continue
+
+		var card: CardDefinition = game_state.card_catalog[card_id]
+		_check(game_state.market.has(card), "%s should appear in the market." % card.card_name)
+		_check(card.cost >= 2 and card.cost <= 7, "%s should use a supported cost tier." % card.card_name)
+		_test_card_purchase(game_state, card)
+
+		if card.card_type == "victory":
+			_test_victory_card(game_state, card)
+		else:
+			_test_playable_card(game_state, card)
+
+
+func _test_card_purchase(game_state: GameState, card: CardDefinition) -> void:
+	game_state.player.clear_all()
+	game_state.player.coins = card.cost
+	_check(game_state.buy_card(card), "%s should be purchasable." % card.card_name)
+	_check(
+		game_state.player.discard_pile.has(card),
+		"%s should enter discard after purchase." % card.card_name
+	)
+
+
+func _test_playable_card(game_state: GameState, card: CardDefinition) -> void:
+	game_state.player.clear_all()
+	game_state.player.actions = 10
+	game_state.player.buys = 1
+	game_state.player.coins = 0
+	game_state.player.hand.append(card)
+
+	var filler: CardDefinition = game_state.card_catalog["pebble_coin"]
+	for _draw_index in range(card.draw_cards):
+		game_state.player.draw_pile.append(filler)
+
+	var starting_actions := game_state.player.actions
+	var starting_buys := game_state.player.buys
+	_check(game_state.play_card(card), "%s should play without errors." % card.card_name)
+	_check(game_state.player.play_area.has(card), "%s should enter the play area." % card.card_name)
+	_check(
+		game_state.player.coins == card.coin_value + card.gain_coins,
+		"%s should apply its coin effect." % card.card_name
+	)
+	var action_cost := 1 if card.card_type == "action" else 0
+	_check(
+		game_state.player.actions == starting_actions - action_cost + card.gain_actions,
+		"%s should apply its action effect." % card.card_name
+	)
+	_check(
+		game_state.player.buys == starting_buys + card.gain_buys,
+		"%s should apply its buy effect." % card.card_name
+	)
+	_check(
+		game_state.player.hand.size() == card.draw_cards,
+		"%s should draw the configured number of cards." % card.card_name
+	)
+
+
+func _test_victory_card(game_state: GameState, card: CardDefinition) -> void:
+	game_state.player.clear_all()
+	game_state.player.discard_pile.append(card)
+	_check(
+		game_state.calculate_score() == card.victory_points,
+		"%s should contribute its configured victory points." % card.card_name
+	)
 
 
 func _create_game_state() -> GameState:

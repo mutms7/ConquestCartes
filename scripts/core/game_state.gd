@@ -13,6 +13,22 @@ const MARKET_CARD_IDS := [
 	"scribe",
 	"stone_wall",
 	"royal_charter",
+	"candlecap",
+	"trail_biscuit",
+	"moss_thread",
+	"acorn_purse",
+	"hearthsong",
+	"orchard_map",
+	"river_courier",
+	"moonwell_token",
+	"tinker_wren",
+	"lantern_parade",
+	"quiet_archive",
+	"briar_gate",
+	"starlit_wagon",
+	"amber_circlet",
+	"firefly_supper",
+	"wishing_stone",
 ]
 
 var player := PlayerState.new()
