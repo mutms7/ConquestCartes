@@ -1,6 +1,7 @@
-[gd_scene load_steps=7 format=3 uid="uid://155xx7s6y6ta"]
+[gd_scene load_steps=8 format=3 uid="uid://155xx7s6y6ta"]
 
 [ext_resource type="Script" path="res://scripts/ui/main_ui.gd" id="1_main_ui"]
+[ext_resource type="Texture2D" path="res://assets/ui/table_background.svg" id="2_table"]
 
 [sub_resource type="StyleBoxFlat" id="StyleHud"]
 bg_color = Color(0.141176, 0.101961, 0.0705882, 0.97)
@@ -97,7 +98,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_main_ui")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -105,16 +106,19 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.105882, 0.0745098, 0.054902, 1)
+texture = ExtResource("2_table")
+expand_mode = 1
+stretch_mode = 6
 
-[node name="TableGlow" type="ColorRect" parent="."]
+[node name="TableVignette" type="ColorRect" parent="."]
 layout_mode = 1
-anchors_preset = 10
+anchors_preset = 15
 anchor_right = 1.0
-offset_bottom = 330.0
+anchor_bottom = 1.0
 grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
-color = Color(0.25098, 0.152941, 0.0705882, 0.5)
+color = Color(0.05, 0.025, 0.015, 0.16)
 
 [node name="Margin" type="MarginContainer" parent="."]
 layout_mode = 1
@@ -163,7 +167,7 @@ text = "CONQUEST CARTES"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
 theme_override_font_sizes/font_size = 12
-text = "Cozy deck-builder prototype"
+text = "A handcrafted medieval deck-builder"
 
 [node name="Divider" type="VSeparator" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
 layout_mode = 2
@@ -387,7 +391,7 @@ size_flags_horizontal = 3
 layout_mode = 2
 theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
 theme_override_font_sizes/font_size = 13
-text = "Green cards are affordable  •  Bought cards go to discard"
+text = "Forest trim marks affordable cards  •  Purchases enter discard"
 
 [node name="MarketPanel" type="PanelContainer" parent="Margin/Layout"]
 custom_minimum_size = Vector2(0, 235)
@@ -475,7 +479,7 @@ size_flags_horizontal = 3
 layout_mode = 2
 theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
 theme_override_font_sizes/font_size = 13
-text = "Purple cards can be played  •  Dim cards are unavailable"
+text = "Slate trim marks playable cards  •  Muted trim is unavailable"
 
 [node name="HandPanel" type="PanelContainer" parent="Margin/Layout"]
 custom_minimum_size = Vector2(0, 235)

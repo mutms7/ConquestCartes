@@ -1,57 +1,106 @@
 # ConquestCartes
 
-An original, single-player Godot 4 deck-building prototype with placeholder tabletop UI.
+An original single-player fantasy deck-builder built with Godot 4.7. Build a compact
+engine over 15 turns, buy cards from a rotating merchant market, and turn the final
+contents of your deck into victory points.
 
-## Open and Run
+**Play online:** https://conquest-cartes.vercel.app/
 
-1. Install Godot 4.
+## Current Game
+
+- 29 data-driven cards with original painterly artwork
+- A 12-card market: 2 resources, 6 actions, and 4 victory cards
+- Seven Pebble Coins and three Homesteads in the starting deck
+- Five-card hands, reshuffling discard piles, actions, coins, and buys
+- Hybrid resource/action cards that also score victory points
+- Final scoring after turn 15
+- Handcrafted medieval tabletop UI using dark walnut cards, brass, leather, and
+  restrained heraldic ornament
+- Card previews, movement animation, audio feedback, and an end-game score plaque
+- Automated rules and UI smoke tests
+- Automated Web export and production deployment
+
+## How to Play
+
+1. Play resource cards to gain coins.
+2. Spend actions to play action cards for cards, actions, coins, or buys.
+3. Spend one buy and enough coins to purchase a card from the shared market.
+4. Purchased cards enter the discard pile.
+5. End the turn to discard your hand and played cards, reset turn resources, and
+   draw five cards.
+6. After turn 15, every victory point in your deck, hand, discard pile, and play
+   area contributes to the final score.
+
+Slate-trimmed hand cards are playable. Forest-trimmed market cards are affordable.
+Muted trim marks cards that are currently unavailable.
+
+## Run Locally
+
+1. Install Godot 4.7 and its matching export templates.
 2. Open Godot's Project Manager.
-3. Select **Import**, then choose this folder's `project.godot`.
-4. Open the project and press **F6** or the Play button.
+3. Import this directory's `project.godot`.
+4. Press **F6** or the Play button.
 
-The project targets a 1280x720 desktop window.
+The project targets a 1280×720 desktop viewport and uses the
+`gl_compatibility` renderer so the same project can run on the Web.
+
+## Tests
+
+From the repository root:
+
+```powershell
+godot --headless --path . --script res://tests/smoke_test.gd
+godot --headless --path . --script res://tests/ui_smoke_test.gd
+```
+
+The rules smoke test covers the main game loop and card effects. The UI smoke test
+checks rendering, artwork, medieval UI assets, interactions, animations, audio,
+preview placement, and the final-score overlay.
+
+## Web Export
+
+The committed `export_presets.cfg` contains a single-threaded Web preset. Export
+locally with:
+
+```powershell
+New-Item -ItemType Directory -Path web -Force
+godot --headless --path . --export-release "Web" web/index.html
+```
+
+The generated `web/` directory is intentionally ignored by Git.
+
+## Automatic Deployment
+
+Every push to `main` starts `.github/workflows/deploy.yml`. GitHub Actions:
+
+1. Downloads and caches Godot 4.7 and its export templates.
+2. Imports the project and builds Godot's script-class cache.
+3. Runs both smoke tests.
+4. Exports the Web build.
+5. Deploys the generated files to Vercel.
+
+The production deployment is available at
+https://conquest-cartes.vercel.app/. Repository secrets hold the Vercel token and
+project identifiers; no deployment credentials are committed.
 
 ## Asset Organization
 
-- `assets/raw/` stores original downloaded packs and source artifacts.
-- `assets/imported/` stores usable imported visual assets.
-- `assets/audio/` stores sound and music files.
-- `assets/fonts/` stores font files.
-- `assets/licenses/` stores license, source, credit, and attribution notes.
+- `assets/cards/` contains the finished card illustrations.
+- `assets/ui/` contains original project-owned medieval interface assets.
+- `assets/imported/` contains third-party visual source packs retained for
+  provenance; the Kenney fantasy-border pack is no longer used by the active UI.
+- `assets/audio/` contains interface sound effects.
+- `assets/fonts/` contains Cinzel and Inter.
+- `assets/licenses/` records sources, licenses, and attribution.
 
-Asset provenance is tracked in `assets/licenses/ASSET_SOURCES.md`.
+See `assets/licenses/ASSET_SOURCES.md` for provenance details.
 
-## Current Prototype
+## Current Limitations
 
-- Starts with seven Pebble Coin cards and three Homestead cards
-- Shuffles and draws a five-card hand
-- Plays resource and action cards from the hand
-- Tracks coins, actions, buys, deck size, discard size, and turn number
-- Buys affordable cards from a fixed shared market
-- Includes a 24-card data-driven catalog and random six-card market
-- Starts a fresh shuffled deck and market from the New Game button
-- Discards the hand and play area at end of turn
-- Reshuffles the discard pile when the draw pile is empty
-- Ends after turn 15 and shows the total victory-point score
-- Loads all card definitions and numerical effects from JSON
-- Uses imported Kenney UI borders, board-game icons, and UI sound effects
-- Uses Cinzel for card titles and Inter for body text, with built-in fallbacks
-- Animates card play, purchases, cleanup, drawing, and final scoring
-- Prints game events to the Godot output for debugging
-- Includes a headless rules smoke test in `tests/smoke_test.gd`
-
-## Known Limitations
-
-- The market has unlimited copies of each card.
-- There is no opponent, campaign, multiplayer, save system, music, or finished card art.
-- Card effects are limited to the numerical fields in the starter data schema.
-- There are no settings or accessibility options yet.
-- The smoke test covers the main loop, but detailed unit tests are not included yet.
-
-## Suggested Next Steps
-
-1. Expand the smoke test into focused tests for edge cases and invalid moves.
-2. Add finite market pile counts and an additional end condition.
-3. Add more original cards using the existing JSON fields.
-4. Add card art and audio with license records under `assets/licenses/`.
-5. Add animation and input polish after the rules are stable.
+- Single-player only; there is no opponent, multiplayer, or campaign.
+- Market piles have unlimited copies.
+- No save system, settings menu, music, or accessibility menu.
+- Card effects currently use the numerical starter schema rather than unique
+  scripted mechanics.
+- The game is balanced as a compact prototype rather than a finished commercial
+  release.

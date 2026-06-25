@@ -12,5 +12,5 @@ This file tracks where imported assets came from and the license terms that appl
 | `assets/fonts/Cinzel/` | Cinzel Project Authors - https://github.com/NDISCOVER/Cinzel | SIL Open Font License 1.1 | License and original README are stored in `assets/licenses/Cinzel/`. |
 | `assets/fonts/Inter/` | Inter Project Authors - https://github.com/rsms/inter | SIL Open Font License 1.1 | License and original README are stored in `assets/licenses/Inter/`. |
 | `assets/raw/kenney_board-game-icons/` | Kenney, Board Game Icons 1.1 - https://kenney.nl/ | CC0 1.0 | Contains the original SWF source artifact that is not imported by Godot. |
-| `assets/ui/` | No assets assigned yet. | Unknown - fill in before shipping. | Reserved for project-specific UI assets. |
+| `assets/ui/` | Original project-created SVG interface artwork. | Project-owned original work. | Medieval tabletop background, dark-walnut card ornament, walnut/brass HUD, market and hand frames, buttons, preview, and end-game frame. |
 | `assets/card_art/` | No assets assigned yet. | Unknown - fill in before shipping. | Reserved for card illustrations and related visual assets. |

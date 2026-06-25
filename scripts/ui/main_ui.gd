@@ -15,21 +15,32 @@ const CLEANUP_SECONDS := 0.2
 const PREVIEW_SIZE := Vector2(340, 440)
 const PREVIEW_EDGE_MARGIN := 24.0
 
+const COLOR_PARCHMENT := Color("#e4d2aa")
+const COLOR_PARCHMENT_LIGHT := Color("#f3e8ca")
+const COLOR_CARD_BROWN := Color("#4a3021")
+const COLOR_CARD_BROWN_LIGHT := Color("#5a3a28")
+const COLOR_WALNUT := Color("#352218")
+const COLOR_WALNUT_DARK := Color("#21140f")
+const COLOR_BRASS := Color("#b58a45")
+const COLOR_FOREST := Color("#294638")
+const COLOR_OXBLOOD := Color("#713a32")
+const COLOR_SLATE := Color("#43566a")
+const COLOR_INK := Color("#30251d")
+const COLOR_UNAVAILABLE := Color("#796d5f")
+
 const TITLE_FONT_PATH := "res://assets/fonts/Cinzel/static/Cinzel-SemiBold.ttf"
 const BODY_FONT_PATH := "res://assets/fonts/Inter/static/Inter_18pt-Regular.ttf"
 const BODY_BOLD_FONT_PATH := "res://assets/fonts/Inter/static/Inter_18pt-Bold.ttf"
-const PANEL_TEXTURE_PATH := (
-	"res://assets/imported/kenney_fantasy-ui-borders/"
-	+ "PNG/Double/Panel/panel-024.png"
-)
-const CARD_FRAME_TEXTURE_PATH := (
-	"res://assets/imported/kenney_fantasy-ui-borders/"
-	+ "PNG/Double/Panel/panel-006.png"
-)
-const BUTTON_TEXTURE_PATH := (
-	"res://assets/imported/kenney_fantasy-ui-borders/"
-	+ "PNG/Double/Panel/panel-010.png"
-)
+const UI_ASSET_PATHS := {
+	"hud": "res://assets/ui/hud_frame.svg",
+	"market": "res://assets/ui/market_frame.svg",
+	"hand": "res://assets/ui/hand_frame.svg",
+	"card": "res://assets/ui/card_frame.svg",
+	"button": "res://assets/ui/button_standard.svg",
+	"button_primary": "res://assets/ui/button_primary.svg",
+	"preview": "res://assets/ui/preview_frame.svg",
+	"endgame": "res://assets/ui/endgame_frame.svg",
+}
 const ICON_BASE_PATH := (
 	"res://assets/imported/kenney_board-game-icons/PNG/Default (64px)/"
 )
@@ -57,9 +68,7 @@ var turn_manager := TurnManager.new()
 var title_font: Font
 var body_font: Font
 var body_bold_font: Font
-var panel_texture: Texture2D
-var card_frame_texture: Texture2D
-var button_texture: Texture2D
+var ui_textures: Dictionary = {}
 var icon_textures: Dictionary = {}
 var ui_sound_players: Dictionary = {}
 var last_ui_sound_name: String = ""
@@ -155,9 +164,10 @@ func _load_optional_assets() -> void:
 	title_font = _load_optional_font(TITLE_FONT_PATH)
 	body_font = _load_optional_font(BODY_FONT_PATH)
 	body_bold_font = _load_optional_font(BODY_BOLD_FONT_PATH)
-	panel_texture = _load_optional_texture(PANEL_TEXTURE_PATH)
-	card_frame_texture = _load_optional_texture(CARD_FRAME_TEXTURE_PATH)
-	button_texture = _load_optional_texture(BUTTON_TEXTURE_PATH)
+	for asset_name in UI_ASSET_PATHS:
+		var ui_texture := _load_optional_texture(UI_ASSET_PATHS[asset_name])
+		if ui_texture != null:
+			ui_textures[asset_name] = ui_texture
 
 	for icon_name in ICON_PATHS:
 		var texture := _load_optional_texture(ICON_PATHS[icon_name])
@@ -212,43 +222,82 @@ func _apply_imported_theme() -> void:
 			if label != null:
 				label.add_theme_font_override("font", title_font)
 
-	if panel_texture != null:
-		hud_panel.add_theme_stylebox_override(
-			"panel",
-			_make_asset_style(panel_texture, Color("#19352a"), 24.0)
-		)
-		market_panel.add_theme_stylebox_override(
-			"panel",
-			_make_asset_style(panel_texture, Color("#152b24"), 24.0)
-		)
-		play_area_panel.add_theme_stylebox_override(
-			"panel",
-			_make_asset_style(panel_texture, Color("#152b24"), 24.0)
-		)
-		hand_panel.add_theme_stylebox_override(
-			"panel",
-			_make_asset_style(panel_texture, Color("#152b24"), 24.0)
-		)
-		end_game_panel.add_theme_stylebox_override(
-			"panel",
-			_make_asset_style(panel_texture, Color("#163126"), 24.0)
-		)
+	_apply_original_ui_assets()
+	_apply_scene_colors()
 
-	if button_texture != null:
-		_apply_button_asset_styles(new_game_button, Color("#28433a"))
-		_apply_button_asset_styles(end_turn_button, Color("#6a4c20"))
-		_apply_button_asset_styles(play_again_button, Color("#6a4c20"))
-
-	_set_hud_icon("CoinStat", "coin", Color("#f6c95d"))
-	_set_hud_icon("ActionStat", "action", Color("#a9cdf8"))
-	_set_hud_icon("BuyStat", "buy", Color("#a8e0ad"))
-	_set_hud_icon("DeckStat", "deck", Color("#e6dfcb"))
-	_set_hud_icon("DiscardStat", "discard", Color("#c7bda9"))
+	_set_hud_icon("CoinStat", "coin", COLOR_BRASS.lightened(0.18))
+	_set_hud_icon("ActionStat", "action", COLOR_SLATE.lightened(0.32))
+	_set_hud_icon("BuyStat", "buy", COLOR_FOREST.lightened(0.34))
+	_set_hud_icon("DeckStat", "deck", COLOR_PARCHMENT_LIGHT)
+	_set_hud_icon("DiscardStat", "discard", COLOR_PARCHMENT)
 	if icon_textures.has("victory"):
 		final_victory_icon.texture = icon_textures["victory"]
-		final_victory_icon.modulate = Color("#f6d265")
+		final_victory_icon.modulate = COLOR_BRASS.lightened(0.24)
 	else:
 		final_victory_icon.hide()
+
+
+func _apply_original_ui_assets() -> void:
+	if ui_textures.has("hud"):
+		hud_panel.add_theme_stylebox_override(
+			"panel",
+			_make_asset_style(ui_textures["hud"], 18.0, 14.0)
+		)
+	if ui_textures.has("market"):
+		market_panel.add_theme_stylebox_override(
+			"panel",
+			_make_asset_style(ui_textures["market"], 18.0, 12.0)
+		)
+	if ui_textures.has("hand"):
+		hand_panel.add_theme_stylebox_override(
+			"panel",
+			_make_asset_style(ui_textures["hand"], 18.0, 12.0)
+		)
+	play_area_panel.add_theme_stylebox_override(
+		"panel",
+		_make_panel_style(Color(0.12, 0.075, 0.05, 0.72), COLOR_BRASS.darkened(0.25), 1)
+	)
+	if ui_textures.has("endgame"):
+		end_game_panel.add_theme_stylebox_override(
+			"panel",
+			_make_asset_style(ui_textures["endgame"], 22.0, 18.0)
+		)
+	if ui_textures.has("button"):
+		_apply_button_asset_styles(new_game_button, ui_textures["button"])
+	if ui_textures.has("button_primary"):
+		_apply_button_asset_styles(end_turn_button, ui_textures["button_primary"])
+		_apply_button_asset_styles(play_again_button, ui_textures["button_primary"])
+
+
+func _apply_scene_colors() -> void:
+	var cream_paths := [
+		"Margin/Layout/HudPanel/HudMargin/Hud/Brand/Title",
+		"Margin/Layout/HudPanel/HudMargin/Hud/TurnStat/Value",
+		"Margin/Layout/MarketHeader/Title",
+		"Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row/PlayAreaLabel",
+		"Margin/Layout/HandHeader/Title",
+		"EndGameOverlay/Center/Panel/Margin/Layout/Title",
+		"EndGameOverlay/Center/Panel/Margin/Layout/SummaryLabel",
+	]
+	for path in cream_paths:
+		var label := get_node_or_null(path) as Label
+		if label != null:
+			label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	var muted_paths := [
+		"Margin/Layout/HudPanel/HudMargin/Hud/Brand/Subtitle",
+		"Margin/Layout/MarketHeader/Hint",
+		"Margin/Layout/HandHeader/HandCount",
+		"Margin/Layout/HandHeader/Hint",
+		"EndGameOverlay/Center/Panel/Margin/Layout/Caption",
+	]
+	for path in muted_paths:
+		var label := get_node_or_null(path) as Label
+		if label != null:
+			label.add_theme_color_override("font_color", COLOR_PARCHMENT.darkened(0.2))
+	preview_name_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	preview_meta_label.add_theme_color_override("font_color", COLOR_BRASS.lightened(0.18))
+	preview_effect_label.add_theme_color_override("default_color", COLOR_PARCHMENT_LIGHT)
+	final_score_label.add_theme_color_override("font_color", COLOR_BRASS.lightened(0.22))
 
 
 func _apply_body_font_recursive(node: Node) -> void:
@@ -274,18 +323,18 @@ func _set_hud_icon(stat_name: String, icon_name: String, color: Color) -> void:
 	icon.show()
 
 
-func _apply_button_asset_styles(button: Button, base_color: Color) -> void:
+func _apply_button_asset_styles(button: Button, texture: Texture2D) -> void:
 	button.add_theme_stylebox_override(
 		"normal",
-		_make_asset_style(button_texture, base_color, 20.0)
+		_make_asset_style(texture, 16.0, 10.0)
 	)
 	button.add_theme_stylebox_override(
 		"hover",
-		_make_asset_style(button_texture, base_color.lightened(0.12), 20.0)
+		_make_asset_style(texture, 16.0, 10.0, Color(1.12, 1.08, 0.94, 1.0))
 	)
 	button.add_theme_stylebox_override(
 		"pressed",
-		_make_asset_style(button_texture, base_color.darkened(0.12), 20.0)
+		_make_asset_style(texture, 16.0, 10.0, Color(0.84, 0.84, 0.84, 1.0))
 	)
 
 
@@ -345,7 +394,7 @@ func _refresh_play_area() -> void:
 	if played_cards.is_empty():
 		var empty_label := Label.new()
 		empty_label.text = "Played cards appear here and move to discard when you end the turn."
-		empty_label.add_theme_color_override("font_color", Color("#82958a"))
+		empty_label.add_theme_color_override("font_color", COLOR_PARCHMENT.darkened(0.28))
 		empty_label.add_theme_font_size_override("font_size", 13)
 		empty_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		play_area_container.add_child(empty_label)
@@ -381,6 +430,8 @@ func _create_card_button(
 	button.focus_mode = Control.FOCUS_ALL
 	button.set_meta("card_id", card.id)
 	button.set_meta("visual_state", visual_state)
+	button.set_meta("card_base_color", COLOR_CARD_BROWN)
+	button.set_meta("card_accent_color", palette.border)
 	button.tooltip_text = "%s — %s" % [card.card_name, card.description]
 	button.resized.connect(_update_card_pivot.bind(button))
 	button.mouse_entered.connect(
@@ -389,24 +440,34 @@ func _create_card_button(
 	button.mouse_exited.connect(_on_card_mouse_exited.bind(button))
 	button.add_theme_stylebox_override(
 		"normal",
-		_make_card_style(palette.base, palette.border, 2)
+		_make_card_style(COLOR_CARD_BROWN, palette.border, 3)
 	)
 	button.add_theme_stylebox_override(
 		"hover",
-		_make_card_style(palette.hover, palette.border.lightened(0.18), 3)
+		_make_card_style(COLOR_CARD_BROWN_LIGHT, palette.border.lightened(0.14), 4)
 	)
 	button.add_theme_stylebox_override(
 		"pressed",
-		_make_card_style(palette.base.darkened(0.08), palette.border, 3)
+		_make_card_style(COLOR_CARD_BROWN.darkened(0.08), palette.border, 4)
 	)
 	button.add_theme_stylebox_override(
 		"focus",
-		_make_card_style(Color.TRANSPARENT, Color("#fff0a8"), 3)
+		_make_card_style(Color.TRANSPARENT, COLOR_BRASS.lightened(0.28), 4)
 	)
 	button.add_theme_stylebox_override(
 		"disabled",
-		_make_card_style(palette.base, palette.border, 2)
+		_make_card_style(COLOR_CARD_BROWN.darkened(0.12), palette.border, 3)
 	)
+
+	if ui_textures.has("card"):
+		var ornament := TextureRect.new()
+		ornament.name = "MedievalFrame"
+		ornament.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ornament.texture = ui_textures["card"]
+		ornament.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ornament.stretch_mode = TextureRect.STRETCH_SCALE
+		button.add_child(ornament)
+		ornament.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var content := MarginContainer.new()
 	content.name = "CardContent"
@@ -449,7 +510,7 @@ func _create_card_button(
 		art_frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		art_frame.add_theme_stylebox_override(
 			"panel",
-			_make_flat_card_style(Color("#241712"), palette.border, 1)
+			_make_flat_card_style(COLOR_WALNUT_DARK, palette.border, 2)
 		)
 		var art_rect := TextureRect.new()
 		art_rect.name = "Art"
@@ -512,11 +573,11 @@ func _create_card_button(
 	if card.victory_points > 0:
 		if icon_textures.has("victory"):
 			meta_row.add_child(
-				_create_icon(icon_textures["victory"], Vector2(14, 14), Color("#e9d083"))
+				_create_icon(icon_textures["victory"], Vector2(14, 14), COLOR_BRASS)
 			)
 		var victory_label := Label.new()
 		victory_label.text = "%d VP" % card.victory_points
-		victory_label.add_theme_color_override("font_color", Color("#e9d083"))
+		victory_label.add_theme_color_override("font_color", COLOR_OXBLOOD)
 		victory_label.add_theme_font_size_override("font_size", 12)
 		if body_font != null:
 			victory_label.add_theme_font_override("font", body_font)
@@ -636,15 +697,15 @@ func _show_card_preview(
 	preview_art_frame.visible = preview_art.texture != null
 	preview_art_frame.add_theme_stylebox_override(
 		"panel",
-		_make_flat_card_style(Color("#241712"), palette.border, 2)
+		_make_flat_card_style(COLOR_WALNUT_DARK, palette.border, 2)
 	)
 	preview_effect_label.text = (
 		"[center][b]%s[/b][/center]" % _get_card_effect_text(card)
 	)
-	preview_effect_label.add_theme_color_override("default_color", palette.text)
+	preview_effect_label.add_theme_color_override("default_color", COLOR_PARCHMENT_LIGHT)
 	card_preview.add_theme_stylebox_override(
 		"panel",
-		_make_preview_style(palette.base, palette.border)
+		_make_preview_style(palette.border)
 	)
 	card_preview.position = _get_preview_position(source_button)
 	card_preview.show()
@@ -686,14 +747,14 @@ func _create_played_card_chip(card: CardDefinition) -> PanelContainer:
 	chip.set_meta("card_id", card.id)
 	chip.add_theme_stylebox_override(
 		"panel",
-		_make_card_style(Color("#302943"), Color("#8b79ad"), 1)
+		_make_panel_style(COLOR_WALNUT, COLOR_BRASS.darkened(0.12), 2)
 	)
 
 	var label := Label.new()
 	label.text = "%s  •  %s" % [card.card_name, card.card_type.capitalize()]
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_color_override("font_color", Color("#eee7f7"))
+	label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
 	label.add_theme_font_size_override("font_size", 12)
 	chip.add_child(label)
 	return chip
@@ -703,41 +764,31 @@ func _get_card_palette(visual_state: String) -> Dictionary:
 	match visual_state:
 		HAND_PLAYABLE:
 			return {
-				"base": Color("#3b3153"),
-				"hover": Color("#50416f"),
-				"border": Color("#b69adb"),
-				"text": Color("#f5f0fa"),
-				"muted": Color("#c5b8d4"),
+				"border": COLOR_SLATE,
+				"text": COLOR_PARCHMENT_LIGHT,
+				"muted": COLOR_PARCHMENT.darkened(0.12),
 			}
 		MARKET_AFFORDABLE:
 			return {
-				"base": Color("#244d3d"),
-				"hover": Color("#30634f"),
-				"border": Color("#79d49e"),
-				"text": Color("#f0f8ef"),
-				"muted": Color("#b5cbbd"),
+				"border": COLOR_FOREST,
+				"text": COLOR_PARCHMENT_LIGHT,
+				"muted": COLOR_PARCHMENT.darkened(0.12),
 			}
 		MARKET_UNAFFORDABLE:
 			return {
-				"base": Color("#302c28"),
-				"hover": Color("#302c28"),
-				"border": Color("#715f52"),
-				"text": Color("#c8c0b9"),
-				"muted": Color("#928a83"),
+				"border": COLOR_UNAVAILABLE,
+				"text": COLOR_PARCHMENT.darkened(0.12),
+				"muted": COLOR_PARCHMENT.darkened(0.28),
 			}
 		_:
 			return {
-				"base": Color("#292b31"),
-				"hover": Color("#292b31"),
-				"border": Color("#5b606a"),
-				"text": Color("#c6c9cf"),
-				"muted": Color("#858a94"),
+				"border": COLOR_UNAVAILABLE.darkened(0.12),
+				"text": COLOR_PARCHMENT.darkened(0.12),
+				"muted": COLOR_PARCHMENT.darkened(0.28),
 			}
 
 
 func _make_card_style(color: Color, border_color: Color, border_width: int) -> StyleBox:
-	if card_frame_texture != null:
-		return _make_asset_style(card_frame_texture, color, 22.0)
 	return _make_flat_card_style(color, border_color, border_width)
 
 
@@ -756,32 +807,41 @@ func _make_flat_card_style(
 	return style
 
 
-func _make_preview_style(color: Color, border_color: Color) -> StyleBox:
-	if panel_texture != null:
-		return _make_asset_style(panel_texture, color.darkened(0.08), 24.0)
-	var style := _make_flat_card_style(
-		color.darkened(0.08),
-		border_color.lightened(0.1),
-		3
-	)
+func _make_panel_style(color: Color, border_color: Color, border_width: int) -> StyleBoxFlat:
+	var style := _make_flat_card_style(color, border_color, border_width)
+	style.set_corner_radius_all(10)
+	style.shadow_color = Color(0, 0, 0, 0.38)
+	style.shadow_size = 7
+	return style
+
+
+func _make_preview_style(border_color: Color) -> StyleBox:
+	if ui_textures.has("preview"):
+		return _make_asset_style(ui_textures["preview"], 22.0, 18.0)
+	var style := _make_flat_card_style(COLOR_CARD_BROWN, border_color, 3)
 	style.set_corner_radius_all(12)
 	style.shadow_color = Color(0, 0, 0, 0.65)
 	style.shadow_size = 16
 	return style
 
 
-func _make_asset_style(texture: Texture2D, color: Color, margin: float) -> StyleBoxTexture:
+func _make_asset_style(
+	texture: Texture2D,
+	texture_margin: float,
+	content_margin: float,
+	modulate: Color = Color.WHITE
+) -> StyleBoxTexture:
 	var style := StyleBoxTexture.new()
 	style.texture = texture
-	style.modulate_color = color
-	style.texture_margin_left = margin
-	style.texture_margin_top = margin
-	style.texture_margin_right = margin
-	style.texture_margin_bottom = margin
-	style.content_margin_left = 10.0
-	style.content_margin_top = 8.0
-	style.content_margin_right = 10.0
-	style.content_margin_bottom = 8.0
+	style.modulate_color = modulate
+	style.texture_margin_left = texture_margin
+	style.texture_margin_top = texture_margin
+	style.texture_margin_right = texture_margin
+	style.texture_margin_bottom = texture_margin
+	style.content_margin_left = content_margin
+	style.content_margin_top = content_margin
+	style.content_margin_right = content_margin
+	style.content_margin_bottom = content_margin
 	return style
 
 
@@ -807,7 +867,7 @@ func _create_moving_card(
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.add_theme_color_override("font_color", Color("#fff9e8"))
+	label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
 	label.add_theme_font_size_override("font_size", 16)
 	if title_font != null:
 		label.add_theme_font_override("font", title_font)
@@ -848,7 +908,7 @@ func _capture_cleanup_cards() -> Array[Control]:
 			_create_moving_card(
 				game_state.card_catalog[card_id],
 				(child as Control).get_global_rect(),
-				Color("#403453")
+				COLOR_SLATE.darkened(0.18)
 			)
 		)
 
@@ -862,7 +922,7 @@ func _capture_cleanup_cards() -> Array[Control]:
 			_create_moving_card(
 				game_state.card_catalog[card_id],
 				(child as Control).get_global_rect(),
-				Color("#403453")
+				COLOR_SLATE.darkened(0.18)
 			)
 		)
 	return ghosts
@@ -881,7 +941,7 @@ func _animate_cleanup_cards(ghosts: Array[Control]) -> void:
 			CLEANUP_SECONDS,
 			Vector2(0.22, 0.22)
 		)
-	_pulse_control(discard_label, Color("#f0d4a0"))
+	_pulse_control(discard_label, COLOR_BRASS.lightened(0.24))
 
 
 func _animate_draw_cards(card_count: int) -> void:
@@ -902,7 +962,7 @@ func _animate_draw_cards(card_count: int) -> void:
 		var ghost := _create_moving_card(
 			game_state.card_catalog[card_id],
 			source_rect,
-			Color("#3b3153")
+			COLOR_SLATE
 		)
 		ghost.scale = Vector2(0.35, 0.35)
 		ghost.modulate.a = 0.35
@@ -911,7 +971,7 @@ func _animate_draw_cards(card_count: int) -> void:
 			target_button.get_global_rect(),
 			CARD_DRAW_SECONDS
 		)
-	_pulse_control(deck_label, Color("#f4ecd6"))
+	_pulse_control(deck_label, COLOR_PARCHMENT_LIGHT)
 
 
 func _animate_draw_ghost(ghost: Control, target_rect: Rect2, duration: float) -> void:
@@ -976,7 +1036,7 @@ func _on_hand_card_pressed(card: CardDefinition) -> void:
 		ghost = _create_moving_card(
 			card,
 			source_button.get_global_rect(),
-			Color("#4a3c69")
+			COLOR_SLATE
 		)
 	var played := game_state.play_card(card)
 	if played:
@@ -1005,7 +1065,7 @@ func _on_market_card_pressed(card: CardDefinition) -> void:
 		ghost = _create_moving_card(
 			card,
 			source_button.get_global_rect(),
-			Color("#2d5b48")
+			COLOR_FOREST
 		)
 	var bought := game_state.buy_card(card)
 	if bought:
@@ -1023,7 +1083,7 @@ func _on_market_card_pressed(card: CardDefinition) -> void:
 			CARD_MOVE_SECONDS,
 			Vector2(0.22, 0.22)
 		)
-		_pulse_control(discard_label, Color("#f0d4a0"))
+		_pulse_control(discard_label, COLOR_BRASS.lightened(0.24))
 
 
 func _on_end_turn_pressed() -> void:

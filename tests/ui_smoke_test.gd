@@ -21,6 +21,7 @@ func _initialize() -> void:
 	_check(main_ui.title_font != null, "Imported title font should load.")
 	_check(main_ui.body_font != null, "Imported body font should load.")
 	_check(main_ui.body_bold_font != null, "Imported bold effect font should load.")
+	_check(main_ui.ui_textures.size() == 8, "All original medieval UI textures should load.")
 	_check(_hud_icon("CoinStat").texture != null, "Coin HUD icon should load.")
 	_check(_hud_icon("ActionStat").texture != null, "Action HUD icon should load.")
 	_check(_hud_icon("BuyStat").texture != null, "Buy HUD icon should load.")
@@ -47,6 +48,18 @@ func _initialize() -> void:
 	_check(resource_button != null, "A Pebble Coin button should render in hand.")
 	if resource_button != null:
 		_check(not resource_button.disabled, "A resource card should be visibly playable.")
+		_check(
+			resource_button.get_meta("card_base_color") == main_ui.COLOR_CARD_BROWN,
+			"Playable cards should retain the dark-brown base color."
+		)
+		_check(
+			resource_button.get_meta("card_accent_color") == main_ui.COLOR_SLATE,
+			"Playable hand cards should use the slate accent."
+		)
+		_check(
+			resource_button.has_node("MedievalFrame"),
+			"Card faces should include the original medieval frame ornament."
+		)
 		_check(_card_art(resource_button).texture != null, "Card faces should display card artwork.")
 		_check(
 			_card_effect(resource_button).get_parsed_text() == "+1 Coin",
@@ -92,6 +105,18 @@ func _initialize() -> void:
 		_check(_hand_container().get_child_count() == 4, "Played card should leave the hand UI.")
 		_check(_play_area_container().get_child_count() == 1, "Played card should render in play area.")
 
+	var score_button := _find_card_button(_hand_container(), "homestead")
+	if score_button != null:
+		_check(score_button.disabled, "Victory-only hand cards should remain unavailable.")
+		_check(
+			score_button.get_meta("card_base_color") == main_ui.COLOR_CARD_BROWN,
+			"Unavailable cards should retain the dark-brown base color."
+		)
+		_check(
+			score_button.get_meta("card_accent_color") == main_ui.COLOR_UNAVAILABLE.darkened(0.12),
+			"Unavailable hand cards should use the muted accent."
+		)
+
 	main_ui.game_state.player.coins = 99
 	main_ui._refresh_ui()
 	var market_button: Button = _market_container().get_child(0)
@@ -102,6 +127,14 @@ func _initialize() -> void:
 		_check(
 			market_button.get_meta("visual_state") == "market_affordable",
 			"Affordable market card should use its distinct visual state."
+		)
+		_check(
+			market_button.get_meta("card_base_color") == main_ui.COLOR_CARD_BROWN,
+			"Affordable market cards should retain the dark-brown base color."
+		)
+		_check(
+			market_button.get_meta("card_accent_color") == main_ui.COLOR_FOREST,
+			"Affordable market cards should use the forest accent."
 		)
 		market_button.mouse_entered.emit()
 		await process_frame
@@ -188,6 +221,10 @@ func _initialize() -> void:
 	await process_frame
 	_check(not _end_game_overlay().visible, "Play Again should close the final score overlay.")
 	_check(_hud_value("TurnStat") == "1 / 15", "Play Again should start a fresh game.")
+	_check(
+		_active_ui_uses_original_assets(),
+		"Active UI code should use original assets and no Kenney fantasy-border paths."
+	)
 
 	if failure_count > 0:
 		push_error("[Test] UI smoke test failed with %d issue(s)." % failure_count)
@@ -302,6 +339,17 @@ func _same_card_ids(first: Array[String], second: Array[String]) -> bool:
 		if not second.has(card_id):
 			return false
 	return true
+
+
+func _active_ui_uses_original_assets() -> bool:
+	var script_text := FileAccess.get_file_as_string("res://scripts/ui/main_ui.gd")
+	var scene_text := FileAccess.get_file_as_string("res://scenes/Main.tscn")
+	return (
+		script_text.contains("res://assets/ui/")
+		and scene_text.contains("res://assets/ui/")
+		and not script_text.contains("kenney_fantasy-ui-borders")
+		and not scene_text.contains("kenney_fantasy-ui-borders")
+	)
 
 
 func _cleanup_main_ui() -> void:
