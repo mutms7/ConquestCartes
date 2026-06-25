@@ -789,7 +789,11 @@ func _get_card_palette(visual_state: String) -> Dictionary:
 
 
 func _make_card_style(color: Color, border_color: Color, border_width: int) -> StyleBox:
-	return _make_flat_card_style(color, border_color, border_width)
+	var style := _make_flat_card_style(color, border_color, border_width)
+	style.shadow_color = Color(0, 0, 0, 0.5)
+	style.shadow_size = 7
+	style.shadow_offset = Vector2(0, 4)
+	return style
 
 
 func _make_flat_card_style(
