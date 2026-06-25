@@ -764,13 +764,13 @@ func _get_card_palette(visual_state: String) -> Dictionary:
 	match visual_state:
 		HAND_PLAYABLE:
 			return {
-				"border": COLOR_SLATE,
+				"border": Color("#6f93ad"),
 				"text": COLOR_PARCHMENT_LIGHT,
 				"muted": COLOR_PARCHMENT.darkened(0.12),
 			}
 		MARKET_AFFORDABLE:
 			return {
-				"border": COLOR_FOREST,
+				"border": Color("#5fa06a"),
 				"text": COLOR_PARCHMENT_LIGHT,
 				"muted": COLOR_PARCHMENT.darkened(0.12),
 			}
