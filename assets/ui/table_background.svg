@@ -1,16 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
   <defs>
     <radialGradient id="light" cx="50%" cy="42%" r="72%">
-      <stop offset="0" stop-color="#5b3a27"/>
-      <stop offset=".48" stop-color="#432a1d"/>
-      <stop offset="1" stop-color="#21140f"/>
+      <stop offset="0" stop-color="#40545a"/>
+      <stop offset=".48" stop-color="#293d43"/>
+      <stop offset="1" stop-color="#121d23"/>
     </radialGradient>
     <pattern id="grain" width="160" height="28" patternUnits="userSpaceOnUse">
-      <path d="M0 8 C35 1 67 15 104 8 S146 4 160 9" fill="none" stroke="#8b6040" stroke-opacity=".12" stroke-width="2"/>
-      <path d="M0 21 C42 13 73 28 118 20 S150 18 160 22" fill="none" stroke="#160d09" stroke-opacity=".2"/>
+      <path d="M0 8 C35 1 67 15 104 8 S146 4 160 9" fill="none" stroke="#81aaa5" stroke-opacity=".11" stroke-width="2"/>
+      <path d="M0 21 C42 13 73 28 118 20 S150 18 160 22" fill="none" stroke="#071015" stroke-opacity=".2"/>
     </pattern>
   </defs>
   <rect width="1280" height="720" fill="url(#light)"/>
   <rect width="1280" height="720" fill="url(#grain)"/>
-  <rect x="10" y="10" width="1260" height="700" rx="28" fill="none" stroke="#b58a45" stroke-opacity=".12" stroke-width="2"/>
+  <rect x="10" y="10" width="1260" height="700" rx="28" fill="none" stroke="#d5aa50" stroke-opacity=".24" stroke-width="2"/>
 </svg>

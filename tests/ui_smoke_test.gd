@@ -86,6 +86,18 @@ func _initialize() -> void:
 		"Each card type should have a distinct dark medieval surface color."
 	)
 	_check(
+		_color_distance(main_ui.COLOR_RESOURCE_CARD, main_ui.COLOR_ACTION_CARD) > 0.22
+		and _color_distance(main_ui.COLOR_ACTION_CARD, main_ui.COLOR_VICTORY_CARD) > 0.16
+		and _color_distance(main_ui.COLOR_RESOURCE_CARD, main_ui.COLOR_VICTORY_CARD) > 0.16,
+		"Card type surfaces should be visibly different rather than near-identical browns."
+	)
+	_check(
+		main_ui._get_card_type_accent("resource") != main_ui._get_card_type_accent("action")
+		and main_ui._get_card_type_accent("action")
+		!= main_ui._get_card_type_accent("victory"),
+		"Each card type should also have a distinct bright inner accent."
+	)
+	_check(
 		_hand_panel().get_global_rect().end.y <= root.get_visible_rect().end.y,
 		"The full hand panel should remain inside the 1280x720 viewport."
 	)
@@ -122,8 +134,14 @@ func _initialize() -> void:
 			"Resource cards should use the warm umber surface."
 		)
 		_check(
-			resource_button.get_meta("card_accent_color") == main_ui.COLOR_SLATE,
+			resource_button.get_meta("card_accent_color")
+			== main_ui._get_card_palette("hand_playable").border,
 			"Playable hand cards should use the slate accent."
+		)
+		var normal_style := resource_button.get_theme_stylebox("normal") as StyleBoxFlat
+		_check(
+			normal_style != null and normal_style.border_width_left >= 4,
+			"Card outlines should remain thick and obvious in their normal state."
 		)
 		_check(
 			resource_button.has_node("MedievalFrame"),
@@ -212,7 +230,8 @@ func _initialize() -> void:
 			"Market cards should use the surface color for their card type."
 		)
 		_check(
-			market_button.get_meta("card_accent_color") == main_ui.COLOR_FOREST,
+			market_button.get_meta("card_accent_color")
+			== main_ui._get_card_palette("market_affordable").border,
 			"Affordable market cards should use the forest accent."
 		)
 		_check(
@@ -555,6 +574,12 @@ func _same_card_ids(first: Array[String], second: Array[String]) -> bool:
 		if not second.has(card_id):
 			return false
 	return true
+
+
+func _color_distance(first: Color, second: Color) -> float:
+	return Vector3(first.r, first.g, first.b).distance_to(
+		Vector3(second.r, second.g, second.b)
+	)
 
 
 func _active_ui_uses_original_assets() -> bool:

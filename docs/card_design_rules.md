@@ -90,14 +90,15 @@ the player-facing name should describe the actual Conquest Cartes artwork.
 
 ## Type surfaces
 
-Card faces and previews use a generic type-based dark surface:
+Card faces and previews use a generic, high-contrast type-based dark surface:
 
-- resources: warm umber
-- actions: cool smoked walnut
-- victory cards: restrained oxblood walnut
+- resources: golden umber with an amber inner accent
+- actions: midnight blue with a pale blue inner accent
+- victory cards: deep plum with a rose inner accent
 
-Availability and playability remain border states. Type styling must be derived
-from `card_type`, never from individual card IDs.
+Availability and playability remain bright outer-border states. Type styling
+uses the card body, art-frame accent, and footer label and must be derived from
+`card_type`, never from individual card IDs.
 
 ## Market composition
 

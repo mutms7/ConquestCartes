@@ -15,24 +15,27 @@ const CLEANUP_SECONDS := 0.2
 const PREVIEW_SIZE := Vector2(360, 500)
 const PREVIEW_EDGE_MARGIN := 24.0
 
-const COLOR_PARCHMENT := Color("#e4d2aa")
-const COLOR_PARCHMENT_LIGHT := Color("#f3e8ca")
+const COLOR_PARCHMENT := Color("#ead8ad")
+const COLOR_PARCHMENT_LIGHT := Color("#fff1ca")
 const COLOR_CARD_BROWN := Color("#4a3021")
 const COLOR_CARD_BROWN_LIGHT := Color("#5a3a28")
-const COLOR_RESOURCE_CARD := Color("#51351f")
-const COLOR_ACTION_CARD := Color("#40332e")
-const COLOR_VICTORY_CARD := Color("#482b31")
-const COLOR_WALNUT := Color("#352218")
-const COLOR_WALNUT_DARK := Color("#21140f")
-const COLOR_BRASS := Color("#b58a45")
-const COLOR_FOREST := Color("#294638")
-const COLOR_OXBLOOD := Color("#713a32")
-const COLOR_SLATE := Color("#43566a")
+const COLOR_RESOURCE_CARD := Color("#68431f")
+const COLOR_ACTION_CARD := Color("#293e52")
+const COLOR_VICTORY_CARD := Color("#552d46")
+const COLOR_WALNUT := Color("#39251b")
+const COLOR_WALNUT_DARK := Color("#19161a")
+const COLOR_BRASS := Color("#d5aa50")
+const COLOR_FOREST := Color("#3d7d58")
+const COLOR_OXBLOOD := Color("#a64b55")
+const COLOR_SLATE := Color("#5c8fc2")
 const COLOR_INK := Color("#30251d")
-const COLOR_UNAVAILABLE := Color("#796d5f")
-const COLOR_TREASURY_CARPET := Color("#5a2928")
-const COLOR_BARRACKS_CARPET := Color("#293842")
-const COLOR_ESTATES_CARPET := Color("#29422f")
+const COLOR_UNAVAILABLE := Color("#77756f")
+const COLOR_TREASURY_CARPET := Color("#682b37")
+const COLOR_BARRACKS_CARPET := Color("#263f5b")
+const COLOR_ESTATES_CARPET := Color("#28503b")
+const COLOR_RESOURCE_ACCENT := Color("#f0bd58")
+const COLOR_ACTION_ACCENT := Color("#76b5e8")
+const COLOR_VICTORY_ACCENT := Color("#df7890")
 
 const TITLE_FONT_PATH := "res://assets/fonts/Cinzel/static/Cinzel-SemiBold.ttf"
 const BODY_FONT_PATH := "res://assets/fonts/Inter/static/Inter_18pt-Regular.ttf"
@@ -500,88 +503,53 @@ func _apply_imported_theme() -> void:
 func _apply_original_ui_assets() -> void:
 	hud_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	market_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-	if ui_textures.has("hud"):
-		left_ledger.add_theme_stylebox_override(
-			"panel", _make_asset_style(ui_textures["hud"], 18.0, 10.0)
+	left_ledger.add_theme_stylebox_override(
+		"panel",
+		_make_panel_style(Color("#182838"), COLOR_SLATE.lightened(0.18), 2)
+	)
+	brand_panel.add_theme_stylebox_override(
+		"panel",
+		_make_panel_style(Color("#43283b"), COLOR_BRASS.lightened(0.12), 2)
+	)
+	right_ledger.add_theme_stylebox_override(
+		"panel",
+		_make_panel_style(Color("#193429"), COLOR_FOREST.lightened(0.24), 2)
+	)
+	treasury_carpet.add_theme_stylebox_override(
+		"panel",
+		_make_panel_style(
+			COLOR_TREASURY_CARPET,
+			COLOR_RESOURCE_ACCENT.lightened(0.08),
+			3
 		)
-		brand_panel.add_theme_stylebox_override(
-			"panel",
-			_make_asset_style(
-				ui_textures["hud"],
-				18.0,
-				10.0,
-				Color(0.92, 0.9, 0.82, 1.0)
-			)
+	)
+	barracks_carpet.add_theme_stylebox_override(
+		"panel",
+		_make_panel_style(
+			COLOR_BARRACKS_CARPET,
+			COLOR_ACTION_ACCENT.lightened(0.04),
+			3
 		)
-		right_ledger.add_theme_stylebox_override(
-			"panel", _make_asset_style(ui_textures["hud"], 18.0, 10.0)
+	)
+	estates_carpet.add_theme_stylebox_override(
+		"panel",
+		_make_panel_style(
+			COLOR_ESTATES_CARPET,
+			COLOR_VICTORY_ACCENT.lightened(0.02),
+			3
 		)
-	else:
-		left_ledger.add_theme_stylebox_override(
-			"panel", _make_panel_style(COLOR_WALNUT_DARK, COLOR_BRASS, 1)
+	)
+	hand_panel.add_theme_stylebox_override(
+		"panel",
+		_make_panel_style(
+			Color("#171f27"),
+			COLOR_BRASS.darkened(0.04),
+			2
 		)
-		brand_panel.add_theme_stylebox_override(
-			"panel", _make_panel_style(COLOR_WALNUT, COLOR_BRASS, 1)
-		)
-		right_ledger.add_theme_stylebox_override(
-			"panel", _make_panel_style(COLOR_WALNUT_DARK, COLOR_BRASS, 1)
-		)
-	if ui_textures.has("market"):
-		treasury_carpet.add_theme_stylebox_override(
-			"panel",
-			_make_asset_style(
-				ui_textures["market"],
-				18.0,
-				6.0,
-				Color(0.9, 0.55, 0.5, 1.0)
-			)
-		)
-		barracks_carpet.add_theme_stylebox_override(
-			"panel",
-			_make_asset_style(
-				ui_textures["market"],
-				18.0,
-				6.0,
-				Color(0.58, 0.72, 0.82, 1.0)
-			)
-		)
-		estates_carpet.add_theme_stylebox_override(
-			"panel",
-			_make_asset_style(
-				ui_textures["market"],
-				18.0,
-				6.0,
-				Color(0.58, 0.82, 0.62, 1.0)
-			)
-		)
-	else:
-		treasury_carpet.add_theme_stylebox_override(
-			"panel", _make_panel_style(COLOR_TREASURY_CARPET, COLOR_BRASS, 2)
-		)
-		barracks_carpet.add_theme_stylebox_override(
-			"panel",
-			_make_panel_style(
-				COLOR_BARRACKS_CARPET,
-				COLOR_SLATE.lightened(0.28),
-				2
-			)
-		)
-		estates_carpet.add_theme_stylebox_override(
-			"panel",
-			_make_panel_style(
-				COLOR_ESTATES_CARPET,
-				COLOR_FOREST.lightened(0.3),
-				2
-			)
-		)
-	if ui_textures.has("hand"):
-		hand_panel.add_theme_stylebox_override(
-			"panel",
-			_make_asset_style(ui_textures["hand"], 18.0, 12.0)
-		)
+	)
 	play_area_panel.add_theme_stylebox_override(
 		"panel",
-		_make_panel_style(Color(0.12, 0.075, 0.05, 0.72), COLOR_BRASS.darkened(0.25), 1)
+		_make_panel_style(Color("#17252b"), COLOR_BRASS.darkened(0.08), 2)
 	)
 	if ui_textures.has("endgame"):
 		end_game_panel.add_theme_stylebox_override(
@@ -792,7 +760,7 @@ func _create_card_button(
 	var card_surface := _get_card_surface_color(card.card_type)
 	var is_market_card := visual_state.begins_with("market_")
 	var button := Button.new()
-	button.custom_minimum_size = Vector2(156, 132) if is_market_card else Vector2(164, 208)
+	button.custom_minimum_size = Vector2(156, 136) if is_market_card else Vector2(164, 208)
 	button.focus_mode = Control.FOCUS_ALL
 	button.set_meta("card_id", card.id)
 	button.set_meta("visual_state", visual_state)
@@ -810,23 +778,23 @@ func _create_card_button(
 	button.mouse_exited.connect(_on_card_mouse_exited.bind(button))
 	button.add_theme_stylebox_override(
 		"normal",
-		_make_card_style(card_surface, palette.border, 3)
+		_make_card_style(card_surface, palette.border, 4)
 	)
 	button.add_theme_stylebox_override(
 		"hover",
-		_make_card_style(card_surface.lightened(0.1), palette.border.lightened(0.14), 4)
+		_make_card_style(card_surface.lightened(0.14), palette.border.lightened(0.2), 6)
 	)
 	button.add_theme_stylebox_override(
 		"pressed",
-		_make_card_style(card_surface.darkened(0.08), palette.border, 4)
+		_make_card_style(card_surface.darkened(0.06), palette.border.lightened(0.08), 5)
 	)
 	button.add_theme_stylebox_override(
 		"focus",
-		_make_card_style(Color.TRANSPARENT, COLOR_BRASS.lightened(0.28), 4)
+		_make_card_style(Color.TRANSPARENT, COLOR_BRASS.lightened(0.3), 6)
 	)
 	button.add_theme_stylebox_override(
 		"disabled",
-		_make_card_style(card_surface.darkened(0.12), palette.border, 3)
+		_make_card_style(card_surface.darkened(0.16), palette.border, 4)
 	)
 
 	if ui_textures.has("card"):
@@ -834,6 +802,7 @@ func _create_card_button(
 		ornament.name = "MedievalFrame"
 		ornament.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		ornament.texture = ui_textures["card"]
+		ornament.modulate = Color(1.18, 1.12, 0.92, 1.0)
 		ornament.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		ornament.stretch_mode = TextureRect.STRETCH_SCALE
 		button.add_child(ornament)
@@ -880,7 +849,11 @@ func _create_card_button(
 		art_frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		art_frame.add_theme_stylebox_override(
 			"panel",
-			_make_flat_card_style(COLOR_WALNUT_DARK, palette.border, 2)
+			_make_flat_card_style(
+				COLOR_WALNUT_DARK,
+				_get_card_type_accent(card.card_type),
+				3
+			)
 		)
 		var art_rect := TextureRect.new()
 		art_rect.name = "Art"
@@ -923,10 +896,13 @@ func _create_card_button(
 	var type_label := Label.new()
 	type_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	type_label.text = card.card_type.to_upper()
-	type_label.add_theme_color_override("font_color", palette.muted)
+	type_label.add_theme_color_override(
+		"font_color",
+		_get_card_type_accent(card.card_type).lightened(0.1)
+	)
 	type_label.add_theme_font_size_override("font_size", 9 if is_market_card else 12)
-	if body_font != null:
-		type_label.add_theme_font_override("font", body_font)
+	if body_bold_font != null:
+		type_label.add_theme_font_override("font", body_bold_font)
 	meta_row.add_child(type_label)
 
 	if icon_textures.has("coin"):
@@ -962,7 +938,10 @@ func _create_card_button(
 			if card.victory_points > 0
 			else "VP / %d" % card.score_per_cards
 		)
-		victory_label.add_theme_color_override("font_color", COLOR_OXBLOOD)
+		victory_label.add_theme_color_override(
+			"font_color",
+			COLOR_VICTORY_ACCENT.lightened(0.08)
+		)
 		victory_label.add_theme_font_size_override("font_size", 9 if is_market_card else 12)
 		if body_font != null:
 			victory_label.add_theme_font_override("font", body_font)
@@ -1105,7 +1084,11 @@ func _show_card_preview(
 	preview_art_frame.visible = preview_art.texture != null
 	preview_art_frame.add_theme_stylebox_override(
 		"panel",
-		_make_flat_card_style(COLOR_WALNUT_DARK, palette.border, 2)
+		_make_flat_card_style(
+			COLOR_WALNUT_DARK,
+			_get_card_type_accent(card.card_type),
+			4
+		)
 	)
 	preview_effect_label.text = (
 		"[center][b]%s[/b][/center]" % _get_card_effect_text(card)
@@ -1177,27 +1160,27 @@ func _get_card_palette(visual_state: String) -> Dictionary:
 	match visual_state:
 		HAND_PLAYABLE:
 			return {
-				"border": COLOR_SLATE,
+				"border": COLOR_SLATE.lightened(0.1),
 				"text": COLOR_PARCHMENT_LIGHT,
-				"muted": COLOR_PARCHMENT.darkened(0.12),
+				"muted": COLOR_PARCHMENT.lightened(0.02),
 			}
 		MARKET_AFFORDABLE:
 			return {
-				"border": COLOR_FOREST,
+				"border": COLOR_FOREST.lightened(0.16),
 				"text": COLOR_PARCHMENT_LIGHT,
-				"muted": COLOR_PARCHMENT.darkened(0.12),
+				"muted": COLOR_PARCHMENT.lightened(0.02),
 			}
 		MARKET_UNAFFORDABLE:
 			return {
 				"border": COLOR_UNAVAILABLE,
-				"text": COLOR_PARCHMENT.darkened(0.12),
-				"muted": COLOR_PARCHMENT.darkened(0.28),
+				"text": COLOR_PARCHMENT.darkened(0.06),
+				"muted": COLOR_PARCHMENT.darkened(0.18),
 			}
 		_:
 			return {
 				"border": COLOR_UNAVAILABLE.darkened(0.12),
-				"text": COLOR_PARCHMENT.darkened(0.12),
-				"muted": COLOR_PARCHMENT.darkened(0.28),
+				"text": COLOR_PARCHMENT.darkened(0.06),
+				"muted": COLOR_PARCHMENT.darkened(0.18),
 			}
 
 
@@ -1211,11 +1194,21 @@ func _get_card_surface_color(card_type: String) -> Color:
 			return COLOR_ACTION_CARD
 
 
+func _get_card_type_accent(card_type: String) -> Color:
+	match card_type:
+		"resource":
+			return COLOR_RESOURCE_ACCENT
+		"victory":
+			return COLOR_VICTORY_ACCENT
+		_:
+			return COLOR_ACTION_ACCENT
+
+
 func _make_card_style(color: Color, border_color: Color, border_width: int) -> StyleBox:
 	var style := _make_flat_card_style(color, border_color, border_width)
-	style.shadow_color = Color(0, 0, 0, 0.5)
-	style.shadow_size = 7
-	style.shadow_offset = Vector2(0, 4)
+	style.shadow_color = Color(0, 0, 0, 0.7)
+	style.shadow_size = 10
+	style.shadow_offset = Vector2(0, 5)
 	return style
 
 
@@ -1229,8 +1222,8 @@ func _make_flat_card_style(
 	style.border_color = border_color
 	style.set_border_width_all(border_width)
 	style.set_corner_radius_all(8)
-	style.shadow_color = Color(0, 0, 0, 0.25)
-	style.shadow_size = 3
+	style.shadow_color = Color(0, 0, 0, 0.38)
+	style.shadow_size = 4
 	return style
 
 
@@ -1250,7 +1243,7 @@ func _make_preview_style(surface_color: Color, border_color: Color) -> StyleBox:
 			18.0,
 			_get_preview_type_modulate(surface_color)
 		)
-	var style := _make_flat_card_style(surface_color, border_color, 3)
+	var style := _make_flat_card_style(surface_color, border_color, 5)
 	style.set_corner_radius_all(12)
 	style.shadow_color = Color(0, 0, 0, 0.65)
 	style.shadow_size = 16
@@ -1259,9 +1252,9 @@ func _make_preview_style(surface_color: Color, border_color: Color) -> StyleBox:
 
 func _get_preview_type_modulate(surface_color: Color) -> Color:
 	return Color(
-		clampf(surface_color.r / COLOR_CARD_BROWN.r, 0.82, 1.12),
-		clampf(surface_color.g / COLOR_CARD_BROWN.g, 0.82, 1.12),
-		clampf(surface_color.b / COLOR_CARD_BROWN.b, 0.82, 1.12),
+		clampf(surface_color.r / COLOR_CARD_BROWN.r, 0.72, 1.42),
+		clampf(surface_color.g / COLOR_CARD_BROWN.g, 0.72, 1.42),
+		clampf(surface_color.b / COLOR_CARD_BROWN.b, 0.72, 1.42),
 		1.0
 	)
 

@@ -18,11 +18,11 @@ contents of your deck into victory points.
   replaying, inspecting, and ordering cards
 - Finite supply piles with visible counts and sold-out handling
 - Art-linked names that preserve the identity of the original illustration library
-- Subtle type surfaces: warm umber resources, smoked-walnut actions, and
-  oxblood-walnut victory cards
+- High-contrast type surfaces: golden umber resources, midnight-blue actions,
+  and deep plum victory cards
 - Final scoring after turn 15
-- Handcrafted medieval tabletop UI using dark walnut cards, brass, leather, and
-  restrained heraldic ornament
+- Handcrafted medieval tabletop UI using dark jewel-toned cards, bright brass,
+  cool slate, and restrained heraldic ornament
 - A three-carpet market board: Royal Treasury resources, Guild Barracks
   actions, and Crown Estates victory cards
 - Card previews, movement animation, audio feedback, and an end-game score plaque
