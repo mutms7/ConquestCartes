@@ -42,6 +42,15 @@ func _initialize() -> void:
 		"Market carpets should use the requested 2x1, 2x5, and 2x1 grids."
 	)
 	_check(
+		_costs_descend_in_child_order(_treasury_cards())
+		and _costs_descend_in_child_order(_estates_cards()),
+		"Resource and victory piles should run from most expensive at the top to cheapest below."
+	)
+	_check(
+		_barracks_follows_cost_path(),
+		"Action piles should descend from top-right to top-left, then bottom-right to bottom-left."
+	)
+	_check(
 		_market_scroll().horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED
 		and _market_scroll().vertical_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED,
 		"The complete market should fit without scrolling."
@@ -456,6 +465,35 @@ func _container_has_type(container: GridContainer, card_type: String) -> bool:
 		if child.get_meta("card_type", "") != card_type:
 			return false
 	return true
+
+
+func _costs_descend_in_child_order(container: GridContainer) -> bool:
+	var previous_cost := 999
+	for child in container.get_children():
+		var current_cost := _market_button_cost(child as Button)
+		if current_cost > previous_cost:
+			return false
+		previous_cost = current_cost
+	return true
+
+
+func _barracks_follows_cost_path() -> bool:
+	var buttons := _barracks_cards().get_children()
+	if buttons.size() != 10:
+		return false
+	var visual_path := [4, 3, 2, 1, 0, 9, 8, 7, 6, 5]
+	var previous_cost := 999
+	for index in visual_path:
+		var current_cost := _market_button_cost(buttons[index] as Button)
+		if current_cost > previous_cost:
+			return false
+		previous_cost = current_cost
+	return true
+
+
+func _market_button_cost(button: Button) -> int:
+	var card_id := str(button.get_meta("card_id", ""))
+	return main_ui.game_state.get_effective_cost(main_ui.game_state.card_catalog[card_id])
 
 
 func _children_fit_parent(container: Container) -> bool:

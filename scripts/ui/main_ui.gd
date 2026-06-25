@@ -696,7 +696,38 @@ func _refresh_market() -> void:
 	_clear_container(market_resource_container)
 	_clear_container(market_action_container)
 	_clear_container(market_victory_container)
+
+	var resource_cards: Array[CardDefinition] = []
+	var action_cards: Array[CardDefinition] = []
+	var victory_cards: Array[CardDefinition] = []
 	for card in game_state.market:
+		match card.card_type:
+			"resource":
+				resource_cards.append(card)
+			"victory":
+				victory_cards.append(card)
+			_:
+				action_cards.append(card)
+
+	_render_market_cards(
+		_sort_market_cards_descending(resource_cards),
+		market_resource_container
+	)
+	_render_market_cards(
+		_arrange_action_market(action_cards),
+		market_action_container
+	)
+	_render_market_cards(
+		_sort_market_cards_descending(victory_cards),
+		market_victory_container
+	)
+
+
+func _render_market_cards(
+	cards: Array[CardDefinition],
+	container: GridContainer
+) -> void:
+	for card in cards:
 		var affordable := _can_buy_card(card)
 		var visual_state := MARKET_AFFORDABLE if affordable else MARKET_UNAFFORDABLE
 		var button := _create_card_button(card, visual_state)
@@ -705,17 +736,42 @@ func _refresh_market() -> void:
 			Control.CURSOR_POINTING_HAND if affordable else Control.CURSOR_ARROW
 		)
 		button.pressed.connect(_on_market_card_pressed.bind(card))
-		_get_market_container_for_type(card.card_type).add_child(button)
+		container.add_child(button)
 
 
-func _get_market_container_for_type(card_type: String) -> GridContainer:
-	match card_type:
-		"resource":
-			return market_resource_container
-		"victory":
-			return market_victory_container
-		_:
-			return market_action_container
+func _sort_market_cards_descending(
+	cards: Array[CardDefinition]
+) -> Array[CardDefinition]:
+	var sorted_cards := cards.duplicate()
+	sorted_cards.sort_custom(_is_market_card_before)
+	return sorted_cards
+
+
+func _is_market_card_before(
+	first: CardDefinition,
+	second: CardDefinition
+) -> bool:
+	var first_cost := game_state.get_effective_cost(first)
+	var second_cost := game_state.get_effective_cost(second)
+	if first_cost != second_cost:
+		return first_cost > second_cost
+	return first.card_name.naturalnocasecmp_to(second.card_name) < 0
+
+
+func _arrange_action_market(
+	cards: Array[CardDefinition]
+) -> Array[CardDefinition]:
+	var sorted_cards := _sort_market_cards_descending(cards)
+	var arranged: Array[CardDefinition] = []
+	var row_size := mini(market_action_container.columns, sorted_cards.size())
+
+	# GridContainer fills left-to-right. Reverse each row so the visual reading
+	# path runs from top-right to top-left, then bottom-right to bottom-left.
+	for index in range(row_size - 1, -1, -1):
+		arranged.append(sorted_cards[index])
+	for index in range(sorted_cards.size() - 1, row_size - 1, -1):
+		arranged.append(sorted_cards[index])
+	return arranged
 
 
 func _refresh_play_area() -> void:

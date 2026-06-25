@@ -23,7 +23,10 @@ The market is arranged as three medieval tabletop carpets. The Royal Treasury
 holds the two resource piles in one column, the Guild Barracks holds ten action
 piles in a two-by-five grid, and the Crown Estates holds the two victory piles
 in one column. Compact ledgers at the upper sides show turn and deck details on
-the left and spendable turn resources on the right.
+the left and spendable turn resources on the right. Treasury and Estate piles
+descend in cost from top to bottom. Barracks piles descend from the top-right
+across to the top-left, then continue from the bottom-right to the cheapest pile
+at the bottom-left.
 
 ## Solo Effect Resolution
 
