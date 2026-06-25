@@ -790,7 +790,7 @@ func _create_card_button(
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_label.text = card.card_name
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.add_theme_color_override("font_color", palette.text)
 	name_label.add_theme_font_size_override("font_size", 12 if is_market_card else 15)
@@ -806,7 +806,6 @@ func _create_card_button(
 		art_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		art_frame.clip_contents = true
 		art_frame.custom_minimum_size = Vector2(0, 84 if is_market_card else 112)
-		art_frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		art_frame.add_theme_stylebox_override(
 			"panel",
 			_make_flat_card_style(
@@ -826,9 +825,15 @@ func _create_card_button(
 		art_frame.add_child(art_rect)
 		layout.add_child(art_frame)
 
+	var effect_slot := MarginContainer.new()
+	effect_slot.name = "EffectSlot"
+	effect_slot.custom_minimum_size = Vector2(0, 38 if is_market_card else 36)
+	effect_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	effect_slot.add_theme_constant_override("margin_top", 10)
+	layout.add_child(effect_slot)
+
 	var effect_label := RichTextLabel.new()
 	effect_label.name = "EffectLabel"
-	effect_label.custom_minimum_size = Vector2(0, 58 if is_market_card else 56)
 	effect_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	effect_label.bbcode_enabled = true
 	effect_label.fit_content = false
@@ -842,7 +847,7 @@ func _create_card_button(
 		effect_label.add_theme_font_override("normal_font", body_font)
 	if body_bold_font != null:
 		effect_label.add_theme_font_override("bold_font", body_bold_font)
-	layout.add_child(effect_label)
+	effect_slot.add_child(effect_label)
 
 	# Footer: cost and type along the bottom edge.
 	var meta_row := HBoxContainer.new()

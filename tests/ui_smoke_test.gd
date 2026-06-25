@@ -591,24 +591,26 @@ func _card_name(button: Button) -> Label:
 
 
 func _card_effect(button: Button) -> RichTextLabel:
-	return button.get_node("CardContent/CardLayout/EffectLabel")
+	return button.get_node("CardContent/CardLayout/EffectSlot/EffectLabel")
 
 
 func _card_text_layout_is_clear(button: Button) -> bool:
 	var content := button.get_node("CardContent") as MarginContainer
 	var name_label := _card_name(button)
 	var art_frame := _card_art(button).get_parent() as Control
+	var effect_slot := button.get_node("CardContent/CardLayout/EffectSlot") as MarginContainer
 	var effect_label := _card_effect(button)
 	var meta_row := button.get_node("CardContent/CardLayout/MetaRow") as Control
 	var button_rect := button.get_global_rect()
 	var safe_rect := button_rect.grow(-4.0)
-	var regions: Array[Control] = [name_label, art_frame, effect_label, meta_row]
+	var regions: Array[Control] = [name_label, art_frame, effect_slot, effect_label, meta_row]
 
 	if (
 		content.get_theme_constant("margin_top") != 5
 		or content.get_theme_constant("margin_bottom") != 5
 		or name_label.custom_minimum_size.y < 30.0
-		or effect_label.custom_minimum_size.y < 56.0
+		or name_label.vertical_alignment != VERTICAL_ALIGNMENT_BOTTOM
+		or effect_slot.get_theme_constant("margin_top") != 10
 	):
 		return false
 
@@ -619,8 +621,10 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 
 	return (
 		name_label.get_global_rect().end.y <= art_frame.get_global_rect().position.y
-		and art_frame.get_global_rect().end.y <= effect_label.get_global_rect().position.y
+		and art_frame.get_global_rect().end.y + 10.0
+		<= effect_label.get_global_rect().position.y
 		and effect_label.get_global_rect().end.y <= meta_row.get_global_rect().position.y
+		and button_rect.end.y - meta_row.get_global_rect().end.y >= 20.0
 	)
 
 
