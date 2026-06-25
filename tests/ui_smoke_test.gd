@@ -80,6 +80,11 @@ func _initialize() -> void:
 		"Variable victory cards should explain their scoring rule concisely."
 	)
 	_check(
+		main_ui._get_card_effect_text(main_ui.game_state.card_catalog["river_trail"])
+		== "+1 Card  +1 Action  Event: Play This",
+		"Repeated trigger labels should appear only once on compact card faces."
+	)
+	_check(
 		main_ui.COLOR_RESOURCE_CARD != main_ui.COLOR_ACTION_CARD
 		and main_ui.COLOR_ACTION_CARD != main_ui.COLOR_VICTORY_CARD
 		and main_ui.COLOR_RESOURCE_CARD != main_ui.COLOR_VICTORY_CARD,

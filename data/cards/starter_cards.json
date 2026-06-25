@@ -504,5 +504,519 @@
         "label": "Gain Cost 4"
       }
     ]
+  },
+  {
+    "id": "briar_passage",
+    "name": "Briar Passage",
+    "type": "victory",
+    "art_id": "briar_gate",
+    "cost": 3,
+    "description": "Worth 2 VP. When you discard this outside cleanup, you may gain an Amber Circlet.",
+    "victory_points": 2,
+    "special_effects": [
+      {
+        "kind": "optional_gain_card",
+        "trigger": "discard",
+        "card_id": "amber_circlet",
+        "destination": "discard",
+        "prompt": "Reveal Briar Passage to gain an Amber Circlet?",
+        "label": "Discard: Gain Amber"
+      }
+    ]
+  },
+  {
+    "id": "orchard_acre",
+    "name": "Orchard Acre",
+    "type": "victory",
+    "art_id": "orchard_estate",
+    "cost": 6,
+    "description": "Worth 2 VP. When you gain this, trash a card from your hand and gain a different card costing exactly 2 more.",
+    "victory_points": 2,
+    "special_effects": [
+      {
+        "kind": "upgrade_exact_nonself",
+        "trigger": "gain",
+        "cost_delta": 2,
+        "label": "Gain: Develop +2"
+      }
+    ]
+  },
+  {
+    "id": "firefly_gold",
+    "name": "Firefly Gold",
+    "type": "resource",
+    "art_id": "firefly_supper",
+    "cost": 2,
+    "description": "Gain 1 coin the first time you play this each turn. Gain 4 coins each later time.",
+    "special_effects": [
+      {
+        "kind": "progressive_resource",
+        "first_amount": 1,
+        "later_amount": 4,
+        "label": "First +1, Then +4"
+      }
+    ]
+  },
+  {
+    "id": "silverleaf_broker",
+    "name": "Silverleaf Broker",
+    "type": "action",
+    "art_id": "silver_leaf",
+    "cost": 4,
+    "description": "Trash a card from your hand. Gain one Silver Leaf for each coin it costs. When you gain a card while this is in your hand, you may exchange that card for a Silver Leaf.",
+    "special_effects": [
+      {
+        "kind": "trash_for_copies",
+        "card_id": "silver_leaf",
+        "label": "Trash for Silvers"
+      },
+      {
+        "kind": "replace_gain",
+        "trigger": "gain_reaction",
+        "card_id": "silver_leaf",
+        "prompt": "Reveal Silverleaf Broker to exchange the gained card for a Silver Leaf?",
+        "label": "React: Take Silver"
+      }
+    ]
+  },
+  {
+    "id": "river_magistrate",
+    "name": "River Magistrate",
+    "type": "action",
+    "art_id": "river_courier",
+    "cost": 5,
+    "description": "Draw 3 cards. Gain 1 buy.",
+    "draw_cards": 3,
+    "gain_buys": 1
+  },
+  {
+    "id": "bellfoundry_village",
+    "name": "Bellfoundry Village",
+    "type": "action",
+    "art_id": "village_bell",
+    "cost": 6,
+    "description": "Draw 1 card. Gain 2 actions. When you gain this, gain a cheaper card.",
+    "draw_cards": 1,
+    "gain_actions": 2,
+    "special_effects": [
+      {
+        "kind": "gain_cheaper",
+        "trigger": "gain",
+        "destination": "discard",
+        "label": "Gain: Cheaper Card"
+      }
+    ]
+  },
+  {
+    "id": "orchard_surveyor",
+    "name": "Orchard Surveyor",
+    "type": "action",
+    "art_id": "orchard_map",
+    "cost": 5,
+    "description": "Draw 1 card. Gain 1 action. Look at the top 4 cards of your deck. Discard any number, then return the rest in any order.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "survey_top",
+        "amount": 4,
+        "label": "Survey Top 4"
+      }
+    ]
+  },
+  {
+    "id": "wishing_crossroads",
+    "name": "Wishing Crossroads",
+    "type": "action",
+    "art_id": "wishing_stone",
+    "cost": 2,
+    "description": "Draw 1 card for each victory card in your hand. The first time you play this each turn, gain 3 actions.",
+    "special_effects": [
+      {
+        "kind": "draw_per_type_in_hand",
+        "card_type": "victory",
+        "amount": 1,
+        "label": "Draw per Victory"
+      },
+      {
+        "kind": "first_play_actions",
+        "amount": 3,
+        "label": "First Play +3 Actions"
+      }
+    ]
+  },
+  {
+    "id": "tinkers_development",
+    "name": "Tinker's Development",
+    "type": "action",
+    "art_id": "tinker_wren",
+    "cost": 3,
+    "description": "Trash a card from your hand. Gain one card costing exactly 1 more and one costing exactly 1 less on top of your deck, in either order.",
+    "special_effects": [
+      {
+        "kind": "develop",
+        "label": "Develop +/-1"
+      }
+    ]
+  },
+  {
+    "id": "lantern_bargainer",
+    "name": "Lantern Bargainer",
+    "type": "action",
+    "art_id": "lantern_parade",
+    "cost": 5,
+    "description": "Gain 2 coins. This turn, whenever you buy a card, gain a cheaper non-victory card.",
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "register_buy_bonus",
+        "label": "Buy: Gain Cheaper"
+      }
+    ]
+  },
+  {
+    "id": "starlit_causeway",
+    "name": "Starlit Causeway",
+    "type": "action",
+    "art_id": "starlit_wagon",
+    "cost": 5,
+    "description": "Draw 1 card. Gain 1 action. Cards cost 1 less this turn, to a minimum of 0.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "reduce_costs",
+        "amount": 1,
+        "label": "Costs -1 This Turn"
+      }
+    ]
+  },
+  {
+    "id": "hearthside_lodge",
+    "name": "Hearthside Lodge",
+    "type": "action",
+    "art_id": "hearthsong",
+    "cost": 5,
+    "description": "Draw 2 cards. Gain 2 actions. Discard 2 cards. When you gain this, you may shuffle any action cards from your discard pile into your deck.",
+    "draw_cards": 2,
+    "gain_actions": 2,
+    "special_effects": [
+      {
+        "kind": "discard_filtered",
+        "amount": 2,
+        "required": true,
+        "prompt": "Choose 2 cards from your hand to discard.",
+        "label": "Discard 2"
+      },
+      {
+        "kind": "shuffle_actions_from_discard",
+        "trigger": "gain",
+        "label": "Gain: Recover Actions"
+      }
+    ]
+  },
+  {
+    "id": "village_handyman",
+    "name": "Village Handyman",
+    "type": "action",
+    "art_id": "village_bell",
+    "cost": 4,
+    "description": "Gain a Silver Leaf. Look at the top card of your deck and choose whether to discard it. Draw until you have 5 cards in hand. You may trash a non-resource card from your hand.",
+    "special_effects": [
+      {
+        "kind": "gain_card",
+        "card_id": "silver_leaf",
+        "destination": "discard",
+        "label": "Gain Silver Leaf"
+      },
+      {
+        "kind": "inspect_top_one",
+        "label": "Look at Top Card"
+      },
+      {
+        "kind": "draw_to_size",
+        "amount": 5,
+        "label": "Draw to 5"
+      },
+      {
+        "kind": "trash_filtered",
+        "amount": 1,
+        "exclude_type": "resource",
+        "required": false,
+        "prompt": "You may trash a non-resource card from your hand.",
+        "label": "Trash Non-Resource"
+      }
+    ]
+  },
+  {
+    "id": "moonwell_rest",
+    "name": "Moonwell Rest",
+    "type": "action",
+    "art_id": "moonwell_token",
+    "cost": 3,
+    "description": "Draw 1 card. Gain 1 action and 1 coin. Discard 1 card.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "discard_filtered",
+        "amount": 1,
+        "required": true,
+        "prompt": "Choose 1 card from your hand to discard.",
+        "label": "Discard 1"
+      }
+    ]
+  },
+  {
+    "id": "quiet_stratagem",
+    "name": "Quiet Stratagem",
+    "type": "action",
+    "art_id": "quiet_archive",
+    "cost": 3,
+    "description": "Draw 1 card. Gain 1 action. During cleanup, you may put one action card from play on top of your deck.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "topdeck_action_at_cleanup",
+        "amount": 1,
+        "label": "Cleanup: Save Action"
+      }
+    ]
+  },
+  {
+    "id": "acorn_spicebroker",
+    "name": "Acorn Spicebroker",
+    "type": "action",
+    "art_id": "acorn_purse",
+    "cost": 4,
+    "description": "You may trash a resource from your hand. If you do, choose either to draw 2 cards and gain 1 action, or to gain 1 buy and 2 coins.",
+    "special_effects": [
+      {
+        "kind": "trash_resource_choose_bonus",
+        "modes": [
+          {
+            "id": "cards",
+            "label": "+2 CARDS, +1 ACTION",
+            "draw_cards": 2,
+            "gain_actions": 1
+          },
+          {
+            "id": "trade",
+            "label": "+1 BUY, +2 COINS",
+            "gain_buys": 1,
+            "gain_coins": 2
+          }
+        ],
+        "label": "Trash Resource: Choose"
+      }
+    ]
+  },
+  {
+    "id": "mosswood_stable",
+    "name": "Mosswood Stable",
+    "type": "action",
+    "art_id": "moss_thread",
+    "cost": 5,
+    "description": "You may discard a resource. If you do, draw 3 cards and gain 1 action.",
+    "special_effects": [
+      {
+        "kind": "discard_resource_bonus",
+        "draw_cards": 3,
+        "gain_actions": 1,
+        "label": "Discard Resource: +3"
+      }
+    ]
+  },
+  {
+    "id": "candlecap_kettle",
+    "name": "Candlecap Kettle",
+    "type": "resource",
+    "art_id": "candlecap",
+    "cost": 5,
+    "description": "Gain 2 coins and 1 buy.",
+    "coin_value": 2,
+    "gain_buys": 1
+  },
+  {
+    "id": "briar_hound",
+    "name": "Briar Hound",
+    "type": "action",
+    "art_id": "briar_gate",
+    "cost": 3,
+    "description": "Draw 2 cards. If you then have 5 or fewer cards in hand, draw 2 more cards.",
+    "draw_cards": 2,
+    "special_effects": [
+      {
+        "kind": "conditional_draw",
+        "maximum_hand_size": 5,
+        "amount": 2,
+        "label": "Small Hand: +2 Cards"
+      }
+    ]
+  },
+  {
+    "id": "river_trail",
+    "name": "River Trail",
+    "type": "action",
+    "art_id": "river_courier",
+    "cost": 4,
+    "description": "Draw 1 card. Gain 1 action. When you gain, trash, or discard this outside cleanup, you may play it.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "play_self_optional",
+        "trigger": "gain",
+        "label": "Event: Play This"
+      },
+      {
+        "kind": "play_self_optional",
+        "trigger": "trash",
+        "label": "Event: Play This"
+      },
+      {
+        "kind": "play_self_optional",
+        "trigger": "discard",
+        "label": "Event: Play This"
+      }
+    ]
+  },
+  {
+    "id": "moss_weaver",
+    "name": "Moss Weaver",
+    "type": "action",
+    "art_id": "weavers_loom",
+    "cost": 4,
+    "description": "Choose either to gain 2 Silver Leaves or to gain a card costing up to 4. When you discard this outside cleanup, you may play it.",
+    "special_effects": [
+      {
+        "kind": "choose_named_or_supply",
+        "prompt": "Choose what Moss Weaver should gain.",
+        "modes": [
+          {
+            "id": "silvers",
+            "label": "GAIN 2 SILVER LEAVES",
+            "card_id": "silver_leaf",
+            "amount": 2,
+            "destination": "discard"
+          },
+          {
+            "id": "card",
+            "label": "GAIN CARD COST 4",
+            "max_cost": 4,
+            "destination": "discard"
+          }
+        ],
+        "label": "Choose 2 Silvers / Cost 4"
+      },
+      {
+        "kind": "play_self_optional",
+        "trigger": "discard",
+        "label": "Discard: Play This"
+      }
+    ]
+  },
+  {
+    "id": "stonewall_raider",
+    "name": "Stonewall Raider",
+    "type": "action",
+    "art_id": "stone_wall",
+    "cost": 5,
+    "description": "Gain a cheaper card. When you gain this while another action card is in play, play this immediately.",
+    "special_effects": [
+      {
+        "kind": "gain_cheaper",
+        "destination": "discard",
+        "label": "Gain Cheaper Card"
+      },
+      {
+        "kind": "play_self_if_action_in_play",
+        "trigger": "gain",
+        "label": "Gain: Play with Action"
+      }
+    ]
+  },
+  {
+    "id": "briar_hut",
+    "name": "Briar Hut",
+    "type": "action",
+    "art_id": "briar_gate",
+    "cost": 5,
+    "description": "Draw 4 cards. Discard 2 cards.",
+    "draw_cards": 4,
+    "special_effects": [
+      {
+        "kind": "discard_filtered",
+        "amount": 2,
+        "required": true,
+        "prompt": "Choose 2 cards from your hand to discard.",
+        "label": "Discard 2"
+      }
+    ]
+  },
+  {
+    "id": "starlit_caravan",
+    "name": "Starlit Caravan",
+    "type": "action",
+    "art_id": "starlit_wagon",
+    "cost": 4,
+    "description": "Gain 1 buy and 2 coins. When you gain or trash this, gain 2 coins.",
+    "gain_buys": 1,
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "gain_coins_trigger",
+        "trigger": "gain",
+        "amount": 2,
+        "label": "Event: +2 Coins"
+      },
+      {
+        "kind": "gain_coins_trigger",
+        "trigger": "trash",
+        "amount": 2,
+        "label": "Event: +2 Coins"
+      }
+    ]
+  },
+  {
+    "id": "lantern_bazaar",
+    "name": "Lantern Bazaar",
+    "type": "action",
+    "art_id": "lantern_parade",
+    "cost": 5,
+    "description": "Gain 1 buy and 7 coins, then lose 1 of those coins for each card left in your hand, to a minimum of 0. When you gain this, trash up to 2 cards from your hand.",
+    "gain_buys": 1,
+    "special_effects": [
+      {
+        "kind": "dynamic_hand_coins",
+        "base_amount": 7,
+        "per_card": 1,
+        "label": "+7 Minus Hand"
+      },
+      {
+        "kind": "trash_from_hand",
+        "trigger": "gain",
+        "amount": 2,
+        "label": "Gain: Trash up to 2"
+      }
+    ]
+  },
+  {
+    "id": "tinker_wheelwright",
+    "name": "Tinker Cartwright",
+    "type": "action",
+    "art_id": "tinker_wren",
+    "cost": 5,
+    "description": "Draw 1 card. Gain 1 action. You may discard a card to gain an action card costing no more than it.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "discard_for_action_gain",
+        "label": "Discard for Action"
+      }
+    ]
   }
 ]

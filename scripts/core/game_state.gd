@@ -3,6 +3,7 @@ extends RefCounted
 
 signal choice_requested(choice: CardChoice)
 signal choice_resolved(choice_id: int)
+signal cleanup_completed
 
 const STARTING_CARD_COUNTS := {
 	"pebble_coin": 7,
@@ -28,6 +29,7 @@ var turn_flags: Dictionary = {}
 var pending_choice: CardChoice
 var resolution_queue: Array[Dictionary] = []
 var next_choice_id: int = 1
+var cleanup_in_progress: bool = false
 
 
 func load_cards(path: String) -> bool:
@@ -59,6 +61,7 @@ func setup_starting_game() -> bool:
 	turn_flags.clear()
 	resolution_queue.clear()
 	pending_choice = null
+	cleanup_in_progress = false
 	print("[Game] Game start")
 
 	for card_id in STARTING_CARD_COUNTS:
@@ -115,12 +118,18 @@ func get_empty_supply_pile_count() -> int:
 func get_gain_candidates(max_cost: int, card_type: String = "") -> Array[CardDefinition]:
 	var candidates: Array[CardDefinition] = []
 	for card in market:
-		if get_supply_count(card.id) <= 0 or card.cost > max_cost:
+		if get_supply_count(card.id) <= 0 or get_effective_cost(card) > max_cost:
 			continue
 		if not card_type.is_empty() and card.card_type != card_type:
 			continue
 		candidates.append(card)
 	return candidates
+
+
+func get_effective_cost(card: CardDefinition) -> int:
+	if card == null:
+		return 0
+	return maxi(0, card.cost - int(turn_flags.get("cost_reduction", 0)))
 
 
 func _setup_random_market(previous_market_ids: Array[String]) -> bool:
@@ -278,6 +287,8 @@ func _prepend_card_resolutions(card: CardDefinition, repetitions: int) -> void:
 	for _repeat_index in range(repetitions):
 		sequence.append({"kind": "card_base", "card": card})
 		for effect in card.special_effects:
+			if str(effect.get("trigger", "play")) != "play":
+				continue
 			sequence.append({
 				"kind": "special",
 				"effect": effect.duplicate(true),
@@ -285,6 +296,47 @@ func _prepend_card_resolutions(card: CardDefinition, repetitions: int) -> void:
 			})
 	for index in range(sequence.size() - 1, -1, -1):
 		resolution_queue.push_front(sequence[index])
+
+
+func _prepend_triggered_effects(
+	card: CardDefinition,
+	trigger: String,
+	context: Dictionary = {}
+) -> void:
+	var sequence: Array[Dictionary] = []
+	for effect in card.special_effects:
+		if str(effect.get("trigger", "play")) != trigger:
+			continue
+		var runtime_effect := effect.duplicate(true)
+		for key in context:
+			runtime_effect["_event_%s" % key] = context[key]
+		sequence.append({
+			"kind": "special",
+			"effect": runtime_effect,
+			"source_card": card,
+		})
+	for index in range(sequence.size() - 1, -1, -1):
+		resolution_queue.push_front(sequence[index])
+
+
+func _prepend_gain_reactions(gained_card: CardDefinition, destination: String) -> void:
+	var reactions: Array[Dictionary] = []
+	for reaction_card in player.hand:
+		for effect in reaction_card.special_effects:
+			if str(effect.get("trigger", "")) != "gain_reaction":
+				continue
+			if str(effect.get("card_id", "")) == gained_card.id:
+				continue
+			var runtime_effect := effect.duplicate(true)
+			runtime_effect["_event_gained_card"] = gained_card
+			runtime_effect["_event_destination"] = destination
+			reactions.append({
+				"kind": "special",
+				"effect": runtime_effect,
+				"source_card": reaction_card,
+			})
+	for index in range(reactions.size() - 1, -1, -1):
+		resolution_queue.push_front(reactions[index])
 
 
 func _process_resolution_queue() -> void:
@@ -295,6 +347,13 @@ func _process_resolution_queue() -> void:
 				_apply_card_base(entry["card"])
 			"special":
 				_resolve_special_effect(entry["effect"], entry["source_card"])
+			"exact_gain_request":
+				_request_exact_supply_choice(
+					int(entry.get("cost", 0)),
+					str(entry.get("destination", "discard")),
+					str(entry.get("exclude_card_id", "")),
+					str(entry.get("prompt", "Choose a card to gain."))
+				)
 
 
 func _apply_card_base(card: CardDefinition) -> void:
@@ -465,6 +524,215 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				"discard_hand",
 				"DISCARD"
 			)
+		"progressive_resource":
+			var progress_key := "played_%s" % source_card.id
+			var play_count := int(turn_flags.get(progress_key, 0)) + 1
+			turn_flags[progress_key] = play_count
+			player.coins += (
+				int(effect.get("first_amount", 1))
+				if play_count == 1
+				else int(effect.get("later_amount", 4))
+			)
+		"draw_per_type_in_hand":
+			var type_count := 0
+			var card_type := str(effect.get("card_type", "victory"))
+			for card in player.hand:
+				if card.card_type == card_type:
+					type_count += 1
+			draw_cards(type_count * int(effect.get("amount", 1)))
+		"first_play_actions":
+			var first_key := "first_play_%s" % source_card.id
+			if not bool(turn_flags.get(first_key, false)):
+				turn_flags[first_key] = true
+				player.actions += int(effect.get("amount", 0))
+		"survey_top":
+			_begin_survey_top(int(effect.get("amount", 4)))
+		"develop":
+			_request_zone_choice(
+				player.hand,
+				"Choose a card from your hand to trash and develop.",
+				mini(1, player.hand.size()),
+				mini(1, player.hand.size()),
+				"develop_trash",
+				"DEVELOP",
+				"SKIP"
+			)
+		"register_buy_bonus":
+			turn_flags["buy_bonus_count"] = int(turn_flags.get("buy_bonus_count", 0)) + 1
+		"reduce_costs":
+			turn_flags["cost_reduction"] = (
+				int(turn_flags.get("cost_reduction", 0))
+				+ int(effect.get("amount", 1))
+			)
+		"discard_filtered":
+			var discard_candidates := _filter_hand_cards(effect)
+			var discard_amount := mini(int(effect.get("amount", 1)), discard_candidates.size())
+			_request_zone_choice(
+				discard_candidates,
+				str(effect.get("prompt", "Choose cards from your hand to discard.")),
+				discard_amount if bool(effect.get("required", true)) else 0,
+				discard_amount,
+				"discard_hand",
+				"DISCARD",
+				"SKIP"
+			)
+		"trash_filtered":
+			var trash_candidates := _filter_hand_cards(effect)
+			var trash_amount := mini(int(effect.get("amount", 1)), trash_candidates.size())
+			_request_zone_choice(
+				trash_candidates,
+				str(effect.get("prompt", "Choose cards from your hand to trash.")),
+				trash_amount if bool(effect.get("required", false)) else 0,
+				trash_amount,
+				"trash_hand",
+				"TRASH",
+				"SKIP"
+			)
+		"topdeck_action_at_cleanup":
+			turn_flags["cleanup_topdeck_actions"] = (
+				int(turn_flags.get("cleanup_topdeck_actions", 0))
+				+ int(effect.get("amount", 1))
+			)
+		"trash_resource_choose_bonus":
+			var trash_resources: Array[CardDefinition] = []
+			for card in player.hand:
+				if card.card_type == "resource":
+					trash_resources.append(card)
+			_request_zone_choice(
+				trash_resources,
+				"You may trash a resource from your hand.",
+				0,
+				mini(1, trash_resources.size()),
+				"trash_resource_mode",
+				"TRASH",
+				"SKIP",
+				{"modes": effect.get("modes", [])}
+			)
+		"discard_resource_bonus":
+			var discard_resources: Array[CardDefinition] = []
+			for card in player.hand:
+				if card.card_type == "resource":
+					discard_resources.append(card)
+			_request_zone_choice(
+				discard_resources,
+				"You may discard a resource for the bonus.",
+				0,
+				mini(1, discard_resources.size()),
+				"discard_resource_bonus",
+				"DISCARD",
+				"SKIP",
+				{
+					"draw_cards": int(effect.get("draw_cards", 0)),
+					"gain_actions": int(effect.get("gain_actions", 0)),
+				}
+			)
+		"conditional_draw":
+			if player.hand.size() <= int(effect.get("maximum_hand_size", 5)):
+				draw_cards(int(effect.get("amount", 0)))
+		"choose_named_or_supply":
+			_request_mode_choice(
+				source_card,
+				str(effect.get("prompt", "Choose how to gain cards.")),
+				effect.get("modes", []),
+				"named_or_supply_mode"
+			)
+		"gain_cheaper":
+			_request_filtered_supply_choice(
+				{
+					"max_cost": get_effective_cost(source_card) - 1,
+					"exclude_card_id": source_card.id,
+					"exclude_victory": bool(effect.get("exclude_victory", false)),
+				},
+				str(effect.get("destination", "discard")),
+				str(effect.get("prompt", "Choose a cheaper card to gain."))
+			)
+		"gain_coins_trigger":
+			player.coins += int(effect.get("amount", 0))
+		"play_self_optional":
+			_request_play_self(source_card, effect)
+		"play_self_if_action_in_play":
+			if _has_other_action_in_play(source_card):
+				_play_card_from_event_zone(source_card, effect)
+		"dynamic_hand_coins":
+			player.coins += maxi(
+				0,
+				int(effect.get("base_amount", 0))
+				- player.hand.size() * int(effect.get("per_card", 1))
+			)
+		"discard_for_action_gain":
+			_request_zone_choice(
+				player.hand,
+				"You may discard a card to gain an action card costing no more.",
+				0,
+				mini(1, player.hand.size()),
+				"discard_for_action_gain",
+				"DISCARD",
+				"SKIP"
+			)
+		"optional_gain_card":
+			_request_optional_source_choice(
+				source_card,
+				str(effect.get("prompt", "Gain the named card?")),
+				"optional_gain_card",
+				"GAIN",
+				"SKIP",
+				{
+					"card_id": str(effect.get("card_id", "")),
+					"destination": str(effect.get("destination", "discard")),
+				}
+			)
+		"trash_for_copies":
+			_request_zone_choice(
+				player.hand,
+				"Choose a card from your hand to trash.",
+				mini(1, player.hand.size()),
+				mini(1, player.hand.size()),
+				"trash_for_copies",
+				"TRASH",
+				"SKIP",
+				{"card_id": str(effect.get("card_id", ""))}
+			)
+		"replace_gain":
+			_request_optional_source_choice(
+				source_card,
+				str(effect.get("prompt", "Exchange the gained card?")),
+				"replace_gain",
+				"EXCHANGE",
+				"KEEP",
+				{
+					"gained_card": effect.get("_event_gained_card"),
+					"destination": str(effect.get("_event_destination", "discard")),
+					"replacement_card_id": str(effect.get("card_id", "")),
+				}
+			)
+		"shuffle_actions_from_discard":
+			var discard_actions: Array[CardDefinition] = []
+			for card in player.discard_pile:
+				if card.card_type == "action":
+					discard_actions.append(card)
+			_request_zone_choice(
+				discard_actions,
+				"Choose any action cards from your discard pile to shuffle into your deck.",
+				0,
+				discard_actions.size(),
+				"shuffle_actions",
+				"SHUFFLE IN",
+				"LEAVE THEM"
+			)
+		"upgrade_exact_nonself":
+			_request_zone_choice(
+				player.hand,
+				"Choose a card from your hand to trash.",
+				mini(1, player.hand.size()),
+				mini(1, player.hand.size()),
+				"upgrade_exact_nonself",
+				"TRASH",
+				"SKIP",
+				{
+					"cost_delta": int(effect.get("cost_delta", 2)),
+					"exclude_card_id": source_card.id,
+				}
+			)
 		_:
 			push_warning("Unknown card effect kind: %s" % kind)
 
@@ -493,21 +761,21 @@ func _apply_choice_resolution(
 		"topdeck_hand":
 			_move_cards(player.hand, player.draw_pile, cards)
 		"discard_hand_draw":
-			_move_cards(player.hand, player.discard_pile, cards)
+			_move_cards(player.hand, player.discard_pile, cards, "discard")
 			draw_cards(cards.size())
 		"discard_hand":
-			_move_cards(player.hand, player.discard_pile, cards)
+			_move_cards(player.hand, player.discard_pile, cards, "discard")
 		"trash_hand":
-			_move_cards(player.hand, player.trash_pile, cards)
+			_move_cards(player.hand, player.trash_pile, cards, "trash")
 		"topdeck_discard":
 			_move_cards(player.discard_pile, player.draw_pile, cards)
 		"upgrade_resource":
 			if cards.is_empty():
 				return
 			var trashed := cards[0]
-			_move_cards(player.hand, player.trash_pile, [trashed])
+			_move_cards(player.hand, player.trash_pile, [trashed], "trash")
 			_request_supply_choice(
-				trashed.cost + int(choice.context.get("cost_delta", 0)),
+				get_effective_cost(trashed) + int(choice.context.get("cost_delta", 0)),
 				"hand",
 				"resource",
 				"Choose a replacement resource to gain to your hand."
@@ -515,15 +783,15 @@ func _apply_choice_resolution(
 		"trash_named_coins":
 			if cards.is_empty():
 				return
-			_move_cards(player.hand, player.trash_pile, cards)
+			_move_cards(player.hand, player.trash_pile, cards, "trash")
 			player.coins += int(choice.context.get("amount", 0))
 		"remodel":
 			if cards.is_empty():
 				return
 			var trashed := cards[0]
-			_move_cards(player.hand, player.trash_pile, [trashed])
+			_move_cards(player.hand, player.trash_pile, [trashed], "trash")
 			_request_supply_choice(
-				trashed.cost + int(choice.context.get("cost_delta", 0)),
+				get_effective_cost(trashed) + int(choice.context.get("cost_delta", 0)),
 				"discard",
 				"",
 				"Choose a card to gain."
@@ -533,12 +801,14 @@ func _apply_choice_resolution(
 			for card in cards:
 				revealed.erase(card)
 			player.trash_pile.append_array(cards)
+			_queue_zone_events(cards, "trash", "trash")
 			_request_inspect_discard(revealed)
 		"inspect_discard":
 			var revealed: Array[CardDefinition] = choice.context.get("revealed", [])
 			for card in cards:
 				revealed.erase(card)
 			player.discard_pile.append_array(cards)
+			_queue_zone_events(cards, "discard", "discard")
 			_finish_inspect_order(revealed)
 		"inspect_order":
 			var revealed: Array[CardDefinition] = choice.context.get("revealed", [])
@@ -555,14 +825,17 @@ func _apply_choice_resolution(
 				player.draw_pile.append(card)
 			else:
 				player.discard_pile.append(card)
+				_prepend_triggered_effects(card, "discard", {"zone": "discard"})
 		"salvage_resource":
 			var revealed: Array[CardDefinition] = choice.context.get("revealed", [])
 			if not cards.is_empty():
 				var resource := cards[0]
 				revealed.erase(resource)
 				player.trash_pile.append(resource)
+				_prepend_triggered_effects(resource, "trash", {"zone": "trash"})
 				player.coins += resource.coin_value
 			player.discard_pile.append_array(revealed)
+			_queue_zone_events(revealed, "discard", "discard")
 		"replay_action":
 			if cards.is_empty():
 				return
@@ -574,6 +847,7 @@ func _apply_choice_resolution(
 			var card: CardDefinition = choice.context.get("card")
 			if cards.is_empty():
 				player.discard_pile.append(card)
+				_prepend_triggered_effects(card, "discard", {"zone": "discard"})
 			else:
 				player.play_area.append(card)
 				_prepend_card_resolutions(card, 1)
@@ -585,6 +859,159 @@ func _apply_choice_resolution(
 			else:
 				set_aside.append(card)
 			_continue_library_draw(int(choice.context.get("target", 7)), set_aside)
+		"survey_discard":
+			var surveyed: Array[CardDefinition] = choice.context.get("revealed", [])
+			for card in cards:
+				surveyed.erase(card)
+			player.discard_pile.append_array(cards)
+			_queue_zone_events(cards, "discard", "discard")
+			_begin_order_cards(surveyed)
+		"order_cards":
+			var remaining: Array[CardDefinition] = choice.context.get("remaining", [])
+			var ordered: Array[CardDefinition] = choice.context.get("ordered", [])
+			if not cards.is_empty():
+				var top_card := cards[0]
+				remaining.erase(top_card)
+				ordered.append(top_card)
+			_continue_order_cards(remaining, ordered)
+		"develop_trash":
+			if cards.is_empty():
+				return
+			var developed := cards[0]
+			_move_cards(player.hand, player.trash_pile, [developed], "trash")
+			_request_mode_choice(
+				developed,
+				"Choose which developed card should be gained first.",
+				[
+					{"id": "higher_first", "label": "HIGHER FIRST"},
+					{"id": "lower_first", "label": "LOWER FIRST"},
+				],
+				"develop_order",
+				{"trashed_cost": get_effective_cost(developed)}
+			)
+		"develop_order":
+			var mode_id := _selected_mode_id(selected)
+			var trashed_cost := int(choice.context.get("trashed_cost", 0))
+			var first_delta := 1 if mode_id == "higher_first" else -1
+			resolution_queue.push_front({
+				"kind": "exact_gain_request",
+				"cost": trashed_cost - first_delta,
+				"destination": "deck",
+				"prompt": "Choose the second developed card.",
+			})
+			_request_exact_supply_choice(
+				trashed_cost + first_delta,
+				"deck",
+				"",
+				"Choose the first developed card."
+			)
+		"trash_resource_mode":
+			if cards.is_empty():
+				return
+			_move_cards(player.hand, player.trash_pile, cards, "trash")
+			_request_mode_choice(
+				cards[0],
+				"Choose the spicebroker bonus.",
+				choice.context.get("modes", []),
+				"apply_bonus_mode"
+			)
+		"apply_bonus_mode":
+			_apply_mode_bonus(_selected_mode(choice, selected))
+		"discard_resource_bonus":
+			if cards.is_empty():
+				return
+			_move_cards(player.hand, player.discard_pile, cards, "discard")
+			draw_cards(int(choice.context.get("draw_cards", 0)))
+			player.actions += int(choice.context.get("gain_actions", 0))
+		"named_or_supply_mode":
+			var gain_mode := _selected_mode(choice, selected)
+			if gain_mode.is_empty():
+				return
+			if gain_mode.has("card_id"):
+				for _index in range(int(gain_mode.get("amount", 1))):
+					_gain_card_by_id(
+						str(gain_mode.get("card_id", "")),
+						str(gain_mode.get("destination", "discard"))
+					)
+			else:
+				_request_filtered_supply_choice(
+					{
+						"max_cost": int(gain_mode.get("max_cost", 99)),
+						"card_type": str(gain_mode.get("card_type", "")),
+					},
+					str(gain_mode.get("destination", "discard")),
+					str(gain_mode.get("prompt", "Choose a card to gain."))
+				)
+		"play_self":
+			if not cards.is_empty():
+				_play_card_from_event_zone(
+					choice.context.get("source_card"),
+					choice.context.get("effect", {})
+				)
+		"discard_for_action_gain":
+			if cards.is_empty():
+				return
+			var discarded := cards[0]
+			_move_cards(player.hand, player.discard_pile, [discarded], "discard")
+			_request_filtered_supply_choice(
+				{
+					"max_cost": get_effective_cost(discarded),
+					"card_type": "action",
+				},
+				"discard",
+				"Choose an action card to gain."
+			)
+		"optional_gain_card":
+			if not cards.is_empty():
+				_gain_card_by_id(
+					str(choice.context.get("card_id", "")),
+					str(choice.context.get("destination", "discard"))
+				)
+		"trash_for_copies":
+			if cards.is_empty():
+				return
+			var traded := cards[0]
+			_move_cards(player.hand, player.trash_pile, [traded], "trash")
+			for _index in range(get_effective_cost(traded)):
+				_gain_card_by_id(str(choice.context.get("card_id", "")), "discard")
+		"replace_gain":
+			if cards.is_empty():
+				return
+			var gained: CardDefinition = choice.context.get("gained_card")
+			var destination_name := str(choice.context.get("destination", "discard"))
+			var destination: Array[CardDefinition] = _get_zone(destination_name)
+			if gained == null or not destination.has(gained):
+				return
+			destination.erase(gained)
+			if supply_piles.has(gained.id):
+				supply_piles[gained.id] = get_supply_count(gained.id) + 1
+			_gain_card_by_id(
+				str(choice.context.get("replacement_card_id", "")),
+				destination_name
+			)
+		"shuffle_actions":
+			for card in cards:
+				player.discard_pile.erase(card)
+				player.draw_pile.append(card)
+			player.draw_pile.shuffle()
+		"upgrade_exact_nonself":
+			if cards.is_empty():
+				return
+			var upgraded := cards[0]
+			_move_cards(player.hand, player.trash_pile, [upgraded], "trash")
+			var target_cost := (
+				get_effective_cost(upgraded)
+				+ int(choice.context.get("cost_delta", 2))
+			)
+			_request_exact_supply_choice(
+				target_cost,
+				"discard",
+				str(choice.context.get("exclude_card_id", "")),
+				"Choose a different card costing exactly %d." % target_cost
+			)
+		"cleanup_topdeck":
+			_move_cards(player.play_area, player.draw_pile, cards)
+			_finish_cleanup()
 
 
 func _new_choice(
@@ -664,9 +1091,152 @@ func _request_supply_choice(
 		choice.add_candidate(
 			"supply:%s" % card.id,
 			card,
-			"Cost %d  •  %d left" % [card.cost, get_supply_count(card.id)]
+			"Cost %d  •  %d left"
+			% [get_effective_cost(card), get_supply_count(card.id)]
 		)
 	_request_choice(choice)
+
+
+func _request_filtered_supply_choice(
+	filter: Dictionary,
+	destination: String,
+	prompt: String
+) -> void:
+	var candidates: Array[CardDefinition] = []
+	var max_cost := int(filter.get("max_cost", 99))
+	var min_cost := int(filter.get("min_cost", 0))
+	var exact_cost = filter.get("exact_cost", null)
+	var card_type := str(filter.get("card_type", ""))
+	var exclude_card_id := str(filter.get("exclude_card_id", ""))
+	var exclude_victory := bool(filter.get("exclude_victory", false))
+	for card in market:
+		var effective_cost := get_effective_cost(card)
+		if get_supply_count(card.id) <= 0:
+			continue
+		if effective_cost < min_cost or effective_cost > max_cost:
+			continue
+		if exact_cost != null and effective_cost != int(exact_cost):
+			continue
+		if not card_type.is_empty() and card.card_type != card_type:
+			continue
+		if not exclude_card_id.is_empty() and card.id == exclude_card_id:
+			continue
+		if exclude_victory and card.card_type == "victory":
+			continue
+		candidates.append(card)
+	if candidates.is_empty():
+		return
+	var choice := _new_choice(
+		prompt,
+		1,
+		1,
+		"gain_supply",
+		"GAIN",
+		"SKIP",
+		{"destination": destination}
+	)
+	for card in candidates:
+		choice.add_candidate(
+			"supply:%s" % card.id,
+			card,
+			"Cost %d | %d left" % [get_effective_cost(card), get_supply_count(card.id)]
+		)
+	_request_choice(choice)
+
+
+func _request_exact_supply_choice(
+	cost: int,
+	destination: String,
+	exclude_card_id: String,
+	prompt: String
+) -> void:
+	_request_filtered_supply_choice(
+		{
+			"exact_cost": cost,
+			"exclude_card_id": exclude_card_id,
+		},
+		destination,
+		prompt
+	)
+
+
+func _request_mode_choice(
+	source_card: CardDefinition,
+	prompt: String,
+	modes: Array,
+	resolver: String,
+	context: Dictionary = {}
+) -> void:
+	if modes.is_empty():
+		return
+	var choice := _new_choice(prompt, 1, 1, resolver, "CHOOSE", "SKIP", context)
+	choice.context["modes"] = modes
+	for index in range(modes.size()):
+		var mode: Dictionary = modes[index]
+		choice.add_candidate(
+			"mode:%d:%s" % [choice.id, str(mode.get("id", index))],
+			source_card,
+			str(mode.get("label", "OPTION"))
+		)
+	_request_choice(choice)
+
+
+func _request_optional_source_choice(
+	source_card: CardDefinition,
+	prompt: String,
+	resolver: String,
+	confirm_text: String,
+	skip_text: String,
+	context: Dictionary
+) -> void:
+	var choice := _new_choice(
+		prompt,
+		0,
+		1,
+		resolver,
+		confirm_text,
+		skip_text,
+		context
+	)
+	choice.add_candidate("optional:%d" % choice.id, source_card)
+	_request_choice(choice)
+
+
+func _selected_mode(choice: CardChoice, selected: Array[Dictionary]) -> Dictionary:
+	var mode_id := _selected_mode_id(selected)
+	for mode in choice.context.get("modes", []):
+		if str(mode.get("id", "")) == mode_id:
+			return mode
+	return {}
+
+
+func _selected_mode_id(selected: Array[Dictionary]) -> String:
+	if selected.is_empty():
+		return ""
+	var token := str(selected[0].get("token", ""))
+	return token.get_slice(":", 2)
+
+
+func _apply_mode_bonus(mode: Dictionary) -> void:
+	if mode.is_empty():
+		return
+	draw_cards(int(mode.get("draw_cards", 0)))
+	player.actions += int(mode.get("gain_actions", 0))
+	player.buys += int(mode.get("gain_buys", 0))
+	player.coins += int(mode.get("gain_coins", 0))
+
+
+func _filter_hand_cards(effect: Dictionary) -> Array[CardDefinition]:
+	var candidates: Array[CardDefinition] = []
+	var card_type := str(effect.get("card_type", ""))
+	var exclude_type := str(effect.get("exclude_type", ""))
+	for card in player.hand:
+		if not card_type.is_empty() and card.card_type != card_type:
+			continue
+		if not exclude_type.is_empty() and card.card_type == exclude_type:
+			continue
+		candidates.append(card)
+	return candidates
 
 
 func _cards_from_entries(entries: Array[Dictionary]) -> Array[CardDefinition]:
@@ -679,11 +1249,37 @@ func _cards_from_entries(entries: Array[Dictionary]) -> Array[CardDefinition]:
 func _move_cards(
 	source: Array[CardDefinition],
 	destination: Array[CardDefinition],
-	cards: Array[CardDefinition]
+	cards: Array[CardDefinition],
+	event: String = ""
 ) -> void:
 	for card in cards:
 		source.erase(card)
 		destination.append(card)
+	if not event.is_empty():
+		_queue_zone_events(cards, event, event)
+
+
+func _queue_zone_events(
+	cards: Array[CardDefinition],
+	trigger: String,
+	zone_name: String
+) -> void:
+	for card in cards:
+		_prepend_triggered_effects(card, trigger, {"zone": zone_name})
+
+
+func _get_zone(zone_name: String) -> Array[CardDefinition]:
+	match zone_name:
+		"hand":
+			return player.hand
+		"deck":
+			return player.draw_pile
+		"trash":
+			return player.trash_pile
+		"play":
+			return player.play_area
+		_:
+			return player.discard_pile
 
 
 func _take_top_card() -> CardDefinition:
@@ -716,9 +1312,21 @@ func _gain_card_by_id(card_id: String, destination: String) -> void:
 	if not card_catalog.has(card_id):
 		return
 	var card: CardDefinition = card_catalog[card_id]
+	if not supply_piles.has(card_id):
+		supply_piles[card_id] = _default_supply_count(card)
 	if get_supply_count(card_id) <= 0:
 		return
 	_gain_from_supply(card, destination)
+
+
+func _default_supply_count(card: CardDefinition) -> int:
+	match card.card_type:
+		"victory":
+			return VICTORY_SUPPLY_COUNT
+		"resource":
+			return RESOURCE_SUPPLY_COUNT
+		_:
+			return ACTION_SUPPLY_COUNT
 
 
 func _gain_from_supply(card: CardDefinition, destination: String) -> bool:
@@ -732,6 +1340,8 @@ func _gain_from_supply(card: CardDefinition, destination: String) -> bool:
 			player.draw_pile.append(card)
 		_:
 			player.discard_pile.append(card)
+	_prepend_gain_reactions(card, destination)
+	_prepend_triggered_effects(card, "gain", {"zone": destination})
 	return true
 
 
@@ -739,6 +1349,7 @@ func _trash_from_play(card: CardDefinition) -> void:
 	if player.play_area.has(card):
 		player.play_area.erase(card)
 		player.trash_pile.append(card)
+		_prepend_triggered_effects(card, "trash", {"zone": "trash"})
 
 
 func _continue_library_draw(
@@ -749,6 +1360,7 @@ func _continue_library_draw(
 		var card := _take_top_card()
 		if card == null:
 			player.discard_pile.append_array(set_aside)
+			_queue_zone_events(set_aside, "discard", "discard")
 			return
 		if card.card_type != "action":
 			player.hand.append(card)
@@ -770,6 +1382,7 @@ func _continue_library_draw(
 		_request_choice(choice)
 		return
 	player.discard_pile.append_array(set_aside)
+	_queue_zone_events(set_aside, "discard", "discard")
 
 
 func _begin_inspect_top(amount: int) -> void:
@@ -853,6 +1466,7 @@ func _begin_salvage(amount: int) -> void:
 		return
 	if resources.is_empty():
 		player.discard_pile.append_array(revealed)
+		_queue_zone_events(revealed, "discard", "discard")
 		return
 	_request_zone_choice(
 		resources,
@@ -872,6 +1486,7 @@ func _begin_vassal() -> void:
 		return
 	if card.card_type != "action":
 		player.discard_pile.append(card)
+		_prepend_triggered_effects(card, "discard", {"zone": "discard"})
 		return
 	_request_zone_choice(
 		[card],
@@ -885,6 +1500,95 @@ func _begin_vassal() -> void:
 	)
 
 
+func _begin_survey_top(amount: int) -> void:
+	var revealed: Array[CardDefinition] = []
+	for _index in range(amount):
+		var card := _take_top_card()
+		if card != null:
+			revealed.append(card)
+	if revealed.is_empty():
+		return
+	_request_zone_choice(
+		revealed,
+		"Choose any revealed cards to discard.",
+		0,
+		revealed.size(),
+		"survey_discard",
+		"DISCARD SELECTED",
+		"DISCARD NONE",
+		{"revealed": revealed}
+	)
+
+
+func _begin_order_cards(cards: Array[CardDefinition]) -> void:
+	_continue_order_cards(cards, [])
+
+
+func _continue_order_cards(
+	remaining: Array[CardDefinition],
+	ordered: Array[CardDefinition]
+) -> void:
+	if remaining.is_empty():
+		for index in range(ordered.size() - 1, -1, -1):
+			player.draw_pile.append(ordered[index])
+		return
+	if remaining.size() == 1:
+		ordered.append(remaining[0])
+		remaining.clear()
+		_continue_order_cards(remaining, ordered)
+		return
+	_request_zone_choice(
+		remaining,
+		"Choose the next card to place on top of your deck.",
+		1,
+		1,
+		"order_cards",
+		"PUT NEXT",
+		"SKIP",
+		{
+			"remaining": remaining,
+			"ordered": ordered,
+		}
+	)
+
+
+func _request_play_self(source_card: CardDefinition, effect: Dictionary) -> void:
+	var event_zone := str(effect.get("_event_zone", "discard"))
+	var zone: Array[CardDefinition] = _get_zone(event_zone)
+	if not zone.has(source_card):
+		return
+	_request_optional_source_choice(
+		source_card,
+		str(effect.get("prompt", "Play this card now?")),
+		"play_self",
+		"PLAY",
+		"LEAVE IT",
+		{
+			"source_card": source_card,
+			"effect": effect,
+		}
+	)
+
+
+func _play_card_from_event_zone(source_card: CardDefinition, effect: Dictionary) -> void:
+	if source_card == null:
+		return
+	var event_zone := str(effect.get("_event_zone", "discard"))
+	var zone: Array[CardDefinition] = _get_zone(event_zone)
+	if not zone.has(source_card):
+		return
+	zone.erase(source_card)
+	player.play_area.append(source_card)
+	_prepend_card_resolutions(source_card, 1)
+
+
+func _has_other_action_in_play(source_card: CardDefinition) -> bool:
+	for card in player.play_area:
+		if card.card_type == "action" and card != source_card:
+			return true
+	return false
+
+
 func buy_card(card: CardDefinition) -> bool:
 	if (
 		card == null
@@ -893,19 +1597,58 @@ func buy_card(card: CardDefinition) -> bool:
 		or get_supply_count(card.id) <= 0
 	):
 		return false
-	if player.buys <= 0 or player.coins < card.cost:
+	var effective_cost := get_effective_cost(card)
+	if player.buys <= 0 or player.coins < effective_cost:
 		return false
-	player.coins -= card.cost
+	player.coins -= effective_cost
 	player.buys -= 1
 	_gain_from_supply(card, "discard")
+	_prepend_triggered_effects(card, "buy", {"zone": "discard"})
+	for _index in range(int(turn_flags.get("buy_bonus_count", 0))):
+		resolution_queue.push_back({
+			"kind": "special",
+			"source_card": card,
+			"effect": {
+				"kind": "gain_cheaper",
+				"destination": "discard",
+				"exclude_victory": true,
+				"prompt": "Choose a cheaper non-victory card to gain.",
+			},
+		})
+	_process_resolution_queue()
 	print(
 		"[Game] Buy card: %s for %d coins (%d left)"
-		% [card.card_name, card.cost, get_supply_count(card.id)]
+		% [card.card_name, effective_cost, get_supply_count(card.id)]
 	)
 	return true
 
 
-func discard_hand_and_play_area() -> void:
+func begin_cleanup() -> void:
+	if cleanup_in_progress:
+		return
+	cleanup_in_progress = true
+	var topdeck_count := int(turn_flags.get("cleanup_topdeck_actions", 0))
+	var actions_in_play: Array[CardDefinition] = []
+	for card in player.play_area:
+		if card.card_type == "action":
+			actions_in_play.append(card)
+	if topdeck_count > 0 and not actions_in_play.is_empty():
+		_request_zone_choice(
+			actions_in_play,
+			"Choose up to %d action card%s to put on top of your deck before cleanup."
+			% [topdeck_count, "" if topdeck_count == 1 else "s"],
+			0,
+			mini(topdeck_count, actions_in_play.size()),
+			"cleanup_topdeck",
+			"PUT ON DECK",
+			"DISCARD ALL"
+		)
+		if has_pending_choice():
+			return
+	_finish_cleanup()
+
+
+func _finish_cleanup() -> void:
 	var hand_count := player.hand.size()
 	var play_count := player.play_area.size()
 	player.discard_pile.append_array(player.hand)
@@ -918,6 +1661,12 @@ func discard_hand_and_play_area() -> void:
 		"[Game] Cleanup: discarded %d hand and %d played cards (discard: %d)"
 		% [hand_count, play_count, player.discard_pile.size()]
 	)
+	cleanup_in_progress = false
+	cleanup_completed.emit()
+
+
+func discard_hand_and_play_area() -> void:
+	begin_cleanup()
 
 
 func calculate_score() -> int:

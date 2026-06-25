@@ -15,6 +15,8 @@ sentences, and rules wording must remain original.
   `Produces`, or `Trashes`.
 - Put standard outputs first in this order: cards, actions, buys, coins.
 - Put conditional or zone-changing instructions after standard outputs.
+- Put `When you gain`, `When you discard`, `When you trash`, and cleanup
+  instructions after the card's play effect.
 - Follow the actual resolution order used by `special_effects`.
 - Use short complete sentences. End every description with a period.
 
@@ -41,6 +43,9 @@ Use these zone names consistently:
 
 `Gain a card` sends it to the discard pile unless the sentence names another
 destination. Say `to your hand` or `on top of your deck` when required.
+
+Use `outside cleanup` for discard reactions that must not fire during the normal
+end-of-turn hand and play-area discard.
 
 ## Card types
 

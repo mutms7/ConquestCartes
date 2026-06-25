@@ -95,6 +95,7 @@ var estates_carpet: PanelContainer
 var market_resource_container: GridContainer
 var market_action_container: GridContainer
 var market_victory_container: GridContainer
+var pending_cleanup_ghosts: Array[Control] = []
 
 @onready var turn_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/TurnStat/Value
 @onready var deck_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/DeckStat/ValueRow/Value
@@ -193,6 +194,7 @@ func _ready() -> void:
 	game_state.choice_requested.connect(_on_choice_requested)
 	game_state.choice_resolved.connect(_on_choice_resolved)
 	turn_manager.configure(game_state)
+	turn_manager.turn_completed.connect(_on_turn_completed)
 
 	if not game_state.load_cards(CARD_DATA_PATH):
 		push_error("Could not load card data from %s." % CARD_DATA_PATH)
@@ -747,7 +749,7 @@ func _can_buy_card(card: CardDefinition) -> bool:
 		not turn_manager.game_over
 		and not game_state.has_pending_choice()
 		and game_state.player.buys > 0
-		and game_state.player.coins >= card.cost
+		and game_state.player.coins >= game_state.get_effective_cost(card)
 		and game_state.get_supply_count(card.id) > 0
 	)
 
@@ -826,14 +828,14 @@ func _create_card_button(
 
 	var name_label := Label.new()
 	name_label.name = "NameLabel"
-	name_label.custom_minimum_size = Vector2(0, 24 if is_market_card else 28)
+	name_label.custom_minimum_size = Vector2(0, 28)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_label.text = card.card_name
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.add_theme_color_override("font_color", palette.text)
-	name_label.add_theme_font_size_override("font_size", 11 if is_market_card else 14)
+	name_label.add_theme_font_size_override("font_size", 9 if is_market_card else 14)
 	if title_font != null:
 		name_label.add_theme_font_override("font", title_font)
 	layout.add_child(name_label)
@@ -845,7 +847,7 @@ func _create_card_button(
 		art_frame.name = "ArtFrame"
 		art_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		art_frame.clip_contents = true
-		art_frame.custom_minimum_size = Vector2(0, 52 if is_market_card else 108)
+		art_frame.custom_minimum_size = Vector2(0, 48 if is_market_card else 108)
 		art_frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		art_frame.add_theme_stylebox_override(
 			"panel",
@@ -868,7 +870,7 @@ func _create_card_button(
 
 	var effect_label := RichTextLabel.new()
 	effect_label.name = "EffectLabel"
-	effect_label.custom_minimum_size = Vector2(0, 22 if is_market_card else 32)
+	effect_label.custom_minimum_size = Vector2(0, 26 if is_market_card else 32)
 	effect_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	effect_label.bbcode_enabled = true
 	effect_label.fit_content = false
@@ -876,8 +878,8 @@ func _create_card_button(
 	effect_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	effect_label.text = "[center][b]%s[/b][/center]" % _get_card_effect_text(card)
 	effect_label.add_theme_color_override("default_color", palette.text)
-	effect_label.add_theme_font_size_override("normal_font_size", 9 if is_market_card else 11)
-	effect_label.add_theme_font_size_override("bold_font_size", 9 if is_market_card else 11)
+	effect_label.add_theme_font_size_override("normal_font_size", 8 if is_market_card else 11)
+	effect_label.add_theme_font_size_override("bold_font_size", 8 if is_market_card else 11)
 	if body_font != null:
 		effect_label.add_theme_font_override("normal_font", body_font)
 	if body_bold_font != null:
@@ -890,7 +892,7 @@ func _create_card_button(
 	meta_row.custom_minimum_size = Vector2(0, 16 if is_market_card else 0)
 	meta_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	meta_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	meta_row.add_theme_constant_override("separation", 4)
+	meta_row.add_theme_constant_override("separation", 2 if is_market_card else 4)
 	layout.add_child(meta_row)
 
 	var type_label := Label.new()
@@ -900,7 +902,7 @@ func _create_card_button(
 		"font_color",
 		_get_card_type_accent(card.card_type).lightened(0.1)
 	)
-	type_label.add_theme_font_size_override("font_size", 9 if is_market_card else 12)
+	type_label.add_theme_font_size_override("font_size", 8 if is_market_card else 12)
 	if body_bold_font != null:
 		type_label.add_theme_font_override("font", body_bold_font)
 	meta_row.add_child(type_label)
@@ -909,26 +911,26 @@ func _create_card_button(
 		meta_row.add_child(
 			_create_icon(
 				icon_textures["coin"],
-				Vector2(11, 11) if is_market_card else Vector2(14, 14),
+				Vector2(9, 9) if is_market_card else Vector2(14, 14),
 				palette.muted
 			)
 		)
 		var cost_label := Label.new()
-		cost_label.text = str(card.cost)
+		cost_label.text = str(game_state.get_effective_cost(card))
 		cost_label.add_theme_color_override("font_color", palette.muted)
-		cost_label.add_theme_font_size_override("font_size", 9 if is_market_card else 12)
+		cost_label.add_theme_font_size_override("font_size", 8 if is_market_card else 12)
 		if body_font != null:
 			cost_label.add_theme_font_override("font", body_font)
 		meta_row.add_child(cost_label)
 	else:
-		type_label.text += "  |  COST %d" % card.cost
+		type_label.text += "  |  COST %d" % game_state.get_effective_cost(card)
 
 	if card.victory_points > 0 or card.score_per_cards > 0:
 		if icon_textures.has("victory"):
 			meta_row.add_child(
 				_create_icon(
 					icon_textures["victory"],
-					Vector2(11, 11) if is_market_card else Vector2(14, 14),
+					Vector2(9, 9) if is_market_card else Vector2(14, 14),
 					COLOR_BRASS
 				)
 			)
@@ -942,7 +944,7 @@ func _create_card_button(
 			"font_color",
 			COLOR_VICTORY_ACCENT.lightened(0.08)
 		)
-		victory_label.add_theme_font_size_override("font_size", 9 if is_market_card else 12)
+		victory_label.add_theme_font_size_override("font_size", 8 if is_market_card else 12)
 		if body_font != null:
 			victory_label.add_theme_font_override("font", body_font)
 		meta_row.add_child(victory_label)
@@ -955,7 +957,7 @@ func _create_card_button(
 			"font_color",
 			COLOR_OXBLOOD if game_state.get_supply_count(card.id) <= 0 else palette.muted
 		)
-		pile_label.add_theme_font_size_override("font_size", 9 if is_market_card else 12)
+		pile_label.add_theme_font_size_override("font_size", 8 if is_market_card else 12)
 		if body_bold_font != null:
 			pile_label.add_theme_font_override("font", body_bold_font)
 		meta_row.add_child(pile_label)
@@ -975,7 +977,7 @@ func _get_card_effect_text(card: CardDefinition) -> String:
 		effects.append("1 VP / %d Cards" % card.score_per_cards)
 	for effect in card.special_effects:
 		var label := str(effect.get("label", ""))
-		if not label.is_empty():
+		if not label.is_empty() and not effects.has(label):
 			effects.append(label)
 	return "  ".join(effects)
 
@@ -1075,7 +1077,10 @@ func _show_card_preview(
 ) -> void:
 	var palette := _get_card_palette(visual_state)
 	preview_name_label.text = card.card_name
-	preview_meta_label.text = "%s  |  COST %d" % [card.card_type.to_upper(), card.cost]
+	preview_meta_label.text = (
+		"%s  |  COST %d"
+		% [card.card_type.to_upper(), game_state.get_effective_cost(card)]
+	)
 	if visual_state.begins_with("market_"):
 		preview_meta_label.text += "  |  %d LEFT" % game_state.get_supply_count(card.id)
 	card_preview.set_meta("card_type", card.card_type)
@@ -1627,12 +1632,17 @@ func _on_market_card_pressed(card: CardDefinition) -> void:
 func _on_end_turn_pressed() -> void:
 	if game_state.has_pending_choice():
 		return
-	var cleanup_ghosts := _capture_cleanup_cards()
+	pending_cleanup_ghosts = _capture_cleanup_cards()
 	_play_ui_sound("end_turn")
 	turn_manager.end_turn()
 	_refresh_ui()
-	_animate_cleanup_cards(cleanup_ghosts)
-	if turn_manager.game_over:
+
+
+func _on_turn_completed(game_is_over: bool) -> void:
+	_refresh_ui()
+	_animate_cleanup_cards(pending_cleanup_ghosts)
+	pending_cleanup_ghosts.clear()
+	if game_is_over:
 		_show_final_score(turn_manager.final_score)
 	else:
 		call_deferred("_animate_draw_cards", game_state.player.hand.size())

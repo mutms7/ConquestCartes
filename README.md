@@ -8,7 +8,7 @@ contents of your deck into victory points.
 
 ## Current Game
 
-- 38 data-driven cards with original names and painterly artwork
+- 64 data-driven cards with original names and painterly artwork
 - A 14-card kingdom market: 2 resources, 10 actions, and 2 victory cards
 - Six archived cards retained in the catalog but excluded from random markets
 - Seven Pebble Coins and three Homesteads in the starting deck
@@ -16,6 +16,8 @@ contents of your deck into victory points.
 - Deck searching, trashing, gaining, upgrading, replaying, and variable scoring
 - Interactive card choices for discarding, trashing, gaining, upgrading,
   replaying, inspecting, and ordering cards
+- Gain, buy, discard, trash, and cleanup triggers for reactive cards
+- Temporary cost reductions, progressive resources, and event-driven bonuses
 - Finite supply piles with visible counts and sold-out handling
 - Art-linked names that preserve the identity of the original illustration library
 - High-contrast type surfaces: golden umber resources, midnight-blue actions,
@@ -111,7 +113,7 @@ See `assets/licenses/ASSET_SOURCES.md` for provenance details.
 - Single-player only; there is no opponent, multiplayer, or campaign.
 - No save system, settings menu, music, or accessibility menu.
 - Rival-only attack and reaction clauses are omitted in the solo ruleset.
-- The art library contains 29 finished illustrations. The 38-card catalog
+- The art library contains 29 finished illustrations. The 64-card catalog
   currently references 28 of them; related cards share paintings through the
   data-driven `art_id` field, while Sunspire Monument remains reserve art.
 - The game is balanced as a compact prototype rather than a finished commercial

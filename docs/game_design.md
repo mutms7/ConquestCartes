@@ -16,7 +16,7 @@ resets turn resources, and draws a new five-card hand. Empty draw piles are
 replenished by shuffling the discard pile.
 
 The market contains 14 cards: 2 resources, 10 actions, and 2 victory cards. The
-catalog contains 38 cards: 2 starters, 30 random-market candidates, and 6
+catalog contains 64 cards: 2 starters, 56 random-market candidates, and 6
 archived cards retained for testing, future sets, and art-linked reuse.
 
 The market is arranged as three medieval tabletop carpets. The Royal Treasury
@@ -34,8 +34,9 @@ ordered rules queue after each choice.
 
 The solo rules support discarding, trashing, gaining, upgrading, replaying,
 setting actions aside, inspecting cards, choosing revealed-card destinations,
-and selecting top-deck order. Rival-only attack and reaction clauses still have
-no effect because the game has no opponent.
+selecting top-deck order, reacting to gain/discard/trash events, reducing costs,
+and pausing cleanup for optional card recovery. Rival-only attack and reaction
+clauses still have no effect because the game has no opponent.
 
 ## End and Scoring
 

@@ -30,6 +30,10 @@ Every special effect has a `kind`, optional parameters, and a short `label` used
 by card faces and previews. Add generalized effect kinds to the rules engine; do
 not branch on individual card IDs in UI code.
 
+Effects default to `trigger: "play"`. Reactive effects may instead use
+`gain`, `buy`, `gain_reaction`, `discard`, or `trash`. Cleanup effects register
+turn state during play and resolve through the cleanup choice flow.
+
 Supported kinds:
 
 - `reveal_resources_to_hand`
@@ -52,6 +56,31 @@ Supported kinds:
 - `replay_action`
 - `vassal`
 - `discard_per_empty_supply`
+- `progressive_resource`
+- `draw_per_type_in_hand`
+- `first_play_actions`
+- `survey_top`
+- `develop`
+- `register_buy_bonus`
+- `reduce_costs`
+- `discard_filtered`
+- `trash_filtered`
+- `topdeck_action_at_cleanup`
+- `trash_resource_choose_bonus`
+- `discard_resource_bonus`
+- `conditional_draw`
+- `choose_named_or_supply`
+- `gain_cheaper`
+- `gain_coins_trigger`
+- `play_self_optional`
+- `play_self_if_action_in_play`
+- `dynamic_hand_coins`
+- `discard_for_action_gain`
+- `optional_gain_card`
+- `trash_for_copies`
+- `replace_gain`
+- `shuffle_actions_from_discard`
+- `upgrade_exact_nonself`
 
 Effects resolve in array order. Descriptions and compact labels must present that
 same order.
@@ -65,6 +94,8 @@ not decide what the selected cards do.
 Use reusable choice sources and resolvers rather than card IDs. Required and
 optional selections, supply gains, multi-card selections, revealed cards, and
 multi-step continuations all use the same pending-choice/effect-queue system.
+Mode choices reuse the same overlay with labeled versions of the source card, so
+bonus modes remain data-driven without card-specific UI.
 
 ## Card creation process
 
