@@ -155,6 +155,11 @@ func _initialize() -> void:
 			"Card faces should show the complete data-driven rules description."
 		)
 		_check(
+			_card_name(resource_button).get_theme_font_size("font_size") >= 14
+			and _card_effect(resource_button).get_theme_font_size("normal_font_size") >= 11,
+			"Hand card titles and rules text should use the enlarged type."
+		)
+		_check(
 			_card_art(resource_button).get_parent().size.y >= 112.0,
 			"Card artwork should use the enlarged art window."
 		)
@@ -248,6 +253,11 @@ func _initialize() -> void:
 		_check(
 			_card_effect(market_button).get_parsed_text() == market_card.description,
 			"Market card faces should show their complete rules description."
+		)
+		_check(
+			_card_name(market_button).get_theme_font_size("font_size") >= 11
+			and _card_effect(market_button).get_theme_font_size("normal_font_size") >= 9,
+			"Market card titles and rules text should use the enlarged type."
 		)
 		market_button.mouse_entered.emit()
 		await process_frame
@@ -565,6 +575,10 @@ func _choice_confirm_button() -> Button:
 
 func _card_art(button: Button) -> TextureRect:
 	return button.get_node("CardContent/CardLayout/ArtFrame/Art")
+
+
+func _card_name(button: Button) -> Label:
+	return button.get_node("CardContent/CardLayout/NameLabel")
 
 
 func _card_effect(button: Button) -> RichTextLabel:
