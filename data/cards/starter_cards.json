@@ -55,7 +55,7 @@
   },
   {
     "id": "wishing_garden",
-    "name": "Wishing Garden",
+    "name": "Wishing Stone",
     "type": "victory",
     "art_id": "wishing_stone",
     "cost": 4,
@@ -64,7 +64,7 @@
   },
   {
     "id": "starpath_seeker",
-    "name": "Starpath Seeker",
+    "name": "Starlit Wagon",
     "type": "action",
     "art_id": "starlit_wagon",
     "cost": 6,
@@ -79,7 +79,7 @@
   },
   {
     "id": "master_weaver",
-    "name": "Master Weaver",
+    "name": "Weaver's Loom",
     "type": "action",
     "art_id": "weavers_loom",
     "cost": 6,
@@ -100,7 +100,7 @@
   },
   {
     "id": "roadside_reaver",
-    "name": "Roadside Reaver",
+    "name": "Trail Biscuit Cache",
     "type": "action",
     "art_id": "trail_biscuit",
     "cost": 5,
@@ -116,7 +116,7 @@
   },
   {
     "id": "royal_clerk",
-    "name": "Royal Clerk",
+    "name": "Royal Charter Decree",
     "type": "action",
     "art_id": "royal_charter",
     "cost": 4,
@@ -132,7 +132,7 @@
   },
   {
     "id": "root_cellar",
-    "name": "Root Cellar",
+    "name": "Homestead Cellar",
     "type": "action",
     "art_id": "homestead",
     "cost": 2,
@@ -147,7 +147,7 @@
   },
   {
     "id": "river_ward",
-    "name": "River Ward",
+    "name": "River Courier's Detour",
     "type": "action",
     "art_id": "river_courier",
     "cost": 3,
@@ -162,7 +162,7 @@
   },
   {
     "id": "quiet_chapel",
-    "name": "Quiet Chapel",
+    "name": "Quiet Archive Purge",
     "type": "action",
     "art_id": "quiet_archive",
     "cost": 2,
@@ -177,7 +177,7 @@
   },
   {
     "id": "council_hearth",
-    "name": "Council Hearth",
+    "name": "Scholar's Hall",
     "type": "action",
     "art_id": "scholars_hall",
     "cost": 5,
@@ -187,7 +187,7 @@
   },
   {
     "id": "harvest_feast",
-    "name": "Harvest Feast",
+    "name": "Firefly Supper",
     "type": "action",
     "art_id": "firefly_supper",
     "cost": 4,
@@ -207,7 +207,7 @@
   },
   {
     "id": "lantern_festival",
-    "name": "Lantern Festival",
+    "name": "Lantern Parade",
     "type": "action",
     "art_id": "lantern_parade",
     "cost": 5,
@@ -218,7 +218,7 @@
   },
   {
     "id": "dawn_herald",
-    "name": "Dawn Herald",
+    "name": "Dawn Whistle",
     "type": "action",
     "art_id": "dawn_whistle",
     "cost": 3,
@@ -234,7 +234,7 @@
   },
   {
     "id": "candlecap_laboratory",
-    "name": "Candlecap Laboratory",
+    "name": "Candlecap",
     "type": "action",
     "art_id": "candlecap",
     "cost": 5,
@@ -244,7 +244,7 @@
   },
   {
     "id": "grand_archive",
-    "name": "Grand Archive",
+    "name": "Quiet Archive",
     "type": "action",
     "art_id": "quiet_archive",
     "cost": 5,
@@ -259,7 +259,7 @@
   },
   {
     "id": "crossroads_market",
-    "name": "Crossroads Market",
+    "name": "Orchard Map",
     "type": "action",
     "art_id": "orchard_map",
     "cost": 5,
@@ -289,16 +289,16 @@
   },
   {
     "id": "town_militia",
-    "name": "Town Militia",
+    "name": "Stone Wall Muster",
     "type": "action",
-    "art_id": "village_bell",
+    "art_id": "stone_wall",
     "cost": 4,
     "description": "Produces 2 coins.",
     "gain_coins": 2
   },
   {
     "id": "moonlit_mine",
-    "name": "Moonlit Mine",
+    "name": "Moonwell Token",
     "type": "action",
     "art_id": "moonwell_token",
     "cost": 5,
@@ -313,7 +313,7 @@
   },
   {
     "id": "mist_cloak",
-    "name": "Mist Cloak",
+    "name": "Moss Thread",
     "type": "action",
     "art_id": "moss_thread",
     "cost": 2,
@@ -322,7 +322,7 @@
   },
   {
     "id": "coin_broker",
-    "name": "Coin Broker",
+    "name": "Acorn Purse",
     "type": "action",
     "art_id": "acorn_purse",
     "cost": 4,
@@ -338,7 +338,7 @@
   },
   {
     "id": "supply_scout",
-    "name": "Supply Scout",
+    "name": "Trail Biscuit",
     "type": "action",
     "art_id": "trail_biscuit",
     "cost": 4,
@@ -349,7 +349,7 @@
   },
   {
     "id": "manor_rebuilder",
-    "name": "Manor Rebuilder",
+    "name": "Orchard Estate",
     "type": "action",
     "art_id": "orchard_estate",
     "cost": 4,
@@ -364,7 +364,7 @@
   },
   {
     "id": "clockwork_sentry",
-    "name": "Clockwork Sentry",
+    "name": "Tinker Wren",
     "type": "action",
     "art_id": "tinker_wren",
     "cost": 5,
@@ -381,16 +381,16 @@
   },
   {
     "id": "forge_hall",
-    "name": "Forge Hall",
+    "name": "Hearthsong",
     "type": "action",
-    "art_id": "amber_circlet",
+    "art_id": "hearthsong",
     "cost": 4,
     "description": "Draws 3 cards.",
     "draw_cards": 3
   },
   {
     "id": "astral_spyglass",
-    "name": "Astral Spyglass",
+    "name": "Astral Vault",
     "type": "action",
     "art_id": "astral_vault",
     "cost": 4,
@@ -406,7 +406,7 @@
   },
   {
     "id": "relic_seeker",
-    "name": "Relic Seeker",
+    "name": "Gilded Reliquary",
     "type": "action",
     "art_id": "gilded_reliquary",
     "cost": 4,
@@ -421,7 +421,7 @@
   },
   {
     "id": "echoing_hall",
-    "name": "Echoing Hall",
+    "name": "Hearthsong Refrain",
     "type": "action",
     "art_id": "hearthsong",
     "cost": 4,
@@ -435,7 +435,7 @@
   },
   {
     "id": "banner_vassal",
-    "name": "Banner Vassal",
+    "name": "River Courier",
     "type": "action",
     "art_id": "river_courier",
     "cost": 3,
@@ -469,7 +469,7 @@
   },
   {
     "id": "timber_camp",
-    "name": "Timber Camp",
+    "name": "Moss Thread Camp",
     "type": "action",
     "art_id": "moss_thread",
     "cost": 3,
@@ -479,7 +479,7 @@
   },
   {
     "id": "guild_workshop",
-    "name": "Guild Workshop",
+    "name": "Loomwright's Workshop",
     "type": "action",
     "art_id": "weavers_loom",
     "cost": 3,

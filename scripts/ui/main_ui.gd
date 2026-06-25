@@ -19,6 +19,9 @@ const COLOR_PARCHMENT := Color("#e4d2aa")
 const COLOR_PARCHMENT_LIGHT := Color("#f3e8ca")
 const COLOR_CARD_BROWN := Color("#4a3021")
 const COLOR_CARD_BROWN_LIGHT := Color("#5a3a28")
+const COLOR_RESOURCE_CARD := Color("#51351f")
+const COLOR_ACTION_CARD := Color("#40332e")
+const COLOR_VICTORY_CARD := Color("#482b31")
 const COLOR_WALNUT := Color("#352218")
 const COLOR_WALNUT_DARK := Color("#21140f")
 const COLOR_BRASS := Color("#b58a45")
@@ -425,12 +428,14 @@ func _create_card_button(
 	visual_state: String
 ) -> Button:
 	var palette := _get_card_palette(visual_state)
+	var card_surface := _get_card_surface_color(card.card_type)
 	var button := Button.new()
 	button.custom_minimum_size = Vector2(164, 208)
 	button.focus_mode = Control.FOCUS_ALL
 	button.set_meta("card_id", card.id)
 	button.set_meta("visual_state", visual_state)
-	button.set_meta("card_base_color", COLOR_CARD_BROWN)
+	button.set_meta("card_base_color", card_surface)
+	button.set_meta("card_type", card.card_type)
 	button.set_meta("card_accent_color", palette.border)
 	button.tooltip_text = "%s — %s" % [card.card_name, card.description]
 	button.resized.connect(_update_card_pivot.bind(button))
@@ -440,15 +445,15 @@ func _create_card_button(
 	button.mouse_exited.connect(_on_card_mouse_exited.bind(button))
 	button.add_theme_stylebox_override(
 		"normal",
-		_make_card_style(COLOR_CARD_BROWN, palette.border, 3)
+		_make_card_style(card_surface, palette.border, 3)
 	)
 	button.add_theme_stylebox_override(
 		"hover",
-		_make_card_style(COLOR_CARD_BROWN_LIGHT, palette.border.lightened(0.14), 4)
+		_make_card_style(card_surface.lightened(0.1), palette.border.lightened(0.14), 4)
 	)
 	button.add_theme_stylebox_override(
 		"pressed",
-		_make_card_style(COLOR_CARD_BROWN.darkened(0.08), palette.border, 4)
+		_make_card_style(card_surface.darkened(0.08), palette.border, 4)
 	)
 	button.add_theme_stylebox_override(
 		"focus",
@@ -456,7 +461,7 @@ func _create_card_button(
 	)
 	button.add_theme_stylebox_override(
 		"disabled",
-		_make_card_style(COLOR_CARD_BROWN.darkened(0.12), palette.border, 3)
+		_make_card_style(card_surface.darkened(0.12), palette.border, 3)
 	)
 
 	if ui_textures.has("card"):
@@ -703,6 +708,8 @@ func _show_card_preview(
 	var palette := _get_card_palette(visual_state)
 	preview_name_label.text = card.card_name
 	preview_meta_label.text = "%s  |  COST %d" % [card.card_type.to_upper(), card.cost]
+	card_preview.set_meta("card_type", card.card_type)
+	card_preview.set_meta("card_base_color", _get_card_surface_color(card.card_type))
 	preview_art.texture = _load_card_texture(card.art_id)
 	preview_art_frame.visible = preview_art.texture != null
 	preview_art_frame.add_theme_stylebox_override(
@@ -715,7 +722,7 @@ func _show_card_preview(
 	preview_effect_label.add_theme_color_override("default_color", COLOR_PARCHMENT_LIGHT)
 	card_preview.add_theme_stylebox_override(
 		"panel",
-		_make_preview_style(palette.border)
+		_make_preview_style(_get_card_surface_color(card.card_type), palette.border)
 	)
 	card_preview.position = _get_preview_position(source_button)
 	card_preview.show()
@@ -798,6 +805,16 @@ func _get_card_palette(visual_state: String) -> Dictionary:
 			}
 
 
+func _get_card_surface_color(card_type: String) -> Color:
+	match card_type:
+		"resource":
+			return COLOR_RESOURCE_CARD
+		"victory":
+			return COLOR_VICTORY_CARD
+		_:
+			return COLOR_ACTION_CARD
+
+
 func _make_card_style(color: Color, border_color: Color, border_width: int) -> StyleBox:
 	var style := _make_flat_card_style(color, border_color, border_width)
 	style.shadow_color = Color(0, 0, 0, 0.5)
@@ -829,14 +846,28 @@ func _make_panel_style(color: Color, border_color: Color, border_width: int) -> 
 	return style
 
 
-func _make_preview_style(border_color: Color) -> StyleBox:
+func _make_preview_style(surface_color: Color, border_color: Color) -> StyleBox:
 	if ui_textures.has("preview"):
-		return _make_asset_style(ui_textures["preview"], 22.0, 18.0)
-	var style := _make_flat_card_style(COLOR_CARD_BROWN, border_color, 3)
+		return _make_asset_style(
+			ui_textures["preview"],
+			22.0,
+			18.0,
+			_get_preview_type_modulate(surface_color)
+		)
+	var style := _make_flat_card_style(surface_color, border_color, 3)
 	style.set_corner_radius_all(12)
 	style.shadow_color = Color(0, 0, 0, 0.65)
 	style.shadow_size = 16
 	return style
+
+
+func _get_preview_type_modulate(surface_color: Color) -> Color:
+	return Color(
+		clampf(surface_color.r / COLOR_CARD_BROWN.r, 0.82, 1.12),
+		clampf(surface_color.g / COLOR_CARD_BROWN.g, 0.82, 1.12),
+		clampf(surface_color.b / COLOR_CARD_BROWN.b, 0.82, 1.12),
+		1.0
+	)
 
 
 func _make_asset_style(

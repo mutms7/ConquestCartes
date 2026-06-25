@@ -45,6 +45,12 @@ func _initialize() -> void:
 		"Variable victory cards should explain their scoring rule concisely."
 	)
 	_check(
+		main_ui.COLOR_RESOURCE_CARD != main_ui.COLOR_ACTION_CARD
+		and main_ui.COLOR_ACTION_CARD != main_ui.COLOR_VICTORY_CARD
+		and main_ui.COLOR_RESOURCE_CARD != main_ui.COLOR_VICTORY_CARD,
+		"Each card type should have a distinct dark medieval surface color."
+	)
+	_check(
 		_hand_panel().get_global_rect().end.y <= root.get_visible_rect().end.y,
 		"The full hand panel should remain inside the 1280x720 viewport."
 	)
@@ -54,8 +60,8 @@ func _initialize() -> void:
 	if resource_button != null:
 		_check(not resource_button.disabled, "A resource card should be visibly playable.")
 		_check(
-			resource_button.get_meta("card_base_color") == main_ui.COLOR_CARD_BROWN,
-			"Playable cards should retain the dark-brown base color."
+			resource_button.get_meta("card_base_color") == main_ui.COLOR_RESOURCE_CARD,
+			"Resource cards should use the warm umber surface."
 		)
 		_check(
 			resource_button.get_meta("card_accent_color") == main_ui.COLOR_SLATE,
@@ -91,6 +97,10 @@ func _initialize() -> void:
 			"Hand preview should reuse the concise effect summary."
 		)
 		_check(
+			_card_preview().get_meta("card_base_color") == main_ui.COLOR_RESOURCE_CARD,
+			"Resource previews should reuse the resource surface treatment."
+		)
+		_check(
 			_card_preview().get_global_rect().end.x <= root.get_visible_rect().end.x
 			and _card_preview().get_global_rect().end.y <= root.get_visible_rect().end.y,
 			"Card previews should remain inside the viewport."
@@ -114,8 +124,8 @@ func _initialize() -> void:
 	if score_button != null:
 		_check(score_button.disabled, "Victory-only hand cards should remain unavailable.")
 		_check(
-			score_button.get_meta("card_base_color") == main_ui.COLOR_CARD_BROWN,
-			"Unavailable cards should retain the dark-brown base color."
+			score_button.get_meta("card_base_color") == main_ui.COLOR_VICTORY_CARD,
+			"Victory cards should use the restrained oxblood surface."
 		)
 		_check(
 			score_button.get_meta("card_accent_color") == main_ui.COLOR_UNAVAILABLE.darkened(0.12),
@@ -134,8 +144,9 @@ func _initialize() -> void:
 			"Affordable market card should use its distinct visual state."
 		)
 		_check(
-			market_button.get_meta("card_base_color") == main_ui.COLOR_CARD_BROWN,
-			"Affordable market cards should retain the dark-brown base color."
+			market_button.get_meta("card_base_color")
+			== main_ui._get_card_surface_color(market_card.card_type),
+			"Market cards should use the surface color for their card type."
 		)
 		_check(
 			market_button.get_meta("card_accent_color") == main_ui.COLOR_FOREST,
@@ -151,6 +162,11 @@ func _initialize() -> void:
 		_check(
 			_preview_art().texture == _card_art(market_button).texture,
 			"Market preview should display the hovered card artwork."
+		)
+		_check(
+			_card_preview().get_meta("card_base_color")
+			== main_ui._get_card_surface_color(market_card.card_type),
+			"Market previews should retain the hovered card type treatment."
 		)
 		_check(
 			_card_preview().get_global_rect().end.x <= root.get_visible_rect().end.x

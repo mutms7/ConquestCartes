@@ -14,6 +14,9 @@ contents of your deck into victory points.
 - Five-card hands, reshuffling discard piles, actions, coins, and buys
 - Deck searching, trashing, gaining, upgrading, replaying, and variable scoring
 - Automatic solo resolution for effects that would otherwise require card choices
+- Art-linked names that preserve the identity of the original illustration library
+- Subtle type surfaces: warm umber resources, smoked-walnut actions, and
+  oxblood-walnut victory cards
 - Final scoring after turn 15
 - Handcrafted medieval tabletop UI using dark walnut cards, brass, leather, and
   restrained heraldic ornament
@@ -32,8 +35,9 @@ contents of your deck into victory points.
 6. After turn 15, every victory point in your deck, hand, discard pile, and play
    area contributes to the final score.
 
-Slate-trimmed hand cards are playable. Forest-trimmed market cards are affordable.
-Muted trim marks cards that are currently unavailable.
+Card surface color identifies its type. Slate-trimmed hand cards are playable,
+forest-trimmed market cards are affordable, and muted trim marks cards that are
+currently unavailable.
 
 ## Run Locally
 

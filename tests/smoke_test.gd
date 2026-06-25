@@ -2,6 +2,37 @@ extends SceneTree
 
 const CARD_DATA_PATH := "res://data/cards/starter_cards.json"
 const EXPECTED_CARD_COUNT := 38
+const EXPECTED_ART_LINKED_NAMES := {
+	"wishing_garden": "Wishing Stone",
+	"starpath_seeker": "Starlit Wagon",
+	"master_weaver": "Weaver's Loom",
+	"roadside_reaver": "Trail Biscuit Cache",
+	"royal_clerk": "Royal Charter Decree",
+	"root_cellar": "Homestead Cellar",
+	"river_ward": "River Courier's Detour",
+	"quiet_chapel": "Quiet Archive Purge",
+	"council_hearth": "Scholar's Hall",
+	"harvest_feast": "Firefly Supper",
+	"lantern_festival": "Lantern Parade",
+	"dawn_herald": "Dawn Whistle",
+	"candlecap_laboratory": "Candlecap",
+	"grand_archive": "Quiet Archive",
+	"crossroads_market": "Orchard Map",
+	"town_militia": "Stone Wall Muster",
+	"moonlit_mine": "Moonwell Token",
+	"mist_cloak": "Moss Thread",
+	"coin_broker": "Acorn Purse",
+	"supply_scout": "Trail Biscuit",
+	"manor_rebuilder": "Orchard Estate",
+	"clockwork_sentry": "Tinker Wren",
+	"forge_hall": "Hearthsong",
+	"astral_spyglass": "Astral Vault",
+	"relic_seeker": "Gilded Reliquary",
+	"echoing_hall": "Hearthsong Refrain",
+	"banner_vassal": "River Courier",
+	"timber_camp": "Moss Thread Camp",
+	"guild_workshop": "Loomwright's Workshop",
+}
 
 var failure_count := 0
 
@@ -38,6 +69,14 @@ func _test_card_catalog() -> void:
 			ResourceLoader.exists("res://assets/cards/%s.png" % card.art_id),
 			"%s should use an existing card illustration." % card.card_name
 		)
+	for card_id in EXPECTED_ART_LINKED_NAMES:
+		_check(game_state.card_catalog.has(card_id), "Art-linked card %s should exist." % card_id)
+		if game_state.card_catalog.has(card_id):
+			_check(
+				game_state.card_catalog[card_id].card_name
+				== EXPECTED_ART_LINKED_NAMES[card_id],
+				"%s should retain an art-linked display name." % card_id
+			)
 
 
 func _test_full_game_loop() -> void:

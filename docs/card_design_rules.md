@@ -63,6 +63,28 @@ use deterministic solo heuristics:
 Descriptions must state what the automatic rule does. Do not imply that the player
 will receive a choice that the interface does not provide.
 
+## Names and illustration identity
+
+The original illustration name should remain the display name when a single card
+uses that artwork. If multiple rules cards share an `art_id`, keep one exact
+original name and name the variants after the same visible subject plus their
+role, such as `Hearthsong Refrain` or `Trail Biscuit Cache`.
+
+Do not give a card a name that contradicts its illustration merely to mirror the
+source role that inspired its mechanics. IDs may remain mechanically descriptive;
+the player-facing name should describe the actual Conquest Cartes artwork.
+
+## Type surfaces
+
+Card faces and previews use a generic type-based dark surface:
+
+- resources: warm umber
+- actions: cool smoked walnut
+- victory cards: restrained oxblood walnut
+
+Availability and playability remain border states. Type styling must be derived
+from `card_type`, never from individual card IDs.
+
 ## Market composition
 
 `GameState` builds a twelve-card market:
