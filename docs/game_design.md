@@ -15,7 +15,7 @@ discards the hand and play area, resets turn resources, and draws a new five-car
 hand. Empty draw piles are replenished by shuffling the discard pile.
 
 The market contains 12 cards: 2 resources, 7 actions, and 3 victory cards. It is
-rebuilt each game from a 38-card catalog.
+rebuilt each game from a 32-card catalog.
 
 ## Solo Effect Resolution
 

@@ -8,7 +8,7 @@ contents of your deck into victory points.
 
 ## Current Game
 
-- 38 data-driven cards with original names and painterly artwork
+- 32 data-driven cards with original names and painterly artwork
 - A 12-card market: 2 resources, 7 actions, and 3 victory cards
 - Seven Pebble Coins and three Homesteads in the starting deck
 - Five-card hands, reshuffling discard piles, actions, coins, and buys
@@ -113,3 +113,6 @@ See `assets/licenses/ASSET_SOURCES.md` for provenance details.
   until dedicated artwork is produced.
 - The game is balanced as a compact prototype rather than a finished commercial
   release.
+
+Card authors should follow `docs/card_design_rules.md` and
+`docs/card_wording_conventions.md`.

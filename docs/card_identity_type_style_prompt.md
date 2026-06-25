@@ -1,6 +1,6 @@
 # Card Identity and Type Styling Prompt
 
-Refine the 38-card Conquest Cartes set without changing card balance or mechanics.
+Refine the Conquest Cartes card set without changing card balance or mechanics.
 
 Preserve the identity of the existing illustration library by restoring each
 artwork's original card name wherever one card owns that art. When artwork is

@@ -1,18 +1,24 @@
 extends SceneTree
 
 const CARD_DATA_PATH := "res://data/cards/starter_cards.json"
-const EXPECTED_CARD_COUNT := 38
+const EXPECTED_CARD_COUNT := 32
+const WORDING_GUIDE_PATH := "res://docs/card_wording_conventions.md"
+const REMOVED_CARD_IDS := [
+	"starpath_seeker",
+	"river_ward",
+	"harvest_feast",
+	"astral_spyglass",
+	"relic_seeker",
+	"timber_camp",
+]
 const EXPECTED_ART_LINKED_NAMES := {
 	"wishing_garden": "Wishing Stone",
-	"starpath_seeker": "Starlit Wagon",
 	"master_weaver": "Weaver's Loom",
 	"roadside_reaver": "Trail Biscuit Cache",
 	"royal_clerk": "Royal Charter Decree",
 	"root_cellar": "Homestead Cellar",
-	"river_ward": "River Courier's Detour",
 	"quiet_chapel": "Quiet Archive Purge",
 	"council_hearth": "Scholar's Hall",
-	"harvest_feast": "Firefly Supper",
 	"lantern_festival": "Lantern Parade",
 	"dawn_herald": "Dawn Whistle",
 	"candlecap_laboratory": "Candlecap",
@@ -26,11 +32,8 @@ const EXPECTED_ART_LINKED_NAMES := {
 	"manor_rebuilder": "Orchard Estate",
 	"clockwork_sentry": "Tinker Wren",
 	"forge_hall": "Hearthsong",
-	"astral_spyglass": "Astral Vault",
-	"relic_seeker": "Gilded Reliquary",
 	"echoing_hall": "Hearthsong Refrain",
 	"banner_vassal": "River Courier",
-	"timber_camp": "Moss Thread Camp",
 	"guild_workshop": "Loomwright's Workshop",
 }
 
@@ -39,6 +42,7 @@ var failure_count := 0
 
 func _initialize() -> void:
 	_test_card_catalog()
+	_test_wording_conventions()
 	_test_full_game_loop()
 	_test_draw_across_shuffle_boundary()
 	_test_scoring()
@@ -77,6 +81,63 @@ func _test_card_catalog() -> void:
 				== EXPECTED_ART_LINKED_NAMES[card_id],
 				"%s should retain an art-linked display name." % card_id
 			)
+	for card_id in REMOVED_CARD_IDS:
+		_check(
+			not game_state.card_catalog.has(card_id),
+			"Removed card %s should not remain in the catalog." % card_id
+		)
+
+
+func _test_wording_conventions() -> void:
+	_check(FileAccess.file_exists(WORDING_GUIDE_PATH), "Card wording guide should exist.")
+	var guide_text := FileAccess.get_file_as_string(WORDING_GUIDE_PATH)
+	_check(
+		guide_text.contains("Card creation checklist"),
+		"Card wording guide should include the creation checklist."
+	)
+
+	var game_state := _create_game_state()
+	if game_state == null:
+		return
+	var forbidden_openers := [
+		"Draws ",
+		"Gains ",
+		"Grants ",
+		"Places ",
+		"Produces ",
+		"Reveals ",
+		"Trashes ",
+	]
+	for card in game_state.card_catalog.values():
+		_check(not card.description.is_empty(), "%s should have rules text." % card.card_name)
+		_check(
+			card.description.ends_with("."),
+			"%s rules text should end with a period." % card.card_name
+		)
+		for opener in forbidden_openers:
+			_check(
+				not card.description.begins_with(opener),
+				"%s should use direct imperative wording." % card.card_name
+			)
+		for effect in card.special_effects:
+			var label := str(effect.get("label", ""))
+			_check(not label.is_empty(), "%s special effects should have labels." % card.card_name)
+			_check(
+				not label.contains("Topdeck")
+				and not label.contains("Inspect")
+				and not label.contains("Remodel"),
+				"%s labels should use the canonical wording vocabulary." % card.card_name
+			)
+	_check(
+		game_state.card_catalog["council_hearth"].description
+		== "Draw 4 cards. Gain 1 buy.",
+		"Standard outputs should use canonical sentence order."
+	)
+	_check(
+		game_state.card_catalog["guild_workshop"].description
+		== "Gain the strongest card costing up to 4.",
+		"Automatic gain wording should identify the solo choice rule."
+	)
 
 
 func _test_full_game_loop() -> void:
@@ -156,29 +217,11 @@ func _test_scoring() -> void:
 
 
 func _test_special_effects() -> void:
-	_test_starpath_seeker()
 	_test_root_cellar()
 	_test_quiet_chapel()
-	_test_harvest_feast()
 	_test_silver_merchant()
 	_test_echoing_hall()
 	_test_banner_vassal()
-
-
-func _test_starpath_seeker() -> void:
-	var game_state := _empty_game()
-	var seeker: CardDefinition = game_state.card_catalog["starpath_seeker"]
-	game_state.player.hand.append(seeker)
-	game_state.player.draw_pile.append(game_state.card_catalog["forge_hall"])
-	game_state.player.draw_pile.append(game_state.card_catalog["silver_leaf"])
-	game_state.player.draw_pile.append(game_state.card_catalog["homestead"])
-	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
-	_check(game_state.play_card(seeker), "Starpath Seeker should play.")
-	_check(
-		_count_type(game_state.player.hand, "resource") == 2,
-		"Starpath Seeker should find two resources."
-	)
-	_check(game_state.player.discard_pile.size() == 1, "Non-resource reveals should be discarded.")
 
 
 func _test_root_cellar() -> void:
@@ -200,16 +243,6 @@ func _test_quiet_chapel() -> void:
 		game_state.player.hand.append(game_state.card_catalog["pebble_coin"])
 	_check(game_state.play_card(chapel), "Quiet Chapel should play.")
 	_check(game_state.player.trash_pile.size() == 4, "Quiet Chapel should trash up to four cards.")
-
-
-func _test_harvest_feast() -> void:
-	var game_state := _empty_game()
-	var feast: CardDefinition = game_state.card_catalog["harvest_feast"]
-	game_state.player.hand.append(feast)
-	_check(game_state.play_card(feast), "Harvest Feast should play.")
-	_check(game_state.player.trash_pile.has(feast), "Harvest Feast should trash itself.")
-	_check(game_state.player.discard_pile.size() == 1, "Harvest Feast should gain one card.")
-	_check(game_state.player.discard_pile[0].cost <= 5, "Harvest Feast gain should respect cost.")
 
 
 func _test_silver_merchant() -> void:

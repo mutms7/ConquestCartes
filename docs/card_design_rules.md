@@ -4,6 +4,10 @@ Cards are authored in `data/cards/starter_cards.json`. Definitions remain pure
 data; gameplay resolution belongs in `scripts/core/game_state.gd`, and card UI
 belongs in `scripts/ui/main_ui.gd`.
 
+Before writing or revising any card text, read
+`docs/card_wording_conventions.md`. Its checklist is part of the card creation
+process.
+
 ## Core fields
 
 - `id`: stable snake-case identifier used by rules and saves.
@@ -47,8 +51,8 @@ Supported kinds:
 - `replay_action`
 - `vassal`
 
-Effects resolve in array order. For example, Harvest Feast trashes itself before
-gaining a card because `trash_self` appears before `gain_best`.
+Effects resolve in array order. Descriptions and compact labels must present that
+same order.
 
 ## Automatic choices
 
@@ -62,6 +66,17 @@ use deterministic solo heuristics:
 
 Descriptions must state what the automatic rule does. Do not imply that the player
 will receive a choice that the interface does not provide.
+
+## Card creation process
+
+1. Choose an original art-linked name and `art_id`.
+2. Define the numeric fields and ordered reusable special effects.
+3. Implement generalized rules support when a new effect kind is required.
+4. Write `description` and effect labels using
+   `docs/card_wording_conventions.md`.
+5. Add rules tests for mechanics and wording, plus UI coverage when presentation
+   changes.
+6. Run both headless test suites and a Web export.
 
 ## Names and illustration identity
 

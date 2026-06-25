@@ -3,7 +3,7 @@
 Ready-to-paste prompts for the existing illustration library under
 `assets/cards/`. Card definitions select these images through `art_id`, and their
 player-facing names retain the subject identity of the assigned painting. The
-38-card rules catalog can temporarily reuse the 29 finished paintings. The goal
+32-card rules catalog can temporarily reuse the 29 finished paintings. The goal
 is a warm, painterly storybook look with a consistent style across the whole set.
 Each prompt is a fixed **style block** plus a per-image **subject**.
 

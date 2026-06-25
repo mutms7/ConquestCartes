@@ -5,7 +5,7 @@
     "type": "resource",
     "art_id": "pebble_coin",
     "cost": 0,
-    "description": "Produces 1 coin.",
+    "description": "Gain 1 coin.",
     "coin_value": 1
   },
   {
@@ -14,7 +14,7 @@
     "type": "resource",
     "art_id": "silver_leaf",
     "cost": 3,
-    "description": "Produces 2 coins.",
+    "description": "Gain 2 coins.",
     "coin_value": 2
   },
   {
@@ -23,7 +23,7 @@
     "type": "resource",
     "art_id": "amber_circlet",
     "cost": 6,
-    "description": "Produces 3 coins.",
+    "description": "Gain 3 coins.",
     "coin_value": 3
   },
   {
@@ -32,7 +32,7 @@
     "type": "victory",
     "art_id": "homestead",
     "cost": 2,
-    "description": "Worth 1 victory point at final scoring.",
+    "description": "Worth 1 VP.",
     "victory_points": 1
   },
   {
@@ -41,7 +41,7 @@
     "type": "victory",
     "art_id": "briar_gate",
     "cost": 5,
-    "description": "Worth 3 victory points at final scoring.",
+    "description": "Worth 3 VP.",
     "victory_points": 3
   },
   {
@@ -50,7 +50,7 @@
     "type": "victory",
     "art_id": "royal_charter",
     "cost": 8,
-    "description": "Worth 6 victory points at final scoring.",
+    "description": "Worth 6 VP.",
     "victory_points": 6
   },
   {
@@ -59,23 +59,8 @@
     "type": "victory",
     "art_id": "wishing_stone",
     "cost": 4,
-    "description": "Worth 1 victory point for every 10 cards you own, rounded down.",
+    "description": "Worth 1 VP per 10 cards you own, rounded down.",
     "score_per_cards": 10
-  },
-  {
-    "id": "starpath_seeker",
-    "name": "Starlit Wagon",
-    "type": "action",
-    "art_id": "starlit_wagon",
-    "cost": 6,
-    "description": "Reveals cards until 2 resources are found. Those resources enter your hand and the rest are discarded.",
-    "special_effects": [
-      {
-        "kind": "reveal_resources_to_hand",
-        "amount": 2,
-        "label": "Find 2 Resources"
-      }
-    ]
   },
   {
     "id": "master_weaver",
@@ -83,7 +68,7 @@
     "type": "action",
     "art_id": "weavers_loom",
     "cost": 6,
-    "description": "Gains the strongest card costing up to 5 into your hand, then places your weakest hand card onto your deck.",
+    "description": "Gain the strongest card costing up to 5 to your hand. Put the weakest card in your hand on top of your deck.",
     "special_effects": [
       {
         "kind": "gain_best",
@@ -94,7 +79,7 @@
       {
         "kind": "topdeck_from_hand",
         "amount": 1,
-        "label": "Topdeck 1"
+        "label": "Put 1 on Deck"
       }
     ]
   },
@@ -104,7 +89,7 @@
     "type": "action",
     "art_id": "trail_biscuit",
     "cost": 5,
-    "description": "Gains an Amber Circlet into your discard pile.",
+    "description": "Gain an Amber Circlet.",
     "special_effects": [
       {
         "kind": "gain_card",
@@ -120,7 +105,7 @@
     "type": "action",
     "art_id": "royal_charter",
     "cost": 4,
-    "description": "Places a gained Silver Leaf on top of your deck.",
+    "description": "Gain a Silver Leaf on top of your deck.",
     "special_effects": [
       {
         "kind": "gain_card",
@@ -136,27 +121,12 @@
     "type": "action",
     "art_id": "homestead",
     "cost": 2,
-    "description": "Gains 1 action, discards every victory card in your hand, then draws the same number.",
+    "description": "Gain 1 action. Discard every victory card in your hand, then draw one card for each card discarded.",
     "gain_actions": 1,
     "special_effects": [
       {
         "kind": "cycle_victory_cards",
-        "label": "Cycle Victory Cards"
-      }
-    ]
-  },
-  {
-    "id": "river_ward",
-    "name": "River Courier's Detour",
-    "type": "action",
-    "art_id": "river_courier",
-    "cost": 3,
-    "description": "Produces 2 coins and empties your draw pile into your discard pile.",
-    "gain_coins": 2,
-    "special_effects": [
-      {
-        "kind": "discard_deck",
-        "label": "Discard Deck"
+        "label": "Discard Victory Cards"
       }
     ]
   },
@@ -166,7 +136,7 @@
     "type": "action",
     "art_id": "quiet_archive",
     "cost": 2,
-    "description": "Trashes up to 4 of the weakest cards remaining in your hand.",
+    "description": "Trash up to 4 of the weakest cards in your hand.",
     "special_effects": [
       {
         "kind": "trash_from_hand",
@@ -181,29 +151,9 @@
     "type": "action",
     "art_id": "scholars_hall",
     "cost": 5,
-    "description": "Draws 4 cards and grants 1 buy.",
+    "description": "Draw 4 cards. Gain 1 buy.",
     "draw_cards": 4,
     "gain_buys": 1
-  },
-  {
-    "id": "harvest_feast",
-    "name": "Firefly Supper",
-    "type": "action",
-    "art_id": "firefly_supper",
-    "cost": 4,
-    "description": "Trashes itself, then gains the strongest card costing up to 5.",
-    "special_effects": [
-      {
-        "kind": "trash_self",
-        "label": "Trash Self"
-      },
-      {
-        "kind": "gain_best",
-        "max_cost": 5,
-        "destination": "discard",
-        "label": "Gain Cost 5"
-      }
-    ]
   },
   {
     "id": "lantern_festival",
@@ -211,7 +161,7 @@
     "type": "action",
     "art_id": "lantern_parade",
     "cost": 5,
-    "description": "Grants 2 actions, 1 buy, and 2 coins.",
+    "description": "Gain 2 actions, 1 buy, and 2 coins.",
     "gain_actions": 2,
     "gain_buys": 1,
     "gain_coins": 2
@@ -222,13 +172,13 @@
     "type": "action",
     "art_id": "dawn_whistle",
     "cost": 3,
-    "description": "Draws 1 card, grants 1 action, and places the strongest discard card onto your deck.",
+    "description": "Draw 1 card. Gain 1 action. Put the strongest card in your discard pile on top of your deck.",
     "draw_cards": 1,
     "gain_actions": 1,
     "special_effects": [
       {
         "kind": "topdeck_from_discard",
-        "label": "Recover to Deck"
+        "label": "Put Discard on Deck"
       }
     ]
   },
@@ -238,7 +188,7 @@
     "type": "action",
     "art_id": "candlecap",
     "cost": 5,
-    "description": "Draws 2 cards and grants 1 action.",
+    "description": "Draw 2 cards. Gain 1 action.",
     "draw_cards": 2,
     "gain_actions": 1
   },
@@ -248,7 +198,7 @@
     "type": "action",
     "art_id": "quiet_archive",
     "cost": 5,
-    "description": "Draws until you hold 7 cards.",
+    "description": "Draw until you have 7 cards in your hand.",
     "special_effects": [
       {
         "kind": "draw_to_size",
@@ -263,7 +213,7 @@
     "type": "action",
     "art_id": "orchard_map",
     "cost": 5,
-    "description": "Draws 1 card and grants 1 action, 1 buy, and 1 coin.",
+    "description": "Draw 1 card. Gain 1 action, 1 buy, and 1 coin.",
     "draw_cards": 1,
     "gain_actions": 1,
     "gain_buys": 1,
@@ -275,7 +225,7 @@
     "type": "action",
     "art_id": "silver_leaf",
     "cost": 3,
-    "description": "Draws 1 card and grants 1 action. The first Silver Leaf played this turn produces 1 extra coin.",
+    "description": "Draw 1 card. Gain 1 action. When you play your first Silver Leaf this turn, gain 1 extra coin.",
     "draw_cards": 1,
     "gain_actions": 1,
     "special_effects": [
@@ -293,7 +243,7 @@
     "type": "action",
     "art_id": "stone_wall",
     "cost": 4,
-    "description": "Produces 2 coins.",
+    "description": "Gain 2 coins.",
     "gain_coins": 2
   },
   {
@@ -302,7 +252,7 @@
     "type": "action",
     "art_id": "moonwell_token",
     "cost": 5,
-    "description": "Trashes your weakest resource in hand and replaces it in hand with the strongest resource costing up to 3 more.",
+    "description": "Trash the weakest resource in your hand. Gain the strongest resource costing up to 3 more to your hand.",
     "special_effects": [
       {
         "kind": "upgrade_resource",
@@ -317,7 +267,7 @@
     "type": "action",
     "art_id": "moss_thread",
     "cost": 2,
-    "description": "Draws 2 cards.",
+    "description": "Draw 2 cards.",
     "draw_cards": 2
   },
   {
@@ -326,7 +276,7 @@
     "type": "action",
     "art_id": "acorn_purse",
     "cost": 4,
-    "description": "Trashes a Pebble Coin from your hand to produce 3 coins.",
+    "description": "Trash a Pebble Coin from your hand, if able. If you do, gain 3 coins.",
     "special_effects": [
       {
         "kind": "trash_named_for_coins",
@@ -342,7 +292,7 @@
     "type": "action",
     "art_id": "trail_biscuit",
     "cost": 4,
-    "description": "Draws 1 card and grants 1 action and 1 coin.",
+    "description": "Draw 1 card. Gain 1 action and 1 coin.",
     "draw_cards": 1,
     "gain_actions": 1,
     "gain_coins": 1
@@ -353,12 +303,12 @@
     "type": "action",
     "art_id": "orchard_estate",
     "cost": 4,
-    "description": "Trashes your weakest hand card and gains the strongest card costing up to 2 more.",
+    "description": "Trash the weakest card in your hand. Gain the strongest card costing up to 2 more.",
     "special_effects": [
       {
         "kind": "remodel",
         "cost_delta": 2,
-        "label": "Remodel +2 Cost"
+        "label": "Trash and Gain +2"
       }
     ]
   },
@@ -368,14 +318,14 @@
     "type": "action",
     "art_id": "tinker_wren",
     "cost": 5,
-    "description": "Draws 1 card, grants 1 action, then inspects 2 cards and discards revealed victory cards.",
+    "description": "Draw 1 card. Gain 1 action. Look at the top 2 cards of your deck. Discard each victory card and return the rest.",
     "draw_cards": 1,
     "gain_actions": 1,
     "special_effects": [
       {
         "kind": "inspect_top",
         "amount": 2,
-        "label": "Inspect 2"
+        "label": "Look at Top 2"
       }
     ]
   },
@@ -385,39 +335,8 @@
     "type": "action",
     "art_id": "hearthsong",
     "cost": 4,
-    "description": "Draws 3 cards.",
+    "description": "Draw 3 cards.",
     "draw_cards": 3
-  },
-  {
-    "id": "astral_spyglass",
-    "name": "Astral Vault",
-    "type": "action",
-    "art_id": "astral_vault",
-    "cost": 4,
-    "description": "Draws 1 card, grants 1 action, then discards the next card if it is a victory card.",
-    "draw_cards": 1,
-    "gain_actions": 1,
-    "special_effects": [
-      {
-        "kind": "inspect_top_one",
-        "label": "Inspect Top Card"
-      }
-    ]
-  },
-  {
-    "id": "relic_seeker",
-    "name": "Gilded Reliquary",
-    "type": "action",
-    "art_id": "gilded_reliquary",
-    "cost": 4,
-    "description": "Reveals 2 cards, trashes the strongest revealed resource for its coin value, and discards the rest.",
-    "special_effects": [
-      {
-        "kind": "salvage_resource",
-        "amount": 2,
-        "label": "Salvage 2 Cards"
-      }
-    ]
   },
   {
     "id": "echoing_hall",
@@ -425,7 +344,7 @@
     "type": "action",
     "art_id": "hearthsong",
     "cost": 4,
-    "description": "Automatically plays the strongest action remaining in your hand twice without spending another action.",
+    "description": "Play the strongest action card in your hand twice without spending another action.",
     "special_effects": [
       {
         "kind": "replay_action",
@@ -439,7 +358,7 @@
     "type": "action",
     "art_id": "river_courier",
     "cost": 3,
-    "description": "Produces 2 coins, reveals the top card, and plays it for free if it is an action; otherwise it is discarded.",
+    "description": "Gain 2 coins. Reveal the top card of your deck. If it is an action card, play it without spending an action. Otherwise, discard it.",
     "gain_coins": 2,
     "special_effects": [
       {
@@ -454,7 +373,7 @@
     "type": "action",
     "art_id": "village_bell",
     "cost": 3,
-    "description": "Draws 1 card and grants 2 actions.",
+    "description": "Draw 1 card. Gain 2 actions.",
     "draw_cards": 1,
     "gain_actions": 2
   },
@@ -464,18 +383,8 @@
     "type": "action",
     "art_id": "briar_gate",
     "cost": 5,
-    "description": "Draws 2 cards.",
+    "description": "Draw 2 cards.",
     "draw_cards": 2
-  },
-  {
-    "id": "timber_camp",
-    "name": "Moss Thread Camp",
-    "type": "action",
-    "art_id": "moss_thread",
-    "cost": 3,
-    "description": "Grants 1 buy and produces 2 coins.",
-    "gain_buys": 1,
-    "gain_coins": 2
   },
   {
     "id": "guild_workshop",
@@ -483,7 +392,7 @@
     "type": "action",
     "art_id": "weavers_loom",
     "cost": 3,
-    "description": "Gains the strongest card costing up to 4 into your discard pile.",
+    "description": "Gain the strongest card costing up to 4.",
     "special_effects": [
       {
         "kind": "gain_best",
