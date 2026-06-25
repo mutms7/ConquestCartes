@@ -160,12 +160,27 @@ func _initialize() -> void:
 			"Hand card titles and rules text should use the enlarged type."
 		)
 		_check(
+			resource_button.custom_minimum_size == main_ui.CARD_FACE_SIZE
+			and _all_market_buttons()[0].custom_minimum_size == main_ui.CARD_FACE_SIZE,
+			"Hand and market cards should use the same face dimensions."
+		)
+		_check(
+			_card_price(resource_button).text
+			== str(main_ui.game_state.get_effective_cost(
+				main_ui.game_state.card_catalog["pebble_coin"]
+			)),
+			"Card prices should appear in the upper-left coin badge."
+		)
+		_check(
 			_card_text_layout_is_clear(resource_button),
 			"Hand card text should stay inside the frame without intersecting neighboring regions."
 		)
 		_check(
-			_card_art(resource_button).get_parent().size.y >= 112.0,
-			"Card artwork should use the enlarged art window."
+			is_equal_approx(
+				_card_art(resource_button).get_parent().size.y,
+				main_ui.CARD_ART_HEIGHT
+			),
+			"Hand artwork should use the shared card art height."
 		)
 		resource_button.mouse_entered.emit()
 		await create_timer(0.2).timeout
@@ -248,12 +263,20 @@ func _initialize() -> void:
 			"Market cards should show their remaining pile count."
 		)
 		_check(
-			market_button.size.y >= 190.0,
-			"Market cards should use the enlarged art-first presentation."
+			market_button.custom_minimum_size == main_ui.CARD_FACE_SIZE,
+			"Market cards should use the same dimensions as cards in hand."
 		)
 		_check(
-			_card_art(market_button).get_parent().size.y >= 84.0,
-			"Market artwork should be materially larger than the old compact window."
+			is_equal_approx(
+				_card_art(market_button).get_parent().size.y,
+				main_ui.CARD_ART_HEIGHT
+			),
+			"Market artwork should use the shared card art height."
+		)
+		_check(
+			_card_price(market_button).text
+			== str(main_ui.game_state.get_effective_cost(market_card)),
+			"Market prices should appear in the upper-left coin badge."
 		)
 		_check(
 			_card_effect(market_button).get_parsed_text() == market_card.description,
@@ -594,6 +617,10 @@ func _card_effect(button: Button) -> RichTextLabel:
 	return button.get_node("CardContent/CardLayout/EffectSlot/EffectLabel")
 
 
+func _card_price(button: Button) -> Label:
+	return button.get_node("PriceBadge/CostLabel")
+
+
 func _card_text_layout_is_clear(button: Button) -> bool:
 	var content := button.get_node("CardContent") as MarginContainer
 	var name_label := _card_name(button)
@@ -601,16 +628,20 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 	var effect_slot := button.get_node("CardContent/CardLayout/EffectSlot") as MarginContainer
 	var effect_label := _card_effect(button)
 	var meta_row := button.get_node("CardContent/CardLayout/MetaRow") as Control
+	var price_badge := button.get_node("PriceBadge") as Control
 	var button_rect := button.get_global_rect()
 	var safe_rect := button_rect.grow(-4.0)
 	var regions: Array[Control] = [name_label, art_frame, effect_slot, effect_label, meta_row]
+	var footer_gap := button_rect.end.y - meta_row.get_global_rect().end.y
 
 	if (
 		content.get_theme_constant("margin_top") != 5
 		or content.get_theme_constant("margin_bottom") != 5
 		or name_label.custom_minimum_size.y < 30.0
 		or name_label.vertical_alignment != VERTICAL_ALIGNMENT_BOTTOM
-		or effect_slot.get_theme_constant("margin_top") != 10
+		or effect_slot.get_theme_constant("margin_left") != 5
+		or effect_slot.get_theme_constant("margin_top") != 5
+		or effect_slot.get_theme_constant("margin_right") != 5
 	):
 		return false
 
@@ -621,10 +652,12 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 
 	return (
 		name_label.get_global_rect().end.y <= art_frame.get_global_rect().position.y
-		and art_frame.get_global_rect().end.y + 10.0
+		and art_frame.get_global_rect().end.y + 5.0
 		<= effect_label.get_global_rect().position.y
 		and effect_label.get_global_rect().end.y <= meta_row.get_global_rect().position.y
-		and button_rect.end.y - meta_row.get_global_rect().end.y >= 20.0
+		and footer_gap >= 8.0
+		and footer_gap <= 12.0
+		and art_frame.get_global_rect().encloses(price_badge.get_global_rect())
 	)
 
 

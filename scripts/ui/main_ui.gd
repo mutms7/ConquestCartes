@@ -12,6 +12,8 @@ const HOVER_ANIMATION_SECONDS := 0.08
 const CARD_MOVE_SECONDS := 0.18
 const CARD_DRAW_SECONDS := 0.16
 const CLEANUP_SECONDS := 0.2
+const CARD_FACE_SIZE := Vector2(172, 214)
+const CARD_ART_HEIGHT := 96.0
 const PREVIEW_SIZE := Vector2(360, 500)
 const PREVIEW_EDGE_MARGIN := 24.0
 
@@ -371,7 +373,7 @@ func _create_market_carpet(
 ) -> Dictionary:
 	var panel := PanelContainer.new()
 	panel.name = carpet_name
-	panel.custom_minimum_size = Vector2(minimum_width, 418)
+	panel.custom_minimum_size = Vector2(minimum_width, 432)
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	panel.set_meta("carpet_surface", surface_color)
 	panel.set_meta("carpet_accent", accent_color)
@@ -718,7 +720,7 @@ func _create_card_button(
 	var card_surface := _get_card_surface_color(card.card_type)
 	var is_market_card := visual_state.begins_with("market_")
 	var button := Button.new()
-	button.custom_minimum_size = Vector2(172, 206) if is_market_card else Vector2(172, 230)
+	button.custom_minimum_size = CARD_FACE_SIZE
 	if is_market_card:
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.focus_mode = Control.FOCUS_ALL
@@ -805,7 +807,7 @@ func _create_card_button(
 		art_frame.name = "ArtFrame"
 		art_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		art_frame.clip_contents = true
-		art_frame.custom_minimum_size = Vector2(0, 84 if is_market_card else 112)
+		art_frame.custom_minimum_size = Vector2(0, CARD_ART_HEIGHT)
 		art_frame.add_theme_stylebox_override(
 			"panel",
 			_make_flat_card_style(
@@ -827,9 +829,11 @@ func _create_card_button(
 
 	var effect_slot := MarginContainer.new()
 	effect_slot.name = "EffectSlot"
-	effect_slot.custom_minimum_size = Vector2(0, 38 if is_market_card else 36)
+	effect_slot.custom_minimum_size = Vector2(0, 51)
 	effect_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	effect_slot.add_theme_constant_override("margin_top", 10)
+	effect_slot.add_theme_constant_override("margin_left", 5)
+	effect_slot.add_theme_constant_override("margin_top", 5)
+	effect_slot.add_theme_constant_override("margin_right", 5)
 	layout.add_child(effect_slot)
 
 	var effect_label := RichTextLabel.new()
@@ -859,6 +863,7 @@ func _create_card_button(
 	layout.add_child(meta_row)
 
 	var type_label := Label.new()
+	type_label.name = "TypeLabel"
 	type_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	type_label.text = card.card_type.to_upper()
 	type_label.add_theme_color_override(
@@ -869,24 +874,6 @@ func _create_card_button(
 	if body_bold_font != null:
 		type_label.add_theme_font_override("font", body_bold_font)
 	meta_row.add_child(type_label)
-
-	if icon_textures.has("coin"):
-		meta_row.add_child(
-			_create_icon(
-				icon_textures["coin"],
-				Vector2(9, 9) if is_market_card else Vector2(14, 14),
-				palette.muted
-			)
-		)
-		var cost_label := Label.new()
-		cost_label.text = str(game_state.get_effective_cost(card))
-		cost_label.add_theme_color_override("font_color", palette.muted)
-		cost_label.add_theme_font_size_override("font_size", 8 if is_market_card else 12)
-		if body_font != null:
-			cost_label.add_theme_font_override("font", body_font)
-		meta_row.add_child(cost_label)
-	else:
-		type_label.text += "  |  COST %d" % game_state.get_effective_cost(card)
 
 	if card.victory_points > 0 or card.score_per_cards > 0:
 		if icon_textures.has("victory"):
@@ -925,7 +912,42 @@ func _create_card_button(
 			pile_label.add_theme_font_override("font", body_bold_font)
 		meta_row.add_child(pile_label)
 
+	button.add_child(_create_price_badge(game_state.get_effective_cost(card)))
+
 	return button
+
+
+func _create_price_badge(cost: int) -> PanelContainer:
+	var badge := PanelContainer.new()
+	badge.name = "PriceBadge"
+	badge.custom_minimum_size = Vector2(30, 30)
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.position = Vector2(9, 39)
+	badge.z_index = 2
+
+	var coin_style := _make_flat_card_style(
+		COLOR_BRASS.lightened(0.08),
+		COLOR_WALNUT_DARK,
+		2
+	)
+	coin_style.set_corner_radius_all(15)
+	coin_style.shadow_color = Color(0, 0, 0, 0.62)
+	coin_style.shadow_size = 4
+	coin_style.shadow_offset = Vector2(1, 2)
+	badge.add_theme_stylebox_override("panel", coin_style)
+
+	var cost_label := Label.new()
+	cost_label.name = "CostLabel"
+	cost_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cost_label.text = str(cost)
+	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cost_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	cost_label.add_theme_color_override("font_color", COLOR_INK)
+	cost_label.add_theme_font_size_override("font_size", 13)
+	if body_bold_font != null:
+		cost_label.add_theme_font_override("font", body_bold_font)
+	badge.add_child(cost_label)
+	return badge
 
 
 func _create_icon(texture: Texture2D, size: Vector2, color: Color) -> TextureRect:
