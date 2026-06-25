@@ -97,6 +97,10 @@ func _initialize() -> void:
 			"Hand preview should reuse the concise effect summary."
 		)
 		_check(
+			_preview_description().get_parsed_text() == "Gain 1 coin.",
+			"Card previews should show the full detailed rules wording."
+		)
+		_check(
 			_card_preview().get_meta("card_base_color") == main_ui.COLOR_RESOURCE_CARD,
 			"Resource previews should reuse the resource surface treatment."
 		)
@@ -137,6 +141,7 @@ func _initialize() -> void:
 	var market_button: Button = _market_container().get_child(0)
 	var market_card_id: String = market_button.get_meta("card_id")
 	var market_card: CardDefinition = main_ui.game_state.card_catalog[market_card_id]
+	var market_supply_before: int = main_ui.game_state.get_supply_count(market_card_id)
 	if market_button != null:
 		_check(not market_button.disabled, "Affordable market card should be enabled.")
 		_check(
@@ -151,6 +156,10 @@ func _initialize() -> void:
 		_check(
 			market_button.get_meta("card_accent_color") == main_ui.COLOR_FOREST,
 			"Affordable market cards should use the forest accent."
+		)
+		_check(
+			_market_pile_label(market_button).text == "×%d" % market_supply_before,
+			"Market cards should show their remaining pile count."
 		)
 		market_button.mouse_entered.emit()
 		await process_frame
@@ -184,9 +193,25 @@ func _initialize() -> void:
 			main_ui.game_state.player.discard_pile.size() == discard_before + 1,
 			"Bought card should enter discard."
 		)
+		_check(
+			main_ui.game_state.get_supply_count(market_card_id) == market_supply_before - 1,
+			"Buying should decrement the visible supply pile."
+		)
 		_check(_hud_value("BuyStat") == "0", "Buy HUD should update after a purchase.")
 		for button in _market_container().get_children():
 			_check(button.disabled, "Market cards should be unavailable with no buys remaining.")
+		main_ui.game_state.player.buys = 1
+		main_ui.game_state.player.coins = 99
+		main_ui.game_state.set_supply_count(market_card_id, 0)
+		main_ui._refresh_ui()
+		var sold_out_button := _find_card_button(_market_container(), market_card_id)
+		_check(sold_out_button != null, "Sold-out market pile should remain rendered.")
+		if sold_out_button != null:
+			_check(sold_out_button.disabled, "Sold-out market piles should remain disabled.")
+			_check(
+				_market_pile_label(sold_out_button).text == "×0",
+				"Sold-out market piles should visibly show zero remaining."
+			)
 
 	_end_turn_button().pressed.emit()
 	await process_frame
@@ -226,6 +251,34 @@ func _initialize() -> void:
 		"New Game should clear the discard pile."
 	)
 
+	main_ui.game_state.player.clear_all()
+	main_ui.game_state.player.actions = 1
+	main_ui.game_state.player.hand.append(main_ui.game_state.card_catalog["quiet_chapel"])
+	main_ui.game_state.player.hand.append(main_ui.game_state.card_catalog["pebble_coin"])
+	main_ui.game_state.player.hand.append(main_ui.game_state.card_catalog["homestead"])
+	main_ui._refresh_ui()
+	var chapel_button := _find_card_button(_hand_container(), "quiet_chapel")
+	_check(chapel_button != null, "Choice-effect card should render in hand.")
+	if chapel_button != null:
+		chapel_button.pressed.emit()
+		await process_frame
+		_check(_choice_overlay().visible, "Playing a choice card should open the choice overlay.")
+		_check(_choice_options().get_child_count() == 2, "Choice overlay should list eligible cards.")
+		_check(_end_turn_button().disabled, "End Turn should lock while a choice is pending.")
+		for option in _choice_options().get_children():
+			(option as Button).pressed.emit()
+		_check(not _choice_confirm_button().disabled, "Valid selection should enable confirmation.")
+		_choice_confirm_button().pressed.emit()
+		await process_frame
+		_check(not _choice_overlay().visible, "Resolving a choice should close the overlay.")
+		_check(
+			main_ui.game_state.player.trash_pile.size() == 2,
+			"Choice confirmation should apply the selected card movement."
+		)
+
+	main_ui._start_new_game(true)
+	await process_frame
+	await process_frame
 	main_ui.turn_manager.turn_number = 15
 	_end_turn_button().pressed.emit()
 	await process_frame
@@ -324,12 +377,36 @@ func _preview_effect() -> RichTextLabel:
 	return main_ui.get_node("CardPreview/Margin/Layout/EffectLabel")
 
 
+func _preview_description() -> RichTextLabel:
+	return main_ui.get_node("CardPreview/Margin/Layout/DescriptionLabel")
+
+
+func _choice_overlay() -> Control:
+	return main_ui.get_node("ChoiceOverlay")
+
+
+func _choice_options() -> HBoxContainer:
+	return main_ui.get_node(
+		"ChoiceOverlay/Center/Panel/Margin/Layout/OptionsScroll/Options"
+	)
+
+
+func _choice_confirm_button() -> Button:
+	return main_ui.get_node(
+		"ChoiceOverlay/Center/Panel/Margin/Layout/Buttons/ConfirmButton"
+	)
+
+
 func _card_art(button: Button) -> TextureRect:
 	return button.get_node("CardContent/CardLayout/ArtFrame/Art")
 
 
 func _card_effect(button: Button) -> RichTextLabel:
 	return button.get_node("CardContent/CardLayout/EffectLabel")
+
+
+func _market_pile_label(button: Button) -> Label:
+	return button.get_node("CardContent/CardLayout/MetaRow/PileLabel")
 
 
 func _hud_value(stat_name: String) -> String:

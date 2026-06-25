@@ -515,6 +515,116 @@ grow_vertical = 2
 mouse_filter = 2
 z_index = 80
 
+[node name="ChoiceOverlay" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+z_index = 160
+
+[node name="Dimmer" type="ColorRect" parent="ChoiceOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+color = Color(0.0196078, 0.0313726, 0.027451, 0.78)
+
+[node name="Center" type="CenterContainer" parent="ChoiceOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="ChoiceOverlay/Center"]
+custom_minimum_size = Vector2(1060, 520)
+layout_mode = 2
+mouse_filter = 0
+theme_override_styles/panel = SubResource("StyleEndGame")
+
+[node name="Margin" type="MarginContainer" parent="ChoiceOverlay/Center/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 30
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 30
+theme_override_constants/margin_bottom = 24
+
+[node name="Layout" type="VBoxContainer" parent="ChoiceOverlay/Center/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="ChoiceOverlay/Center/Panel/Margin/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.956863, 0.870588, 0.635294, 1)
+theme_override_font_sizes/font_size = 27
+text = "MAKE A CHOICE"
+horizontal_alignment = 1
+
+[node name="Prompt" type="Label" parent="ChoiceOverlay/Center/Panel/Margin/Layout"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.917647, 0.929412, 0.898039, 1)
+theme_override_font_sizes/font_size = 17
+text = "Choose a card."
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="SelectionLabel" type="Label" parent="ChoiceOverlay/Center/Panel/Margin/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.756863, 0.803922, 0.772549, 1)
+theme_override_font_sizes/font_size = 14
+text = "Select 1 card"
+horizontal_alignment = 1
+
+[node name="OptionsScroll" type="ScrollContainer" parent="ChoiceOverlay/Center/Panel/Margin/Layout"]
+custom_minimum_size = Vector2(0, 300)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 1
+vertical_scroll_mode = 0
+
+[node name="Options" type="HBoxContainer" parent="ChoiceOverlay/Center/Panel/Margin/Layout/OptionsScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="Buttons" type="HBoxContainer" parent="ChoiceOverlay/Center/Panel/Margin/Layout"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="SkipButton" type="Button" parent="ChoiceOverlay/Center/Panel/Margin/Layout/Buttons"]
+custom_minimum_size = Vector2(170, 44)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+text = "SKIP"
+
+[node name="ConfirmButton" type="Button" parent="ChoiceOverlay/Center/Panel/Margin/Layout/Buttons"]
+custom_minimum_size = Vector2(210, 44)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("StyleButton")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+text = "CONFIRM"
+
 [node name="EndGameOverlay" type="Control" parent="."]
 visible = false
 layout_mode = 1
@@ -618,11 +728,11 @@ text = "PLAY AGAIN"
 
 [node name="CardPreview" type="PanelContainer" parent="."]
 visible = false
-custom_minimum_size = Vector2(340, 440)
+custom_minimum_size = Vector2(360, 500)
 offset_left = 24.0
-offset_top = 92.0
-offset_right = 364.0
-offset_bottom = 532.0
+offset_top = 78.0
+offset_right = 384.0
+offset_bottom = 578.0
 mouse_filter = 2
 z_index = 100
 
@@ -660,7 +770,7 @@ horizontal_alignment = 1
 
 [node name="ArtFrame" type="PanelContainer" parent="CardPreview/Margin/Layout"]
 clip_contents = true
-custom_minimum_size = Vector2(0, 222)
+custom_minimum_size = Vector2(0, 190)
 layout_mode = 2
 mouse_filter = 2
 
@@ -671,14 +781,25 @@ expand_mode = 3
 stretch_mode = 6
 
 [node name="EffectLabel" type="RichTextLabel" parent="CardPreview/Margin/Layout"]
-custom_minimum_size = Vector2(0, 46)
+custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
-size_flags_vertical = 3
 mouse_filter = 2
 theme_override_colors/default_color = Color(0.917647, 0.929412, 0.898039, 1)
 theme_override_font_sizes/normal_font_size = 19
 theme_override_font_sizes/bold_font_size = 19
 bbcode_enabled = true
 text = "[center][b]+1 Coin[/b][/center]"
+fit_content = false
+scroll_active = false
+
+[node name="DescriptionLabel" type="RichTextLabel" parent="CardPreview/Margin/Layout"]
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_colors/default_color = Color(0.878431, 0.827451, 0.705882, 1)
+theme_override_font_sizes/normal_font_size = 14
+bbcode_enabled = true
+text = "[center]Detailed card rules appear here.[/center]"
 fit_content = false
 scroll_active = false

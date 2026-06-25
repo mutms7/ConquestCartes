@@ -24,7 +24,7 @@ func start_first_turn() -> void:
 
 
 func end_turn() -> void:
-	if game_over:
+	if game_over or game_state.has_pending_choice():
 		return
 
 	print("[Game] End turn %d" % turn_number)

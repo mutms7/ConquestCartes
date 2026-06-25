@@ -14,7 +14,9 @@ contents of your deck into victory points.
 - Seven Pebble Coins and three Homesteads in the starting deck
 - Five-card hands, reshuffling discard piles, actions, coins, and buys
 - Deck searching, trashing, gaining, upgrading, replaying, and variable scoring
-- Automatic solo resolution for effects that would otherwise require card choices
+- Interactive card choices for discarding, trashing, gaining, upgrading,
+  replaying, inspecting, and ordering cards
+- Finite supply piles with visible counts and sold-out handling
 - Art-linked names that preserve the identity of the original illustration library
 - Subtle type surfaces: warm umber resources, smoked-walnut actions, and
   oxblood-walnut victory cards
@@ -30,7 +32,7 @@ contents of your deck into victory points.
 1. Play resource cards to gain coins.
 2. Spend actions to play action cards for cards, actions, coins, or buys.
 3. Spend one buy and enough coins to purchase a card from the shared market.
-4. Purchased cards enter the discard pile.
+4. Purchased cards enter the discard pile and reduce that supply pile.
 5. End the turn to discard your hand and played cards, reset turn resources, and
    draw five cards.
 6. After turn 15, every victory point in your deck, hand, discard pile, and play
@@ -59,8 +61,8 @@ godot --headless --path . --script res://tests/smoke_test.gd
 godot --headless --path . --script res://tests/ui_smoke_test.gd
 ```
 
-The rules smoke test covers the main game loop, all card data, representative
-special effects, and market composition. The UI smoke test
+The rules smoke test covers the main game loop, every playable card definition,
+focused multi-step effects, finite supplies, and market composition. The UI smoke test
 checks rendering, artwork, medieval UI assets, interactions, animations, audio,
 preview placement, and the final-score overlay.
 
@@ -105,10 +107,7 @@ See `assets/licenses/ASSET_SOURCES.md` for provenance details.
 ## Current Limitations
 
 - Single-player only; there is no opponent, multiplayer, or campaign.
-- Market piles have unlimited copies.
 - No save system, settings menu, music, or accessibility menu.
-- Effects that would normally ask the player to choose cards use documented
-  automatic solo heuristics.
 - Rival-only attack and reaction clauses are omitted in the solo ruleset.
 - The art library contains 29 finished illustrations. The 38-card catalog
   currently references 28 of them; related cards share paintings through the

@@ -52,18 +52,19 @@ In rules sentences, use lowercase:
 
 The uppercase type label in the card footer is presentation, not rules wording.
 
-## Automatic solo choices
+## Interactive choices
 
-The current game does not open card-selection dialogs. Text must state the
-automatic choice honestly:
+Use `choose` for required selections and `you may` for optional selections. The
+generic choice overlay must present every choice promised by the text.
 
-- `the strongest card` for automatic gains, recovery, or replay
-- `the weakest card` for automatic trashing or top-decking
-- the exact filter, such as `the weakest resource in your hand`
+State candidate zones and restrictions explicitly:
 
-Do not write `choose`, `you may`, or similar optional language unless the UI
-actually presents that choice. Use `if able` when an effect can fail because no
-eligible card exists.
+- `Choose a card from your hand to trash.`
+- `You may put a card from your discard pile on top of your deck.`
+- `Gain a resource to your hand costing up to 3 more.`
+
+Do not describe an automatic strongest/weakest choice unless the rules engine
+actually resolves it automatically.
 
 ## Special-effect labels
 

@@ -84,13 +84,13 @@
     "type": "action",
     "art_id": "weavers_loom",
     "cost": 6,
-    "description": "Gain the strongest card costing up to 5 to your hand. Put the weakest card in your hand on top of your deck.",
+    "description": "Gain a card costing up to 5 to your hand. Put a card from your hand on top of your deck.",
     "special_effects": [
       {
-        "kind": "gain_best",
+        "kind": "gain_from_supply",
         "max_cost": 5,
         "destination": "hand",
-        "label": "Gain Cost 5 to Hand"
+        "label": "Choose Cost 5 to Hand"
       },
       {
         "kind": "topdeck_from_hand",
@@ -137,12 +137,12 @@
     "type": "action",
     "art_id": "homestead",
     "cost": 2,
-    "description": "Gain 1 action. Discard every victory card in your hand, then draw one card for each card discarded.",
+    "description": "Gain 1 action. Discard any number of cards, then draw one card for each card discarded.",
     "gain_actions": 1,
     "special_effects": [
       {
-        "kind": "cycle_victory_cards",
-        "label": "Discard Victory Cards"
+        "kind": "discard_from_hand_draw",
+        "label": "Discard and Redraw"
       }
     ]
   },
@@ -168,7 +168,7 @@
     "type": "action",
     "art_id": "quiet_archive",
     "cost": 2,
-    "description": "Trash up to 4 of the weakest cards in your hand.",
+    "description": "Trash up to 4 cards from your hand.",
     "special_effects": [
       {
         "kind": "trash_from_hand",
@@ -193,7 +193,7 @@
     "type": "action",
     "art_id": "firefly_supper",
     "cost": 4,
-    "description": "Trash this card. Gain the strongest card costing up to 5.",
+    "description": "Trash this card. Gain a card costing up to 5.",
     "market_enabled": false,
     "special_effects": [
       {
@@ -201,7 +201,7 @@
         "label": "Trash Self"
       },
       {
-        "kind": "gain_best",
+        "kind": "gain_from_supply",
         "max_cost": 5,
         "destination": "discard",
         "label": "Gain Cost 5"
@@ -225,7 +225,7 @@
     "type": "action",
     "art_id": "dawn_whistle",
     "cost": 3,
-    "description": "Draw 1 card. Gain 1 action. Put the strongest card in your discard pile on top of your deck.",
+    "description": "Draw 1 card. Gain 1 action. You may put a card from your discard pile on top of your deck.",
     "draw_cards": 1,
     "gain_actions": 1,
     "special_effects": [
@@ -251,7 +251,7 @@
     "type": "action",
     "art_id": "quiet_archive",
     "cost": 5,
-    "description": "Draw until you have 7 cards in your hand.",
+    "description": "Draw until you have 7 cards in your hand. Whenever you reveal an action card, you may set it aside instead. Discard cards set aside this way afterward.",
     "special_effects": [
       {
         "kind": "draw_to_size",
@@ -305,7 +305,7 @@
     "type": "action",
     "art_id": "moonwell_token",
     "cost": 5,
-    "description": "Trash the weakest resource in your hand. Gain the strongest resource costing up to 3 more to your hand.",
+    "description": "You may trash a resource from your hand. If you do, gain a resource to your hand costing up to 3 more.",
     "special_effects": [
       {
         "kind": "upgrade_resource",
@@ -329,7 +329,7 @@
     "type": "action",
     "art_id": "acorn_purse",
     "cost": 4,
-    "description": "Trash a Pebble Coin from your hand, if able. If you do, gain 3 coins.",
+    "description": "You may trash a Pebble Coin from your hand. If you do, gain 3 coins.",
     "special_effects": [
       {
         "kind": "trash_named_for_coins",
@@ -345,10 +345,16 @@
     "type": "action",
     "art_id": "trail_biscuit",
     "cost": 4,
-    "description": "Draw 1 card. Gain 1 action and 1 coin.",
+    "description": "Draw 1 card. Gain 1 action and 1 coin. Discard one card for each empty supply pile.",
     "draw_cards": 1,
     "gain_actions": 1,
-    "gain_coins": 1
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "discard_per_empty_supply",
+        "label": "Discard per Empty Pile"
+      }
+    ]
   },
   {
     "id": "manor_rebuilder",
@@ -356,7 +362,7 @@
     "type": "action",
     "art_id": "orchard_estate",
     "cost": 4,
-    "description": "Trash the weakest card in your hand. Gain the strongest card costing up to 2 more.",
+    "description": "Trash a card from your hand. Gain a card costing up to 2 more.",
     "special_effects": [
       {
         "kind": "remodel",
@@ -371,7 +377,7 @@
     "type": "action",
     "art_id": "tinker_wren",
     "cost": 5,
-    "description": "Draw 1 card. Gain 1 action. Look at the top 2 cards of your deck. Discard each victory card and return the rest.",
+    "description": "Draw 1 card. Gain 1 action. Look at the top 2 cards of your deck. Trash or discard any number of them, then return the rest in any order.",
     "draw_cards": 1,
     "gain_actions": 1,
     "special_effects": [
@@ -397,7 +403,7 @@
     "type": "action",
     "art_id": "astral_vault",
     "cost": 4,
-    "description": "Draw 1 card. Gain 1 action. Look at the top card of your deck. Discard it if it is a victory card. Otherwise, return it to the top of your deck.",
+    "description": "Draw 1 card. Gain 1 action. Look at the top card of your deck. Choose whether to discard it or return it to the top of your deck.",
     "draw_cards": 1,
     "gain_actions": 1,
     "market_enabled": false,
@@ -414,7 +420,7 @@
     "type": "action",
     "art_id": "gilded_reliquary",
     "cost": 4,
-    "description": "Reveal the top 2 cards of your deck. Trash the strongest revealed resource and gain coins equal to its value. Discard the other revealed cards.",
+    "description": "Reveal the top 2 cards of your deck. You may trash one revealed resource and gain coins equal to its value. Discard the other revealed cards.",
     "market_enabled": false,
     "special_effects": [
       {
@@ -430,7 +436,7 @@
     "type": "action",
     "art_id": "hearthsong",
     "cost": 4,
-    "description": "Play the strongest action card in your hand twice without spending another action.",
+    "description": "You may play an action card from your hand twice without spending another action.",
     "special_effects": [
       {
         "kind": "replay_action",
@@ -444,7 +450,7 @@
     "type": "action",
     "art_id": "river_courier",
     "cost": 3,
-    "description": "Gain 2 coins. Reveal the top card of your deck. If it is an action card, play it without spending an action. Otherwise, discard it.",
+    "description": "Gain 2 coins. Reveal the top card of your deck. If it is an action card, you may play it without spending an action. Otherwise, discard it.",
     "gain_coins": 2,
     "special_effects": [
       {
@@ -489,10 +495,10 @@
     "type": "action",
     "art_id": "weavers_loom",
     "cost": 3,
-    "description": "Gain the strongest card costing up to 4.",
+    "description": "Gain a card costing up to 4.",
     "special_effects": [
       {
-        "kind": "gain_best",
+        "kind": "gain_from_supply",
         "max_cost": 4,
         "destination": "discard",
         "label": "Gain Cost 4"

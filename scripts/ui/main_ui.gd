@@ -12,7 +12,7 @@ const HOVER_ANIMATION_SECONDS := 0.08
 const CARD_MOVE_SECONDS := 0.18
 const CARD_DRAW_SECONDS := 0.16
 const CLEANUP_SECONDS := 0.2
-const PREVIEW_SIZE := Vector2(340, 440)
+const PREVIEW_SIZE := Vector2(360, 500)
 const PREVIEW_EDGE_MARGIN := 24.0
 
 const COLOR_PARCHMENT := Color("#e4d2aa")
@@ -77,6 +77,9 @@ var ui_sound_players: Dictionary = {}
 var last_ui_sound_name: String = ""
 var last_animation_event: String = ""
 var card_art_cache: Dictionary = {}
+var current_choice: CardChoice
+var selected_choice_tokens: Array[String] = []
+var choice_buttons: Dictionary = {}
 
 @onready var turn_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/TurnStat/Value
 @onready var deck_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/DeckStat/ValueRow/Value
@@ -108,6 +111,23 @@ var card_art_cache: Dictionary = {}
 	$Margin/Layout/HandPanel/HandMargin/HandScroll/HandContainer
 )
 @onready var animation_layer: Control = $AnimationLayer
+@onready var choice_overlay: Control = $ChoiceOverlay
+@onready var choice_panel: PanelContainer = $ChoiceOverlay/Center/Panel
+@onready var choice_prompt_label: Label = (
+	$ChoiceOverlay/Center/Panel/Margin/Layout/Prompt
+)
+@onready var choice_selection_label: Label = (
+	$ChoiceOverlay/Center/Panel/Margin/Layout/SelectionLabel
+)
+@onready var choice_options: HBoxContainer = (
+	$ChoiceOverlay/Center/Panel/Margin/Layout/OptionsScroll/Options
+)
+@onready var choice_skip_button: Button = (
+	$ChoiceOverlay/Center/Panel/Margin/Layout/Buttons/SkipButton
+)
+@onready var choice_confirm_button: Button = (
+	$ChoiceOverlay/Center/Panel/Margin/Layout/Buttons/ConfirmButton
+)
 @onready var end_game_overlay: Control = $EndGameOverlay
 @onready var end_game_panel: PanelContainer = $EndGameOverlay/Center/Panel
 @onready var final_score_label: Label = (
@@ -125,6 +145,9 @@ var card_art_cache: Dictionary = {}
 @onready var preview_art_frame: PanelContainer = $CardPreview/Margin/Layout/ArtFrame
 @onready var preview_art: TextureRect = $CardPreview/Margin/Layout/ArtFrame/Art
 @onready var preview_effect_label: RichTextLabel = $CardPreview/Margin/Layout/EffectLabel
+@onready var preview_description_label: RichTextLabel = (
+	$CardPreview/Margin/Layout/DescriptionLabel
+)
 
 
 func _ready() -> void:
@@ -133,12 +156,24 @@ func _ready() -> void:
 	new_game_button.pressed.connect(_on_new_game_pressed)
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
 	play_again_button.pressed.connect(_on_play_again_pressed)
+	choice_skip_button.pressed.connect(_on_choice_skipped)
+	choice_confirm_button.pressed.connect(_on_choice_confirmed)
 	new_game_button.mouse_entered.connect(_on_hud_button_hovered.bind(new_game_button))
 	new_game_button.mouse_exited.connect(_on_hud_button_unhovered.bind(new_game_button))
 	end_turn_button.mouse_entered.connect(_on_hud_button_hovered.bind(end_turn_button))
 	end_turn_button.mouse_exited.connect(_on_hud_button_unhovered.bind(end_turn_button))
 	play_again_button.mouse_entered.connect(_on_hud_button_hovered.bind(play_again_button))
 	play_again_button.mouse_exited.connect(_on_hud_button_unhovered.bind(play_again_button))
+	choice_skip_button.mouse_entered.connect(_on_hud_button_hovered.bind(choice_skip_button))
+	choice_skip_button.mouse_exited.connect(_on_hud_button_unhovered.bind(choice_skip_button))
+	choice_confirm_button.mouse_entered.connect(
+		_on_hud_button_hovered.bind(choice_confirm_button)
+	)
+	choice_confirm_button.mouse_exited.connect(
+		_on_hud_button_unhovered.bind(choice_confirm_button)
+	)
+	game_state.choice_requested.connect(_on_choice_requested)
+	game_state.choice_resolved.connect(_on_choice_resolved)
 	turn_manager.configure(game_state)
 
 	if not game_state.load_cards(CARD_DATA_PATH):
@@ -152,6 +187,7 @@ func _ready() -> void:
 
 func _start_new_game(_is_restart: bool) -> void:
 	_hide_end_game_overlay()
+	_hide_choice_overlay()
 	_clear_animation_layer()
 	if not game_state.setup_starting_game():
 		push_error("Could not prepare a new game.")
@@ -207,6 +243,7 @@ func _apply_imported_theme() -> void:
 	if body_font != null:
 		_apply_body_font_recursive(self)
 		preview_effect_label.add_theme_font_override("normal_font", body_font)
+		preview_description_label.add_theme_font_override("normal_font", body_font)
 	if body_bold_font != null:
 		preview_effect_label.add_theme_font_override("bold_font", body_bold_font)
 
@@ -217,6 +254,7 @@ func _apply_imported_theme() -> void:
 			"Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row/PlayAreaLabel",
 			"Margin/Layout/HandHeader/Title",
 			"CardPreview/Margin/Layout/NameLabel",
+			"ChoiceOverlay/Center/Panel/Margin/Layout/Title",
 			"EndGameOverlay/Center/Panel/Margin/Layout/Title",
 			"EndGameOverlay/Center/Panel/Margin/Layout/ScoreRow/ScoreLabel",
 		]
@@ -265,6 +303,10 @@ func _apply_original_ui_assets() -> void:
 			"panel",
 			_make_asset_style(ui_textures["endgame"], 22.0, 18.0)
 		)
+		choice_panel.add_theme_stylebox_override(
+			"panel",
+			_make_asset_style(ui_textures["endgame"], 22.0, 18.0)
+		)
 	if ui_textures.has("button"):
 		_apply_button_asset_styles(new_game_button, ui_textures["button"])
 	if ui_textures.has("button_primary"):
@@ -279,6 +321,7 @@ func _apply_scene_colors() -> void:
 		"Margin/Layout/MarketHeader/Title",
 		"Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row/PlayAreaLabel",
 		"Margin/Layout/HandHeader/Title",
+		"ChoiceOverlay/Center/Panel/Margin/Layout/Title",
 		"EndGameOverlay/Center/Panel/Margin/Layout/Title",
 		"EndGameOverlay/Center/Panel/Margin/Layout/SummaryLabel",
 	]
@@ -291,6 +334,7 @@ func _apply_scene_colors() -> void:
 		"Margin/Layout/MarketHeader/Hint",
 		"Margin/Layout/HandHeader/HandCount",
 		"Margin/Layout/HandHeader/Hint",
+		"ChoiceOverlay/Center/Panel/Margin/Layout/SelectionLabel",
 		"EndGameOverlay/Center/Panel/Margin/Layout/Caption",
 	]
 	for path in muted_paths:
@@ -300,6 +344,11 @@ func _apply_scene_colors() -> void:
 	preview_name_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
 	preview_meta_label.add_theme_color_override("font_color", COLOR_BRASS.lightened(0.18))
 	preview_effect_label.add_theme_color_override("default_color", COLOR_PARCHMENT_LIGHT)
+	preview_description_label.add_theme_color_override(
+		"default_color",
+		COLOR_PARCHMENT.darkened(0.08)
+	)
+	choice_prompt_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
 	final_score_label.add_theme_color_override("font_color", COLOR_BRASS.lightened(0.22))
 
 
@@ -354,7 +403,8 @@ func _refresh_ui() -> void:
 		player.hand.size(),
 		"" if player.hand.size() == 1 else "s",
 	]
-	end_turn_button.disabled = turn_manager.game_over
+	end_turn_button.disabled = turn_manager.game_over or game_state.has_pending_choice()
+	new_game_button.disabled = game_state.has_pending_choice()
 
 	_refresh_hand()
 	_refresh_market()
@@ -408,7 +458,7 @@ func _refresh_play_area() -> void:
 
 
 func _can_play_card(card: CardDefinition) -> bool:
-	if turn_manager.game_over or not card.is_playable():
+	if turn_manager.game_over or game_state.has_pending_choice() or not card.is_playable():
 		return false
 	if card.card_type == "action" and game_state.player.actions <= 0:
 		return false
@@ -418,8 +468,10 @@ func _can_play_card(card: CardDefinition) -> bool:
 func _can_buy_card(card: CardDefinition) -> bool:
 	return (
 		not turn_manager.game_over
+		and not game_state.has_pending_choice()
 		and game_state.player.buys > 0
 		and game_state.player.coins >= card.cost
+		and game_state.get_supply_count(card.id) > 0
 	)
 
 
@@ -437,7 +489,10 @@ func _create_card_button(
 	button.set_meta("card_base_color", card_surface)
 	button.set_meta("card_type", card.card_type)
 	button.set_meta("card_accent_color", palette.border)
+	button.set_meta("supply_count", game_state.get_supply_count(card.id))
 	button.tooltip_text = "%s — %s" % [card.card_name, card.description]
+	if visual_state.begins_with("market_"):
+		button.tooltip_text += "\n%d cards remain in this pile." % game_state.get_supply_count(card.id)
 	button.resized.connect(_update_card_pivot.bind(button))
 	button.mouse_entered.connect(
 		_on_card_mouse_entered.bind(card, button, visual_state)
@@ -592,6 +647,19 @@ func _create_card_button(
 			victory_label.add_theme_font_override("font", body_font)
 		meta_row.add_child(victory_label)
 
+	if visual_state.begins_with("market_"):
+		var pile_label := Label.new()
+		pile_label.name = "PileLabel"
+		pile_label.text = "×%d" % game_state.get_supply_count(card.id)
+		pile_label.add_theme_color_override(
+			"font_color",
+			COLOR_OXBLOOD if game_state.get_supply_count(card.id) <= 0 else palette.muted
+		)
+		pile_label.add_theme_font_size_override("font_size", 12)
+		if body_bold_font != null:
+			pile_label.add_theme_font_override("font", body_bold_font)
+		meta_row.add_child(pile_label)
+
 	return button
 
 
@@ -708,6 +776,8 @@ func _show_card_preview(
 	var palette := _get_card_palette(visual_state)
 	preview_name_label.text = card.card_name
 	preview_meta_label.text = "%s  |  COST %d" % [card.card_type.to_upper(), card.cost]
+	if visual_state.begins_with("market_"):
+		preview_meta_label.text += "  |  %d LEFT" % game_state.get_supply_count(card.id)
 	card_preview.set_meta("card_type", card.card_type)
 	card_preview.set_meta("card_base_color", _get_card_surface_color(card.card_type))
 	preview_art.texture = _load_card_texture(card.art_id)
@@ -719,6 +789,7 @@ func _show_card_preview(
 	preview_effect_label.text = (
 		"[center][b]%s[/b][/center]" % _get_card_effect_text(card)
 	)
+	preview_description_label.text = "[center]%s[/center]" % card.description
 	preview_effect_label.add_theme_color_override("default_color", COLOR_PARCHMENT_LIGHT)
 	card_preview.add_theme_stylebox_override(
 		"panel",
@@ -730,26 +801,30 @@ func _show_card_preview(
 
 func _get_preview_position(source_button: Button) -> Vector2:
 	var viewport_size := get_viewport_rect().size
+	var preview_size := Vector2(
+		maxf(PREVIEW_SIZE.x, card_preview.size.x),
+		maxf(PREVIEW_SIZE.y, card_preview.size.y)
+	)
 	var source_rect := source_button.get_global_rect()
 	var source_center := source_rect.get_center()
 	var preview_x := PREVIEW_EDGE_MARGIN
 	if source_center.x < viewport_size.x * 0.5:
-		preview_x = viewport_size.x - PREVIEW_SIZE.x - PREVIEW_EDGE_MARGIN
+		preview_x = viewport_size.x - preview_size.x - PREVIEW_EDGE_MARGIN
 
 	var preview_y := PREVIEW_EDGE_MARGIN + 68.0
 	if source_center.y < viewport_size.y * 0.5:
-		preview_y = viewport_size.y - PREVIEW_SIZE.y - PREVIEW_EDGE_MARGIN
+		preview_y = viewport_size.y - preview_size.y - PREVIEW_EDGE_MARGIN
 
 	return Vector2(
 		clampf(
 			preview_x,
 			PREVIEW_EDGE_MARGIN,
-			viewport_size.x - PREVIEW_SIZE.x - PREVIEW_EDGE_MARGIN
+			viewport_size.x - preview_size.x - PREVIEW_EDGE_MARGIN
 		),
 		clampf(
 			preview_y,
 			PREVIEW_EDGE_MARGIN,
-			viewport_size.y - PREVIEW_SIZE.y - PREVIEW_EDGE_MARGIN
+			viewport_size.y - preview_size.y - PREVIEW_EDGE_MARGIN
 		)
 	)
 
@@ -1074,6 +1149,110 @@ func _clear_container(container: Container) -> void:
 		child.queue_free()
 
 
+func _on_choice_requested(choice: CardChoice) -> void:
+	current_choice = choice
+	selected_choice_tokens.clear()
+	choice_buttons.clear()
+	_clear_container(choice_options)
+	_hide_card_preview()
+	card_preview.z_index = 180
+	choice_prompt_label.text = choice.prompt
+	choice_confirm_button.text = choice.confirm_text
+	choice_skip_button.text = choice.skip_text
+
+	for candidate in choice.candidates:
+		var card: CardDefinition = candidate["card"]
+		var token := str(candidate.get("token", ""))
+		var visual_state := (
+			MARKET_AFFORDABLE
+			if token.begins_with("supply:")
+			else HAND_PLAYABLE
+		)
+		var button := _create_card_button(card, visual_state)
+		button.set_meta("choice_token", token)
+		button.set_meta("choice_selected", false)
+		button.disabled = false
+		button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		button.pressed.connect(_on_choice_card_pressed.bind(token))
+		choice_options.add_child(button)
+		choice_buttons[token] = button
+
+	choice_overlay.show()
+	_refresh_choice_controls()
+	_refresh_ui()
+
+
+func _on_choice_resolved(choice_id: int) -> void:
+	if current_choice != null and current_choice.id != choice_id:
+		return
+	_hide_choice_overlay()
+
+
+func _hide_choice_overlay() -> void:
+	choice_overlay.hide()
+	card_preview.z_index = 100
+	current_choice = null
+	selected_choice_tokens.clear()
+	choice_buttons.clear()
+	_clear_container(choice_options)
+
+
+func _on_choice_card_pressed(token: String) -> void:
+	if current_choice == null:
+		return
+	if selected_choice_tokens.has(token):
+		selected_choice_tokens.erase(token)
+	else:
+		if current_choice.maximum == 1:
+			selected_choice_tokens.clear()
+		elif selected_choice_tokens.size() >= current_choice.maximum:
+			return
+		selected_choice_tokens.append(token)
+	_refresh_choice_controls()
+
+
+func _refresh_choice_controls() -> void:
+	if current_choice == null:
+		return
+	for token in choice_buttons:
+		var button: Button = choice_buttons[token]
+		var selected := selected_choice_tokens.has(token)
+		button.set_meta("choice_selected", selected)
+		button.modulate = Color(1.12, 1.06, 0.82, 1.0) if selected else Color.WHITE
+
+	var count := selected_choice_tokens.size()
+	var minimum := current_choice.minimum
+	var maximum := current_choice.maximum
+	if minimum == maximum:
+		choice_selection_label.text = "Select %d  •  %d selected" % [minimum, count]
+	else:
+		choice_selection_label.text = (
+			"Select %d–%d  •  %d selected" % [minimum, maximum, count]
+		)
+	choice_confirm_button.disabled = count < minimum or count > maximum or count == 0
+	choice_skip_button.visible = minimum == 0
+
+
+func _on_choice_confirmed() -> void:
+	_submit_choice(selected_choice_tokens.duplicate())
+
+
+func _on_choice_skipped() -> void:
+	_submit_choice([])
+
+
+func _submit_choice(tokens: Array[String]) -> void:
+	if current_choice == null:
+		return
+	var hand_before := game_state.player.hand.size()
+	if not game_state.resolve_choice(tokens):
+		return
+	_refresh_ui()
+	var drawn_count := maxi(0, game_state.player.hand.size() - hand_before)
+	if drawn_count > 0:
+		call_deferred("_animate_draw_cards", drawn_count)
+
+
 func _on_hand_card_pressed(card: CardDefinition) -> void:
 	var source_button := _find_card_button(hand_container, card.id)
 	var ghost: Control = null
@@ -1132,6 +1311,8 @@ func _on_market_card_pressed(card: CardDefinition) -> void:
 
 
 func _on_end_turn_pressed() -> void:
+	if game_state.has_pending_choice():
+		return
 	var cleanup_ghosts := _capture_cleanup_cards()
 	_play_ui_sound("end_turn")
 	turn_manager.end_turn()

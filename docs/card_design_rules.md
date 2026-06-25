@@ -33,10 +33,10 @@ not branch on individual card IDs in UI code.
 Supported kinds:
 
 - `reveal_resources_to_hand`
-- `gain_best`
+- `gain_from_supply`
 - `gain_card`
 - `topdeck_from_hand`
-- `cycle_victory_cards`
+- `discard_from_hand_draw`
 - `discard_deck`
 - `trash_from_hand`
 - `trash_self`
@@ -51,22 +51,20 @@ Supported kinds:
 - `salvage_resource`
 - `replay_action`
 - `vassal`
+- `discard_per_empty_supply`
 
 Effects resolve in array order. Descriptions and compact labels must present that
 same order.
 
-## Automatic choices
+## Interactive choices
 
-Conquest Cartes currently has no selection modal. Choice-like effects therefore
-use deterministic solo heuristics:
+Choice-like effects create a `CardChoice` in the rules layer. The UI renders that
+request generically and returns selected candidate tokens to `GameState`; it does
+not decide what the selected cards do.
 
-- Gain and recovery effects choose the strongest eligible card.
-- Trash, remodel, and hand-to-deck effects choose the weakest eligible card.
-- Inspection effects discard pure victory cards.
-- Replay effects choose the strongest action in hand.
-
-Descriptions must state what the automatic rule does. Do not imply that the player
-will receive a choice that the interface does not provide.
+Use reusable choice sources and resolvers rather than card IDs. Required and
+optional selections, supply gains, multi-card selections, revealed cards, and
+multi-step continuations all use the same pending-choice/effect-queue system.
 
 ## Card creation process
 
@@ -113,6 +111,10 @@ Pebble Coin and Homestead are starter cards and do not enter the market. Every
 other definition with `market_enabled: true` is eligible. A
 `market_enabled: false` card remains loadable, playable in tests or future modes,
 and available to preserve its art/name identity.
+
+Each selected market card receives a finite pile. Buying or gaining decrements
+that pile; empty piles cannot be bought or gained and count toward effects that
+reference empty supply piles.
 
 ## Originality
 

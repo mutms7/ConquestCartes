@@ -52,7 +52,9 @@ func _initialize() -> void:
 	_test_full_game_loop()
 	_test_draw_across_shuffle_boundary()
 	_test_scoring()
+	_test_supply_piles()
 	_test_special_effects()
+	_test_every_playable_card_resolves()
 	_test_random_market_setup()
 
 	if failure_count > 0:
@@ -151,8 +153,8 @@ func _test_wording_conventions() -> void:
 	)
 	_check(
 		game_state.card_catalog["guild_workshop"].description
-		== "Gain the strongest card costing up to 4.",
-		"Automatic gain wording should identify the solo choice rule."
+		== "Gain a card costing up to 4.",
+		"Gain wording should describe the player's supply choice."
 	)
 
 
@@ -232,14 +234,56 @@ func _test_scoring() -> void:
 	_check(game_state.calculate_score() == 1, "Wishing Garden should score per ten owned cards.")
 
 
+func _test_supply_piles() -> void:
+	var game_state := _create_game_state()
+	if game_state == null:
+		return
+	var card: CardDefinition = game_state.market[0]
+	var starting_count := game_state.get_supply_count(card.id)
+	game_state.player.coins = card.cost
+	_check(game_state.buy_card(card), "A non-empty supply pile should be purchasable.")
+	_check(
+		game_state.get_supply_count(card.id) == starting_count - 1,
+		"Buying should remove one card from its supply pile."
+	)
+	game_state.set_supply_count(card.id, 0)
+	game_state.player.buys = 1
+	game_state.player.coins = 99
+	_check(not game_state.buy_card(card), "An empty supply pile should not be purchasable.")
+	_check(game_state.get_empty_supply_pile_count() == 1, "Empty supply piles should be counted.")
+
+
 func _test_special_effects() -> void:
 	_test_starpath_seeker()
+	_test_master_weaver()
 	_test_root_cellar()
 	_test_quiet_chapel()
 	_test_harvest_feast()
+	_test_harbinger_and_library()
+	_test_mine_remodel_and_sentry()
+	_test_poacher_and_spy()
 	_test_silver_merchant()
 	_test_echoing_hall()
 	_test_banner_vassal()
+
+
+func _test_master_weaver() -> void:
+	var game_state := _empty_game()
+	var loom: CardDefinition = game_state.card_catalog["master_weaver"]
+	var pebble: CardDefinition = game_state.card_catalog["pebble_coin"]
+	game_state.player.hand.assign([loom, pebble])
+	_check(game_state.play_card(loom), "Weaver's Loom should play.")
+	_check(game_state.has_pending_choice(), "Weaver's Loom should request a gain choice.")
+	var gained_id := _first_choice_card_id(game_state)
+	var supply_before := game_state.get_supply_count(gained_id)
+	_resolve_first_choice(game_state)
+	_check(game_state.has_pending_choice(), "Weaver's Loom should request a top-deck choice.")
+	_resolve_choice_by_ids(game_state, ["pebble_coin"])
+	_check(game_state.player.draw_pile.back() == pebble, "Selected hand card should go on deck.")
+	_check(
+		game_state.get_supply_count(gained_id) == supply_before - 1,
+		"Gaining should remove a card from its supply pile."
+	)
 
 
 func _test_starpath_seeker() -> void:
@@ -265,7 +309,9 @@ func _test_root_cellar() -> void:
 	game_state.player.hand.assign([cellar, homestead, game_state.card_catalog["silver_leaf"]])
 	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
 	_check(game_state.play_card(cellar), "Root Cellar should play.")
-	_check(game_state.player.discard_pile.has(homestead), "Root Cellar should cycle victory cards.")
+	_check(game_state.has_pending_choice(), "Root Cellar should request discard choices.")
+	_resolve_choice_by_ids(game_state, ["homestead"])
+	_check(game_state.player.discard_pile.has(homestead), "Root Cellar should discard selected cards.")
 	_check(game_state.player.hand.size() == 2, "Root Cellar should replace each cycled card.")
 
 
@@ -276,6 +322,12 @@ func _test_quiet_chapel() -> void:
 	for _index in range(4):
 		game_state.player.hand.append(game_state.card_catalog["pebble_coin"])
 	_check(game_state.play_card(chapel), "Quiet Chapel should play.")
+	_resolve_choice_by_ids(game_state, [
+		"pebble_coin",
+		"pebble_coin",
+		"pebble_coin",
+		"pebble_coin",
+	])
 	_check(game_state.player.trash_pile.size() == 4, "Quiet Chapel should trash up to four cards.")
 
 
@@ -285,8 +337,102 @@ func _test_harvest_feast() -> void:
 	game_state.player.hand.append(feast)
 	_check(game_state.play_card(feast), "Inactive Firefly Supper should remain playable.")
 	_check(game_state.player.trash_pile.has(feast), "Firefly Supper should trash itself.")
+	_resolve_first_choice(game_state)
 	_check(game_state.player.discard_pile.size() == 1, "Firefly Supper should gain one card.")
-	_check(game_state.player.discard_pile[0].cost <= 5, "Firefly Supper gain should respect cost.")
+	if not game_state.player.discard_pile.is_empty():
+		_check(game_state.player.discard_pile[0].cost <= 5, "Firefly Supper gain should respect cost.")
+
+
+func _test_harbinger_and_library() -> void:
+	var game_state := _empty_game()
+	var herald: CardDefinition = game_state.card_catalog["dawn_herald"]
+	var recovered: CardDefinition = game_state.card_catalog["homestead"]
+	game_state.player.hand.append(herald)
+	game_state.player.discard_pile.append(recovered)
+	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	_check(game_state.play_card(herald), "Dawn Whistle should play.")
+	_resolve_choice_by_ids(game_state, ["homestead"])
+	_check(game_state.player.draw_pile.back() == recovered, "Chosen discard card should go on deck.")
+
+	game_state = _empty_game()
+	var archive: CardDefinition = game_state.card_catalog["grand_archive"]
+	var action: CardDefinition = game_state.card_catalog["forge_hall"]
+	game_state.player.hand.append(archive)
+	for _index in range(7):
+		game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	game_state.player.draw_pile.append(action)
+	_check(game_state.play_card(archive), "Quiet Archive should play.")
+	_check(game_state.has_pending_choice(), "Quiet Archive should pause on a revealed action.")
+	_resolve_choice_by_ids(game_state, ["forge_hall"])
+	_check(game_state.player.hand.size() == 7, "Quiet Archive should draw to seven cards.")
+	_check(game_state.player.discard_pile.has(action), "Set-aside actions should be discarded.")
+
+
+func _test_mine_remodel_and_sentry() -> void:
+	var game_state := _empty_game()
+	var mine: CardDefinition = game_state.card_catalog["moonlit_mine"]
+	var pebble: CardDefinition = game_state.card_catalog["pebble_coin"]
+	game_state.player.hand.assign([mine, pebble])
+	_check(game_state.play_card(mine), "Moonwell Token should play.")
+	_resolve_choice_by_ids(game_state, ["pebble_coin"])
+	_resolve_choice_by_ids(game_state, ["silver_leaf"])
+	_check(game_state.player.trash_pile.has(pebble), "Mine should trash the selected resource.")
+	_check(
+		game_state.player.hand.has(game_state.card_catalog["silver_leaf"]),
+		"Mine should gain the selected upgraded resource to hand."
+	)
+
+	game_state = _empty_game()
+	var rebuilder: CardDefinition = game_state.card_catalog["manor_rebuilder"]
+	var homestead: CardDefinition = game_state.card_catalog["homestead"]
+	game_state.player.hand.assign([rebuilder, homestead])
+	_check(game_state.play_card(rebuilder), "Orchard Estate should play.")
+	_resolve_choice_by_ids(game_state, ["homestead"])
+	_resolve_first_choice(game_state)
+	_check(game_state.player.trash_pile.has(homestead), "Remodel should trash the selected card.")
+	_check(game_state.player.discard_pile.size() == 1, "Remodel should gain one card.")
+
+	game_state = _empty_game()
+	var sentry: CardDefinition = game_state.card_catalog["clockwork_sentry"]
+	game_state.player.hand.append(sentry)
+	game_state.player.draw_pile.append(game_state.card_catalog["homestead"])
+	game_state.player.draw_pile.append(game_state.card_catalog["silver_leaf"])
+	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	_check(game_state.play_card(sentry), "Tinker Wren should play.")
+	_resolve_choice_by_ids(game_state, ["homestead"])
+	_resolve_choice_by_ids(game_state, [])
+	_check(
+		game_state.player.trash_pile.has(game_state.card_catalog["homestead"]),
+		"Sentry should trash selected revealed cards."
+	)
+	_check(
+		game_state.player.draw_pile.back() == game_state.card_catalog["silver_leaf"],
+		"Unselected revealed cards should return to the deck."
+	)
+
+
+func _test_poacher_and_spy() -> void:
+	var game_state := _empty_game()
+	var poacher: CardDefinition = game_state.card_catalog["supply_scout"]
+	var homestead: CardDefinition = game_state.card_catalog["homestead"]
+	game_state.set_supply_count(game_state.market[0].id, 0)
+	game_state.player.hand.assign([poacher, homestead])
+	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	_check(game_state.play_card(poacher), "Trail Biscuit should play.")
+	_resolve_choice_by_ids(game_state, ["homestead"])
+	_check(game_state.player.discard_pile.has(homestead), "Poacher should discard per empty pile.")
+
+	game_state = _empty_game()
+	var spy: CardDefinition = game_state.card_catalog["astral_spyglass"]
+	game_state.player.hand.append(spy)
+	game_state.player.draw_pile.append(game_state.card_catalog["homestead"])
+	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	_check(game_state.play_card(spy), "Astral Vault should play.")
+	_resolve_choice_by_ids(game_state, ["homestead"])
+	_check(
+		game_state.player.discard_pile.has(game_state.card_catalog["homestead"]),
+		"Spy should discard the selected revealed card."
+	)
 
 
 func _test_silver_merchant() -> void:
@@ -307,6 +453,7 @@ func _test_echoing_hall() -> void:
 	for _index in range(6):
 		game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
 	_check(game_state.play_card(hall), "Echoing Hall should play.")
+	_resolve_choice_by_ids(game_state, ["forge_hall"])
 	_check(game_state.player.play_area.has(forge), "Echoing Hall should play another action.")
 	_check(game_state.player.hand.size() == 6, "The chosen action should resolve twice.")
 
@@ -321,8 +468,38 @@ func _test_banner_vassal() -> void:
 	game_state.player.draw_pile.append(forge)
 	_check(game_state.play_card(vassal), "Banner Vassal should play.")
 	_check(game_state.player.coins == 2, "Banner Vassal should produce two coins.")
+	_resolve_choice_by_ids(game_state, ["forge_hall"])
 	_check(game_state.player.play_area.has(forge), "Banner Vassal should play a revealed action.")
 	_check(game_state.player.hand.size() == 3, "The revealed Forge Hall should draw three cards.")
+
+
+func _test_every_playable_card_resolves() -> void:
+	var game_state := _create_game_state()
+	if game_state == null:
+		return
+	for card in game_state.card_catalog.values():
+		if not card.is_playable():
+			continue
+		game_state.player.clear_all()
+		game_state.resolution_queue.clear()
+		game_state.pending_choice = null
+		game_state.player.actions = 10
+		game_state.player.hand.append(card)
+		for _index in range(12):
+			game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+		_check(game_state.play_card(card), "%s should begin resolving." % card.card_name)
+		var guard := 0
+		while game_state.has_pending_choice() and guard < 12:
+			var choice := game_state.pending_choice
+			var tokens: Array[String] = []
+			for index in range(choice.minimum):
+				tokens.append(str(choice.candidates[index]["token"]))
+			_check(
+				game_state.resolve_choice(tokens),
+				"%s pending choice should resolve." % card.card_name
+			)
+			guard += 1
+		_check(guard < 12, "%s should not create an endless choice loop." % card.card_name)
 
 
 func _test_random_market_setup() -> void:
@@ -391,6 +568,41 @@ func _count_type(cards: Array[CardDefinition], card_type: String) -> int:
 		if card.card_type == card_type:
 			count += 1
 	return count
+
+
+func _first_choice_card_id(game_state: GameState) -> String:
+	if game_state.pending_choice == null or game_state.pending_choice.candidates.is_empty():
+		return ""
+	var card: CardDefinition = game_state.pending_choice.candidates[0]["card"]
+	return card.id
+
+
+func _resolve_first_choice(game_state: GameState) -> void:
+	_check(game_state.pending_choice != null, "A pending choice should exist.")
+	if game_state.pending_choice == null:
+		return
+	if game_state.pending_choice.minimum == 0:
+		_check(game_state.resolve_choice([]), "Optional choice should accept an empty selection.")
+		return
+	var token := str(game_state.pending_choice.candidates[0]["token"])
+	_check(game_state.resolve_choice([token]), "The first pending choice should resolve.")
+
+
+func _resolve_choice_by_ids(game_state: GameState, card_ids: Array[String]) -> void:
+	_check(game_state.pending_choice != null, "A pending choice should exist.")
+	if game_state.pending_choice == null:
+		return
+	var remaining := card_ids.duplicate()
+	var tokens: Array[String] = []
+	for candidate in game_state.pending_choice.candidates:
+		var card: CardDefinition = candidate["card"]
+		var index := remaining.find(card.id)
+		if index == -1:
+			continue
+		tokens.append(str(candidate["token"]))
+		remaining.remove_at(index)
+	_check(remaining.is_empty(), "Requested choice cards should be available.")
+	_check(game_state.resolve_choice(tokens), "Pending choice should accept selected cards.")
 
 
 func _same_card_ids(first: Array[String], second: Array[String]) -> bool:
