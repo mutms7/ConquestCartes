@@ -20,7 +20,8 @@ process.
 - `victory_points`: fixed final score.
 - `score_per_cards`: awards 1 VP per this many owned cards.
 - `draw_cards`, `gain_actions`, `gain_buys`, `gain_coins`: standard outputs.
-- `market_enabled`: optional; defaults to `true`.
+- `market_enabled`: optional; defaults to `true`. Set it to `false` to retain a
+  complete playable definition while excluding it from random market setup.
 - `special_effects`: ordered reusable effect records.
 
 ## Special effects
@@ -109,7 +110,9 @@ from `card_type`, never from individual card IDs.
 - 3 victory cards
 
 Pebble Coin and Homestead are starter cards and do not enter the market. Every
-other definition with `market_enabled: true` is eligible.
+other definition with `market_enabled: true` is eligible. A
+`market_enabled: false` card remains loadable, playable in tests or future modes,
+and available to preserve its art/name identity.
 
 ## Originality
 

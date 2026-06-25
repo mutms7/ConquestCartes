@@ -1,9 +1,9 @@
 extends SceneTree
 
 const CARD_DATA_PATH := "res://data/cards/starter_cards.json"
-const EXPECTED_CARD_COUNT := 32
+const EXPECTED_CARD_COUNT := 38
 const WORDING_GUIDE_PATH := "res://docs/card_wording_conventions.md"
-const REMOVED_CARD_IDS := [
+const INACTIVE_CARD_IDS := [
 	"starpath_seeker",
 	"river_ward",
 	"harvest_feast",
@@ -13,12 +13,15 @@ const REMOVED_CARD_IDS := [
 ]
 const EXPECTED_ART_LINKED_NAMES := {
 	"wishing_garden": "Wishing Stone",
+	"starpath_seeker": "Starlit Wagon",
 	"master_weaver": "Weaver's Loom",
 	"roadside_reaver": "Trail Biscuit Cache",
 	"royal_clerk": "Royal Charter Decree",
 	"root_cellar": "Homestead Cellar",
+	"river_ward": "River Courier's Detour",
 	"quiet_chapel": "Quiet Archive Purge",
 	"council_hearth": "Scholar's Hall",
+	"harvest_feast": "Firefly Supper",
 	"lantern_festival": "Lantern Parade",
 	"dawn_herald": "Dawn Whistle",
 	"candlecap_laboratory": "Candlecap",
@@ -32,8 +35,11 @@ const EXPECTED_ART_LINKED_NAMES := {
 	"manor_rebuilder": "Orchard Estate",
 	"clockwork_sentry": "Tinker Wren",
 	"forge_hall": "Hearthsong",
+	"astral_spyglass": "Astral Vault",
+	"relic_seeker": "Gilded Reliquary",
 	"echoing_hall": "Hearthsong Refrain",
 	"banner_vassal": "River Courier",
+	"timber_camp": "Moss Thread Camp",
 	"guild_workshop": "Loomwright's Workshop",
 }
 
@@ -81,11 +87,21 @@ func _test_card_catalog() -> void:
 				== EXPECTED_ART_LINKED_NAMES[card_id],
 				"%s should retain an art-linked display name." % card_id
 			)
-	for card_id in REMOVED_CARD_IDS:
+	for card_id in INACTIVE_CARD_IDS:
 		_check(
-			not game_state.card_catalog.has(card_id),
-			"Removed card %s should not remain in the catalog." % card_id
+			game_state.card_catalog.has(card_id),
+			"Inactive card %s should remain in the catalog." % card_id
 		)
+		if game_state.card_catalog.has(card_id):
+			var inactive_card: CardDefinition = game_state.card_catalog[card_id]
+			_check(
+				not inactive_card.market_enabled,
+				"Inactive card %s should be excluded from the market pool." % card_id
+			)
+			_check(
+				not game_state.get_market_candidates().has(inactive_card),
+				"Inactive card %s should never be a market candidate." % card_id
+			)
 
 
 func _test_wording_conventions() -> void:
@@ -217,11 +233,29 @@ func _test_scoring() -> void:
 
 
 func _test_special_effects() -> void:
+	_test_starpath_seeker()
 	_test_root_cellar()
 	_test_quiet_chapel()
+	_test_harvest_feast()
 	_test_silver_merchant()
 	_test_echoing_hall()
 	_test_banner_vassal()
+
+
+func _test_starpath_seeker() -> void:
+	var game_state := _empty_game()
+	var seeker: CardDefinition = game_state.card_catalog["starpath_seeker"]
+	game_state.player.hand.append(seeker)
+	game_state.player.draw_pile.append(game_state.card_catalog["forge_hall"])
+	game_state.player.draw_pile.append(game_state.card_catalog["silver_leaf"])
+	game_state.player.draw_pile.append(game_state.card_catalog["homestead"])
+	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	_check(game_state.play_card(seeker), "Inactive Starlit Wagon should remain playable.")
+	_check(
+		_count_type(game_state.player.hand, "resource") == 2,
+		"Starlit Wagon should find two resources."
+	)
+	_check(game_state.player.discard_pile.size() == 1, "Non-resource reveals should be discarded.")
 
 
 func _test_root_cellar() -> void:
@@ -243,6 +277,16 @@ func _test_quiet_chapel() -> void:
 		game_state.player.hand.append(game_state.card_catalog["pebble_coin"])
 	_check(game_state.play_card(chapel), "Quiet Chapel should play.")
 	_check(game_state.player.trash_pile.size() == 4, "Quiet Chapel should trash up to four cards.")
+
+
+func _test_harvest_feast() -> void:
+	var game_state := _empty_game()
+	var feast: CardDefinition = game_state.card_catalog["harvest_feast"]
+	game_state.player.hand.append(feast)
+	_check(game_state.play_card(feast), "Inactive Firefly Supper should remain playable.")
+	_check(game_state.player.trash_pile.has(feast), "Firefly Supper should trash itself.")
+	_check(game_state.player.discard_pile.size() == 1, "Firefly Supper should gain one card.")
+	_check(game_state.player.discard_pile[0].cost <= 5, "Firefly Supper gain should respect cost.")
 
 
 func _test_silver_merchant() -> void:
@@ -290,9 +334,12 @@ func _test_random_market_setup() -> void:
 	var first_market := game_state.get_market_card_ids()
 	_check(first_market.size() == GameState.MARKET_SIZE, "Market should use its configured size.")
 	_check(
-		game_state.get_market_candidates().size() == EXPECTED_CARD_COUNT - 2,
-		"Every non-starter card should be market eligible."
+		game_state.get_market_candidates().size()
+		== EXPECTED_CARD_COUNT - GameState.STARTING_CARD_COUNTS.size() - INACTIVE_CARD_IDS.size(),
+		"Only starter and explicitly inactive cards should be excluded from the market."
 	)
+	for card_id in INACTIVE_CARD_IDS:
+		_check(not first_market.has(card_id), "%s should not appear in the market." % card_id)
 
 	var resource_count := 0
 	var action_count := 0

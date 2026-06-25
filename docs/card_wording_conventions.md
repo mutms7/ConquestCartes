@@ -82,5 +82,6 @@ Card faces use compact labels derived from each `special_effects` entry. Labels:
 3. Write the description using this guide and the actual resolution order.
 4. Add concise labels for each special effect.
 5. Verify the art-linked name and `art_id`.
-6. Add or update rules and UI smoke-test coverage.
-7. Search for obsolete wording and run both headless test suites.
+6. Decide whether `market_enabled` should include the card in random markets.
+7. Add or update rules and UI smoke-test coverage.
+8. Search for obsolete wording and run both headless test suites.

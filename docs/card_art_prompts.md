@@ -3,7 +3,9 @@
 Ready-to-paste prompts for the existing illustration library under
 `assets/cards/`. Card definitions select these images through `art_id`, and their
 player-facing names retain the subject identity of the assigned painting. The
-32-card rules catalog can temporarily reuse the 29 finished paintings. The goal
+38-card rules catalog can temporarily reuse the 29 finished paintings. It
+currently references 28 unique paintings, with Sunspire Monument held in reserve.
+The goal
 is a warm, painterly storybook look with a consistent style across the whole set.
 Each prompt is a fixed **style block** plus a per-image **subject**.
 
@@ -113,3 +115,8 @@ medieval) on its own.
 When a replacement card receives dedicated art, create a new prompt with the same
 style block, save the result as `assets/cards/<new_art_id>.png`, and update the
 card's `art_id`. Until then, intentional reuse is preferable to blank card faces.
+
+Every definition must have a valid `art_id`. Multiple cards may point to one
+painting when their names share the same visible subject. Market eligibility is
+independent of artwork: archived cards remain in the catalog with their art even
+when `market_enabled` is `false`.

@@ -8,8 +8,9 @@ contents of your deck into victory points.
 
 ## Current Game
 
-- 32 data-driven cards with original names and painterly artwork
+- 38 data-driven cards with original names and painterly artwork
 - A 12-card market: 2 resources, 7 actions, and 3 victory cards
+- Six archived cards retained in the catalog but excluded from random markets
 - Seven Pebble Coins and three Homesteads in the starting deck
 - Five-card hands, reshuffling discard piles, actions, coins, and buys
 - Deck searching, trashing, gaining, upgrading, replaying, and variable scoring
@@ -109,8 +110,9 @@ See `assets/licenses/ASSET_SOURCES.md` for provenance details.
 - Effects that would normally ask the player to choose cards use documented
   automatic solo heuristics.
 - Rival-only attack and reaction clauses are omitted in the solo ruleset.
-- Several replacement cards intentionally share illustrations through `art_id`
-  until dedicated artwork is produced.
+- The art library contains 29 finished illustrations. The 38-card catalog
+  currently references 28 of them; related cards share paintings through the
+  data-driven `art_id` field, while Sunspire Monument remains reserve art.
 - The game is balanced as a compact prototype rather than a finished commercial
   release.
 

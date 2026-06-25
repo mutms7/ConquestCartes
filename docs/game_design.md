@@ -14,8 +14,9 @@ Cards purchased from the shared market enter the discard pile. Ending a turn
 discards the hand and play area, resets turn resources, and draws a new five-card
 hand. Empty draw piles are replenished by shuffling the discard pile.
 
-The market contains 12 cards: 2 resources, 7 actions, and 3 victory cards. It is
-rebuilt each game from a 32-card catalog.
+The market contains 12 cards: 2 resources, 7 actions, and 3 victory cards. The
+catalog contains 38 cards: 2 starters, 30 random-market candidates, and 6
+archived cards retained for testing, future sets, and art-linked reuse.
 
 ## Solo Effect Resolution
 
