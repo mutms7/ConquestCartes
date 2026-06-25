@@ -160,6 +160,10 @@ func _initialize() -> void:
 			"Hand card titles and rules text should use the enlarged type."
 		)
 		_check(
+			_card_text_layout_is_clear(resource_button),
+			"Hand card text should stay inside the frame without intersecting neighboring regions."
+		)
+		_check(
 			_card_art(resource_button).get_parent().size.y >= 112.0,
 			"Card artwork should use the enlarged art window."
 		)
@@ -218,6 +222,7 @@ func _initialize() -> void:
 
 	main_ui.game_state.player.coins = 99
 	main_ui._refresh_ui()
+	await process_frame
 	var market_button: Button = _all_market_buttons()[0]
 	var market_card_id: String = market_button.get_meta("card_id")
 	var market_card: CardDefinition = main_ui.game_state.card_catalog[market_card_id]
@@ -258,6 +263,10 @@ func _initialize() -> void:
 			_card_name(market_button).get_theme_font_size("font_size") >= 12
 			and _card_effect(market_button).get_theme_font_size("normal_font_size") >= 10,
 			"Market card titles and rules text should use the enlarged type."
+		)
+		_check(
+			_card_text_layout_is_clear(market_button),
+			"Market card text should stay inside the frame without intersecting neighboring regions."
 		)
 		market_button.mouse_entered.emit()
 		await process_frame
@@ -583,6 +592,36 @@ func _card_name(button: Button) -> Label:
 
 func _card_effect(button: Button) -> RichTextLabel:
 	return button.get_node("CardContent/CardLayout/EffectLabel")
+
+
+func _card_text_layout_is_clear(button: Button) -> bool:
+	var content := button.get_node("CardContent") as MarginContainer
+	var name_label := _card_name(button)
+	var art_frame := _card_art(button).get_parent() as Control
+	var effect_label := _card_effect(button)
+	var meta_row := button.get_node("CardContent/CardLayout/MetaRow") as Control
+	var button_rect := button.get_global_rect()
+	var safe_rect := button_rect.grow(-4.0)
+	var regions: Array[Control] = [name_label, art_frame, effect_label, meta_row]
+
+	if (
+		content.get_theme_constant("margin_top") != 5
+		or content.get_theme_constant("margin_bottom") != 5
+		or name_label.custom_minimum_size.y < 30.0
+		or effect_label.custom_minimum_size.y < 56.0
+	):
+		return false
+
+	for region in regions:
+		var region_rect := region.get_global_rect()
+		if not safe_rect.encloses(region_rect):
+			return false
+
+	return (
+		name_label.get_global_rect().end.y <= art_frame.get_global_rect().position.y
+		and art_frame.get_global_rect().end.y <= effect_label.get_global_rect().position.y
+		and effect_label.get_global_rect().end.y <= meta_row.get_global_rect().position.y
+	)
 
 
 func _market_pile_label(button: Button) -> Label:

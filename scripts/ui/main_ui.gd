@@ -371,7 +371,7 @@ func _create_market_carpet(
 ) -> Dictionary:
 	var panel := PanelContainer.new()
 	panel.name = carpet_name
-	panel.custom_minimum_size = Vector2(minimum_width, 410)
+	panel.custom_minimum_size = Vector2(minimum_width, 418)
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	panel.set_meta("carpet_surface", surface_color)
 	panel.set_meta("carpet_accent", accent_color)
@@ -718,7 +718,7 @@ func _create_card_button(
 	var card_surface := _get_card_surface_color(card.card_type)
 	var is_market_card := visual_state.begins_with("market_")
 	var button := Button.new()
-	button.custom_minimum_size = Vector2(172, 202) if is_market_card else Vector2(172, 218)
+	button.custom_minimum_size = Vector2(172, 206) if is_market_card else Vector2(172, 230)
 	if is_market_card:
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.focus_mode = Control.FOCUS_ALL
@@ -772,9 +772,9 @@ func _create_card_button(
 	content.name = "CardContent"
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_theme_constant_override("margin_left", 7 if is_market_card else 9)
-	content.add_theme_constant_override("margin_top", 9)
+	content.add_theme_constant_override("margin_top", 5)
 	content.add_theme_constant_override("margin_right", 7 if is_market_card else 9)
-	content.add_theme_constant_override("margin_bottom", 1)
+	content.add_theme_constant_override("margin_bottom", 5)
 	button.add_child(content)
 	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
@@ -786,7 +786,7 @@ func _create_card_button(
 
 	var name_label := Label.new()
 	name_label.name = "NameLabel"
-	name_label.custom_minimum_size = Vector2(0, 28)
+	name_label.custom_minimum_size = Vector2(0, 30)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_label.text = card.card_name
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -828,7 +828,7 @@ func _create_card_button(
 
 	var effect_label := RichTextLabel.new()
 	effect_label.name = "EffectLabel"
-	effect_label.custom_minimum_size = Vector2(0, 56 if is_market_card else 54)
+	effect_label.custom_minimum_size = Vector2(0, 58 if is_market_card else 56)
 	effect_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	effect_label.bbcode_enabled = true
 	effect_label.fit_content = false
