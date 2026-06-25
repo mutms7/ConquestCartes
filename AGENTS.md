@@ -9,3 +9,5 @@
 - Keep changes small, readable, and reviewable.
 - Do not delete asset license files.
 - Every feature must run in Godot without parse errors.
+- After completing and testing requested changes, commit and push all intended
+  repository changes to the active branch unless the user explicitly asks not to.

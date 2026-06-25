@@ -1,8 +1,10 @@
-# Card Art Prompts
+# Card Art Library Prompts
 
-A ready-to-paste prompt for every card in `data/cards/starter_cards.json`. The
-goal is a warm, painterly storybook look with a consistent style across the whole
-set. Each prompt is a fixed **style block** plus a per-card **subject**.
+Ready-to-paste prompts for the existing illustration library under
+`assets/cards/`. Card definitions select these images through `art_id`, so the
+38-card rules catalog can temporarily reuse the 29 finished paintings. The goal
+is a warm, painterly storybook look with a consistent style across the whole set.
+Each prompt is a fixed **style block** plus a per-image **subject**.
 
 ## How to use
 
@@ -107,7 +109,6 @@ medieval) on its own.
 
 ## Keeping this in sync
 
-When you add a card to `starter_cards.json`, add a matching entry here using the
-same style block and a subject drawn from the card's name and theme. If you later
-want the whole set regenerated automatically, the batch-API script option can build
-these prompts straight from the card data instead.
+When a replacement card receives dedicated art, create a new prompt with the same
+style block, save the result as `assets/cards/<new_art_id>.png`, and update the
+card's `art_id`. Until then, intentional reuse is preferable to blank card faces.

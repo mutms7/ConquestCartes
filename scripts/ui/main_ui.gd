@@ -500,7 +500,7 @@ func _create_card_button(
 	layout.add_child(name_label)
 
 	# Card art window: the picture sits in a framed box, like a tabletop card.
-	var art_texture := _load_card_texture(card.id)
+	var art_texture := _load_card_texture(card.art_id)
 	if art_texture != null:
 		var art_frame := PanelContainer.new()
 		art_frame.name = "ArtFrame"
@@ -570,13 +570,17 @@ func _create_card_button(
 	else:
 		type_label.text += "  |  COST %d" % card.cost
 
-	if card.victory_points > 0:
+	if card.victory_points > 0 or card.score_per_cards > 0:
 		if icon_textures.has("victory"):
 			meta_row.add_child(
 				_create_icon(icon_textures["victory"], Vector2(14, 14), COLOR_BRASS)
 			)
 		var victory_label := Label.new()
-		victory_label.text = "%d VP" % card.victory_points
+		victory_label.text = (
+			"%d VP" % card.victory_points
+			if card.victory_points > 0
+			else "VP / %d" % card.score_per_cards
+		)
 		victory_label.add_theme_color_override("font_color", COLOR_OXBLOOD)
 		victory_label.add_theme_font_size_override("font_size", 12)
 		if body_font != null:
@@ -594,6 +598,12 @@ func _get_card_effect_text(card: CardDefinition) -> String:
 	_append_effect(effects, card.gain_buys, "Buy", "Buys")
 	if card.victory_points > 0:
 		effects.append("%d VP" % card.victory_points)
+	if card.score_per_cards > 0:
+		effects.append("1 VP / %d Cards" % card.score_per_cards)
+	for effect in card.special_effects:
+		var label := str(effect.get("label", ""))
+		if not label.is_empty():
+			effects.append(label)
 	return "  ".join(effects)
 
 
@@ -693,7 +703,7 @@ func _show_card_preview(
 	var palette := _get_card_palette(visual_state)
 	preview_name_label.text = card.card_name
 	preview_meta_label.text = "%s  |  COST %d" % [card.card_type.to_upper(), card.cost]
-	preview_art.texture = _load_card_texture(card.id)
+	preview_art.texture = _load_card_texture(card.art_id)
 	preview_art_frame.visible = preview_art.texture != null
 	preview_art_frame.add_theme_stylebox_override(
 		"panel",
@@ -764,13 +774,13 @@ func _get_card_palette(visual_state: String) -> Dictionary:
 	match visual_state:
 		HAND_PLAYABLE:
 			return {
-				"border": Color("#6f93ad"),
+				"border": COLOR_SLATE,
 				"text": COLOR_PARCHMENT_LIGHT,
 				"muted": COLOR_PARCHMENT.darkened(0.12),
 			}
 		MARKET_AFFORDABLE:
 			return {
-				"border": Color("#5fa06a"),
+				"border": COLOR_FOREST,
 				"text": COLOR_PARCHMENT_LIGHT,
 				"muted": COLOR_PARCHMENT.darkened(0.12),
 			}

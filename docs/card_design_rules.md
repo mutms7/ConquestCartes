@@ -1,93 +1,80 @@
 # Card Design Rules
 
-Working guidelines for authoring cards in `data/cards/starter_cards.json`. Cards are
-pure data: each one is a combination of the numeric fields `draw_cards`,
-`gain_actions`, `gain_coins`, `gain_buys`, plus `coin_value` (resources) and
-`victory_points` (victory cards). Rules logic lives in `scripts/core/`, so balance
-is tuned entirely through this data file.
+Cards are authored in `data/cards/starter_cards.json`. Definitions remain pure
+data; gameplay resolution belongs in `scripts/core/game_state.gd`, and card UI
+belongs in `scripts/ui/main_ui.gd`.
 
-## The cantrip caveat
+## Core fields
 
-Because action cards cost 1 action to play, a card that only gives +1 action and
-draws 1 card is neutral. It refunds the action it cost and replaces itself in hand,
-so it nets to zero. It may be useful for cycling later (in a deck with payload worth
-digging for, a free cantrip thins toward it), but early prototype cards should
-usually provide an additional benefit so that every market card feels obviously
-worth buying.
+- `id`: stable snake-case identifier used by rules and saves.
+- `name`: original display name.
+- `type`: `resource`, `action`, or `victory`.
+- `art_id`: filename stem under `assets/cards/`; cards may share art temporarily.
+- `cost`: coin cost.
+- `description`: detailed tooltip explanation written for this solo ruleset.
+- `coin_value`: resource output.
+- `victory_points`: fixed final score.
+- `score_per_cards`: awards 1 VP per this many owned cards.
+- `draw_cards`, `gain_actions`, `gain_buys`, `gain_coins`: standard outputs.
+- `market_enabled`: optional; defaults to `true`.
+- `special_effects`: ordered reusable effect records.
 
-For now: avoid action cards whose only effect is +1 card and +1 action.
+## Special effects
 
-## Good "cantrip-plus" patterns
+Every special effect has a `kind`, optional parameters, and a short `label` used
+by card faces and previews. Add generalized effect kinds to the rules engine; do
+not branch on individual card IDs in UI code.
 
-A `+1 card / +1 action` base is already worth roughly 3 cost on its own, so adding a
-real benefit on top generally lands the card around cost 4. Useful starting points:
+Supported kinds:
 
-- `+1 card / +2 actions` (cost ~3-4)
-- `+2 cards / +1 action` (cost ~4)
-- `+1 card / +1 action / +1 coin` (cost ~3-4)
-- `+1 card / +1 action / +1 buy` (cost ~3-4)
-- `+1 card / +1 action` plus a small unique bonus
+- `reveal_resources_to_hand`
+- `gain_best`
+- `gain_card`
+- `topdeck_from_hand`
+- `cycle_victory_cards`
+- `discard_deck`
+- `trash_from_hand`
+- `trash_self`
+- `topdeck_from_discard`
+- `draw_to_size`
+- `resource_bonus`
+- `upgrade_resource`
+- `trash_named_for_coins`
+- `remodel`
+- `inspect_top`
+- `inspect_top_one`
+- `salvage_resource`
+- `replay_action`
+- `vassal`
 
-When picking a pattern, check the existing set first. Several of these lines are
-already in use, and shipping a duplicate stat line (or a cheaper, strictly-better
-copy of an existing card) hurts the prototype more than it helps. The current set
-already covers `+1c/+1a/+1coin` (Hearthsong), `+1c/+1a/+1buy` (Orchard Map), and
-`+1c/+2a` (Tinker Wren), so new cantrip-plus cards should fill a different gap.
+Effects resolve in array order. For example, Harvest Feast trashes itself before
+gaining a card because `trash_self` appears before `gain_best`.
 
-## Victory cards with a benefit (hybrids)
+## Automatic choices
 
-The rules engine only "plays" cards whose type is `action` or `resource`
-(`CardDefinition.is_playable()`), but `calculate_score()` counts `victory_points`
-on *every* owned card regardless of type. So a victory card that also does
-something useful is authored as a playable card that carries victory points:
+Conquest Cartes currently has no selection modal. Choice-like effects therefore
+use deterministic solo heuristics:
 
-- Action-victory (e.g. Scholar's Hall): `type` is `action`, gives a small play
-  effect, and has `victory_points`. It costs an action to play like any action.
-- Treasure-victory (e.g. Gilded Reliquary): `type` is `resource`, gives coins
-  when played, and has `victory_points`.
+- Gain and recovery effects choose the strongest eligible card.
+- Trash, remodel, and hand-to-deck effects choose the weakest eligible card.
+- Inspection effects discard pure victory cards.
+- Replay effects choose the strongest action in hand.
 
-These score at the end of the game while still earning their keep during it, so
-they avoid the "dead card in hand" feel of a pure victory card. Keep the bonus
-slight and the cost a little above a plain version, since the victory points are
-real value on their own. Pure `victory`-type cards remain non-playable and exist
-only for end-game points.
-
-## Cost guidance
-
-- Keep costs aligned with the rest of the set rather than to an absolute formula.
-- A simple `+1 card / +2 actions` card should cost around 3.
-- A `+1 card / +1 action / +1 coin` or `+1 card / +1 action / +1 buy` card should
-  cost around 3 or 4.
-- A `+2 cards / +1 action` card is a strong non-terminal draw engine; price the
-  bare pattern around 5, and add roughly 1 cost per extra effect. Anything that
-  draws 2+ and is non-terminal (e.g. Weaver's Loom at `+2 cards / +2 actions`,
-  cost 6) should sit at the top of the curve.
-- Plain victory cards scale up the curve: higher cost buys more points per coin
-  (cost 7 ≈ 7 points, cost 8 ≈ 9, cost 9 ≈ 11), so expensive scoring cards are a
-  real late-game payoff.
+Descriptions must state what the automatic rule does. Do not imply that the player
+will receive a choice that the interface does not provide.
 
 ## Market composition
 
-Every market is drawn to a fixed makeup, defined by the `MARKET_*` constants in
-`scripts/core/game_state.gd`:
+`GameState` builds a twelve-card market:
 
-- 2 resource / coin cards (`MARKET_RESOURCE_COUNT`)
-- 6 action cards (`MARKET_ACTION_COUNT`)
-- 4 victory cards total (`MARKET_VICTORY_TOTAL`), made up of a random 1-2 hybrid
-  victory cards (`MARKET_HYBRID_VICTORY_MIN`/`MAX`) and the remaining 2-3 plain
-  victory cards
+- 2 resource cards
+- 7 action cards
+- 3 victory cards
 
-Cards are sorted into categories by `_card_category()`: anything of `type`
-`victory` is a plain victory card; any other card with `victory_points > 0` is a
-hybrid victory card; the rest fall under their `resource` / `action` type. So a
-hybrid fills a victory slot, not an action or resource slot, even though it is
-played like one.
+Pebble Coin and Homestead are starter cards and do not enter the market. Every
+other definition with `market_enabled: true` is eligible.
 
-Keep enough non-starter cards in every category for the draw to succeed (at least
-3 plain victory and 2 hybrid victory, since those are the per-game maximums). When
-changing the counts, update the constants; `MARKET_SIZE` is their sum.
+## Originality
 
-## Theming
-
-Use original names, art, and flavor. Do not copy names, card text, or designs from
-existing commercial deck-builders.
+Use original names, descriptions, art, and flavor. Do not copy names, exact rules
+wording, terminology, or artwork from an existing commercial deck-builder.

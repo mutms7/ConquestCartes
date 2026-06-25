@@ -3,377 +3,494 @@
     "id": "pebble_coin",
     "name": "Pebble Coin",
     "type": "resource",
+    "art_id": "pebble_coin",
     "cost": 0,
-    "description": "Gain 1 coin.",
-    "coin_value": 1,
-    "victory_points": 0,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
-  },
-  {
-    "id": "homestead",
-    "name": "Homestead",
-    "type": "victory",
-    "cost": 0,
-    "description": "Worth 1 victory point at final scoring.",
-    "coin_value": 0,
-    "victory_points": 1,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
+    "description": "Produces 1 coin.",
+    "coin_value": 1
   },
   {
     "id": "silver_leaf",
     "name": "Silver Leaf",
     "type": "resource",
+    "art_id": "silver_leaf",
     "cost": 3,
-    "description": "Gain 2 coins.",
-    "coin_value": 2,
-    "victory_points": 0,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
-  },
-  {
-    "id": "village_bell",
-    "name": "Village Bell",
-    "type": "action",
-    "cost": 4,
-    "description": "Draw 1 card, gain 1 action, 1 coin, and 1 buy.",
-    "coin_value": 0,
-    "victory_points": 0,
-    "draw_cards": 1,
-    "gain_actions": 1,
-    "gain_buys": 1,
-    "gain_coins": 1
-  },
-  {
-    "id": "stone_wall",
-    "name": "Stone Wall",
-    "type": "victory",
-    "cost": 4,
-    "description": "Worth 2 victory points at final scoring.",
-    "coin_value": 0,
-    "victory_points": 2,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
-  },
-  {
-    "id": "royal_charter",
-    "name": "Royal Charter",
-    "type": "victory",
-    "cost": 6,
-    "description": "Worth 5 victory points at final scoring.",
-    "coin_value": 0,
-    "victory_points": 5,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
-  },
-  {
-    "id": "candlecap",
-    "name": "Candlecap",
-    "type": "action",
-    "cost": 2,
-    "description": "Gain 2 coins.",
-    "coin_value": 0,
-    "victory_points": 0,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 2
-  },
-  {
-    "id": "trail_biscuit",
-    "name": "Trail Biscuit",
-    "type": "action",
-    "cost": 4,
-    "description": "Draw 1 card, gain 1 action, and gain 2 coins.",
-    "coin_value": 0,
-    "victory_points": 0,
-    "draw_cards": 1,
-    "gain_actions": 1,
-    "gain_buys": 0,
-    "gain_coins": 2
-  },
-  {
-    "id": "moss_thread",
-    "name": "Moss Thread",
-    "type": "action",
-    "cost": 2,
-    "description": "Gain 2 actions.",
-    "coin_value": 0,
-    "victory_points": 0,
-    "draw_cards": 0,
-    "gain_actions": 2,
-    "gain_buys": 0,
-    "gain_coins": 0
-  },
-  {
-    "id": "acorn_purse",
-    "name": "Acorn Purse",
-    "type": "resource",
-    "cost": 2,
-    "description": "Gain 1 coin and 1 buy.",
-    "coin_value": 1,
-    "victory_points": 0,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 1,
-    "gain_coins": 0
-  },
-  {
-    "id": "hearthsong",
-    "name": "Hearthsong",
-    "type": "action",
-    "cost": 3,
-    "description": "Draw 1 card, gain 1 action, and gain 1 coin.",
-    "coin_value": 0,
-    "victory_points": 0,
-    "draw_cards": 1,
-    "gain_actions": 1,
-    "gain_buys": 0,
-    "gain_coins": 1
-  },
-  {
-    "id": "orchard_map",
-    "name": "Orchard Map",
-    "type": "action",
-    "cost": 3,
-    "description": "Draw 1 card, gain 1 action, and gain 1 buy.",
-    "coin_value": 0,
-    "victory_points": 0,
-    "draw_cards": 1,
-    "gain_actions": 1,
-    "gain_buys": 1,
-    "gain_coins": 0
-  },
-  {
-    "id": "river_courier",
-    "name": "River Courier",
-    "type": "action",
-    "cost": 3,
-    "description": "Draw 2 cards and gain 1 buy.",
-    "coin_value": 0,
-    "victory_points": 0,
-    "draw_cards": 2,
-    "gain_actions": 0,
-    "gain_buys": 1,
-    "gain_coins": 0
-  },
-  {
-    "id": "moonwell_token",
-    "name": "Moonwell Token",
-    "type": "resource",
-    "cost": 4,
-    "description": "Gain 3 coins.",
-    "coin_value": 3,
-    "victory_points": 0,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
-  },
-  {
-    "id": "tinker_wren",
-    "name": "Tinker Wren",
-    "type": "action",
-    "cost": 4,
-    "description": "Draw 1 card and gain 2 actions.",
-    "coin_value": 0,
-    "victory_points": 0,
-    "draw_cards": 1,
-    "gain_actions": 2,
-    "gain_buys": 0,
-    "gain_coins": 0
-  },
-  {
-    "id": "lantern_parade",
-    "name": "Lantern Parade",
-    "type": "action",
-    "cost": 4,
-    "description": "Gain 2 coins and 1 buy.",
-    "coin_value": 0,
-    "victory_points": 0,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 1,
-    "gain_coins": 2
-  },
-  {
-    "id": "quiet_archive",
-    "name": "Quiet Archive",
-    "type": "action",
-    "cost": 4,
-    "description": "Draw 3 cards.",
-    "coin_value": 0,
-    "victory_points": 0,
-    "draw_cards": 3,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
-  },
-  {
-    "id": "briar_gate",
-    "name": "Briar Gate",
-    "type": "victory",
-    "cost": 5,
-    "description": "Worth 3 victory points at final scoring.",
-    "coin_value": 0,
-    "victory_points": 3,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
-  },
-  {
-    "id": "starlit_wagon",
-    "name": "Starlit Wagon",
-    "type": "action",
-    "cost": 6,
-    "description": "Draw 2 cards, gain 1 action, 1 buy, and 1 coin.",
-    "coin_value": 0,
-    "victory_points": 0,
-    "draw_cards": 2,
-    "gain_actions": 1,
-    "gain_buys": 1,
-    "gain_coins": 1
+    "description": "Produces 2 coins.",
+    "coin_value": 2
   },
   {
     "id": "amber_circlet",
     "name": "Amber Circlet",
     "type": "resource",
-    "cost": 5,
-    "description": "Gain 4 coins.",
-    "coin_value": 4,
-    "victory_points": 0,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
-  },
-  {
-    "id": "firefly_supper",
-    "name": "Firefly Supper",
-    "type": "action",
+    "art_id": "amber_circlet",
     "cost": 6,
-    "description": "Gain 1 action, 2 buys, and 3 coins.",
-    "coin_value": 0,
-    "victory_points": 0,
-    "draw_cards": 0,
-    "gain_actions": 1,
-    "gain_buys": 2,
-    "gain_coins": 3
+    "description": "Produces 3 coins.",
+    "coin_value": 3
   },
   {
-    "id": "wishing_stone",
-    "name": "Wishing Stone",
+    "id": "homestead",
+    "name": "Homestead",
     "type": "victory",
-    "cost": 7,
-    "description": "Worth 7 victory points at final scoring.",
-    "coin_value": 0,
-    "victory_points": 7,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
+    "art_id": "homestead",
+    "cost": 2,
+    "description": "Worth 1 victory point at final scoring.",
+    "victory_points": 1
   },
   {
-    "id": "weavers_loom",
-    "name": "Weaver's Loom",
-    "type": "action",
-    "cost": 6,
-    "description": "Draw 2 cards and gain 2 actions.",
-    "coin_value": 0,
-    "victory_points": 0,
-    "draw_cards": 2,
-    "gain_actions": 2,
-    "gain_buys": 0,
-    "gain_coins": 0
+    "id": "briar_gate",
+    "name": "Briar Gate",
+    "type": "victory",
+    "art_id": "briar_gate",
+    "cost": 5,
+    "description": "Worth 3 victory points at final scoring.",
+    "victory_points": 3
   },
   {
-    "id": "dawn_whistle",
-    "name": "Dawn Whistle",
-    "type": "action",
-    "cost": 3,
-    "description": "Gain 2 actions and 1 coin.",
-    "coin_value": 0,
-    "victory_points": 0,
-    "draw_cards": 0,
-    "gain_actions": 2,
-    "gain_buys": 0,
-    "gain_coins": 1
+    "id": "royal_charter",
+    "name": "Royal Charter",
+    "type": "victory",
+    "art_id": "royal_charter",
+    "cost": 8,
+    "description": "Worth 6 victory points at final scoring.",
+    "victory_points": 6
   },
   {
-    "id": "scholars_hall",
-    "name": "Scholar's Hall",
-    "type": "action",
+    "id": "wishing_garden",
+    "name": "Wishing Garden",
+    "type": "victory",
+    "art_id": "wishing_stone",
     "cost": 4,
-    "description": "Draw 1 card and gain 1 action. Worth 1 victory point at final scoring.",
-    "coin_value": 0,
-    "victory_points": 1,
-    "draw_cards": 1,
-    "gain_actions": 1,
-    "gain_buys": 0,
-    "gain_coins": 0
+    "description": "Worth 1 victory point for every 10 cards you own, rounded down.",
+    "score_per_cards": 10
   },
   {
-    "id": "gilded_reliquary",
-    "name": "Gilded Reliquary",
-    "type": "resource",
-    "cost": 5,
-    "description": "Gain 2 coins. Worth 2 victory points at final scoring.",
-    "coin_value": 2,
-    "victory_points": 2,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
-  },
-  {
-    "id": "orchard_estate",
-    "name": "Orchard Estate",
+    "id": "starpath_seeker",
+    "name": "Starpath Seeker",
     "type": "action",
+    "art_id": "starlit_wagon",
+    "cost": 6,
+    "description": "Reveals cards until 2 resources are found. Those resources enter your hand and the rest are discarded.",
+    "special_effects": [
+      {
+        "kind": "reveal_resources_to_hand",
+        "amount": 2,
+        "label": "Find 2 Resources"
+      }
+    ]
+  },
+  {
+    "id": "master_weaver",
+    "name": "Master Weaver",
+    "type": "action",
+    "art_id": "weavers_loom",
+    "cost": 6,
+    "description": "Gains the strongest card costing up to 5 into your hand, then places your weakest hand card onto your deck.",
+    "special_effects": [
+      {
+        "kind": "gain_best",
+        "max_cost": 5,
+        "destination": "hand",
+        "label": "Gain Cost 5 to Hand"
+      },
+      {
+        "kind": "topdeck_from_hand",
+        "amount": 1,
+        "label": "Topdeck 1"
+      }
+    ]
+  },
+  {
+    "id": "roadside_reaver",
+    "name": "Roadside Reaver",
+    "type": "action",
+    "art_id": "trail_biscuit",
     "cost": 5,
-    "description": "Gain 2 coins and 1 buy. Worth 1 victory point at final scoring.",
-    "coin_value": 0,
-    "victory_points": 1,
-    "draw_cards": 0,
-    "gain_actions": 0,
+    "description": "Gains an Amber Circlet into your discard pile.",
+    "special_effects": [
+      {
+        "kind": "gain_card",
+        "card_id": "amber_circlet",
+        "destination": "discard",
+        "label": "Gain Amber Circlet"
+      }
+    ]
+  },
+  {
+    "id": "royal_clerk",
+    "name": "Royal Clerk",
+    "type": "action",
+    "art_id": "royal_charter",
+    "cost": 4,
+    "description": "Places a gained Silver Leaf on top of your deck.",
+    "special_effects": [
+      {
+        "kind": "gain_card",
+        "card_id": "silver_leaf",
+        "destination": "deck",
+        "label": "Silver Leaf to Deck"
+      }
+    ]
+  },
+  {
+    "id": "root_cellar",
+    "name": "Root Cellar",
+    "type": "action",
+    "art_id": "homestead",
+    "cost": 2,
+    "description": "Gains 1 action, discards every victory card in your hand, then draws the same number.",
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "cycle_victory_cards",
+        "label": "Cycle Victory Cards"
+      }
+    ]
+  },
+  {
+    "id": "river_ward",
+    "name": "River Ward",
+    "type": "action",
+    "art_id": "river_courier",
+    "cost": 3,
+    "description": "Produces 2 coins and empties your draw pile into your discard pile.",
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "discard_deck",
+        "label": "Discard Deck"
+      }
+    ]
+  },
+  {
+    "id": "quiet_chapel",
+    "name": "Quiet Chapel",
+    "type": "action",
+    "art_id": "quiet_archive",
+    "cost": 2,
+    "description": "Trashes up to 4 of the weakest cards remaining in your hand.",
+    "special_effects": [
+      {
+        "kind": "trash_from_hand",
+        "amount": 4,
+        "label": "Trash up to 4"
+      }
+    ]
+  },
+  {
+    "id": "council_hearth",
+    "name": "Council Hearth",
+    "type": "action",
+    "art_id": "scholars_hall",
+    "cost": 5,
+    "description": "Draws 4 cards and grants 1 buy.",
+    "draw_cards": 4,
+    "gain_buys": 1
+  },
+  {
+    "id": "harvest_feast",
+    "name": "Harvest Feast",
+    "type": "action",
+    "art_id": "firefly_supper",
+    "cost": 4,
+    "description": "Trashes itself, then gains the strongest card costing up to 5.",
+    "special_effects": [
+      {
+        "kind": "trash_self",
+        "label": "Trash Self"
+      },
+      {
+        "kind": "gain_best",
+        "max_cost": 5,
+        "destination": "discard",
+        "label": "Gain Cost 5"
+      }
+    ]
+  },
+  {
+    "id": "lantern_festival",
+    "name": "Lantern Festival",
+    "type": "action",
+    "art_id": "lantern_parade",
+    "cost": 5,
+    "description": "Grants 2 actions, 1 buy, and 2 coins.",
+    "gain_actions": 2,
     "gain_buys": 1,
     "gain_coins": 2
   },
   {
-    "id": "sunspire_monument",
-    "name": "Sunspire Monument",
-    "type": "victory",
-    "cost": 8,
-    "description": "Worth 9 victory points at final scoring.",
-    "coin_value": 0,
-    "victory_points": 9,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
+    "id": "dawn_herald",
+    "name": "Dawn Herald",
+    "type": "action",
+    "art_id": "dawn_whistle",
+    "cost": 3,
+    "description": "Draws 1 card, grants 1 action, and places the strongest discard card onto your deck.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "topdeck_from_discard",
+        "label": "Recover to Deck"
+      }
+    ]
   },
   {
-    "id": "astral_vault",
-    "name": "Astral Vault",
-    "type": "victory",
-    "cost": 9,
-    "description": "Worth 11 victory points at final scoring.",
-    "coin_value": 0,
-    "victory_points": 11,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
+    "id": "candlecap_laboratory",
+    "name": "Candlecap Laboratory",
+    "type": "action",
+    "art_id": "candlecap",
+    "cost": 5,
+    "description": "Draws 2 cards and grants 1 action.",
+    "draw_cards": 2,
+    "gain_actions": 1
+  },
+  {
+    "id": "grand_archive",
+    "name": "Grand Archive",
+    "type": "action",
+    "art_id": "quiet_archive",
+    "cost": 5,
+    "description": "Draws until you hold 7 cards.",
+    "special_effects": [
+      {
+        "kind": "draw_to_size",
+        "amount": 7,
+        "label": "Draw to 7"
+      }
+    ]
+  },
+  {
+    "id": "crossroads_market",
+    "name": "Crossroads Market",
+    "type": "action",
+    "art_id": "orchard_map",
+    "cost": 5,
+    "description": "Draws 1 card and grants 1 action, 1 buy, and 1 coin.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "gain_buys": 1,
+    "gain_coins": 1
+  },
+  {
+    "id": "silver_merchant",
+    "name": "Silver Merchant",
+    "type": "action",
+    "art_id": "silver_leaf",
+    "cost": 3,
+    "description": "Draws 1 card and grants 1 action. The first Silver Leaf played this turn produces 1 extra coin.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "resource_bonus",
+        "card_id": "silver_leaf",
+        "amount": 1,
+        "label": "First Silver +1 Coin"
+      }
+    ]
+  },
+  {
+    "id": "town_militia",
+    "name": "Town Militia",
+    "type": "action",
+    "art_id": "village_bell",
+    "cost": 4,
+    "description": "Produces 2 coins.",
+    "gain_coins": 2
+  },
+  {
+    "id": "moonlit_mine",
+    "name": "Moonlit Mine",
+    "type": "action",
+    "art_id": "moonwell_token",
+    "cost": 5,
+    "description": "Trashes your weakest resource in hand and replaces it in hand with the strongest resource costing up to 3 more.",
+    "special_effects": [
+      {
+        "kind": "upgrade_resource",
+        "cost_delta": 3,
+        "label": "Upgrade Resource +3"
+      }
+    ]
+  },
+  {
+    "id": "mist_cloak",
+    "name": "Mist Cloak",
+    "type": "action",
+    "art_id": "moss_thread",
+    "cost": 2,
+    "description": "Draws 2 cards.",
+    "draw_cards": 2
+  },
+  {
+    "id": "coin_broker",
+    "name": "Coin Broker",
+    "type": "action",
+    "art_id": "acorn_purse",
+    "cost": 4,
+    "description": "Trashes a Pebble Coin from your hand to produce 3 coins.",
+    "special_effects": [
+      {
+        "kind": "trash_named_for_coins",
+        "card_id": "pebble_coin",
+        "amount": 3,
+        "label": "Trash Pebble for +3"
+      }
+    ]
+  },
+  {
+    "id": "supply_scout",
+    "name": "Supply Scout",
+    "type": "action",
+    "art_id": "trail_biscuit",
+    "cost": 4,
+    "description": "Draws 1 card and grants 1 action and 1 coin.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "gain_coins": 1
+  },
+  {
+    "id": "manor_rebuilder",
+    "name": "Manor Rebuilder",
+    "type": "action",
+    "art_id": "orchard_estate",
+    "cost": 4,
+    "description": "Trashes your weakest hand card and gains the strongest card costing up to 2 more.",
+    "special_effects": [
+      {
+        "kind": "remodel",
+        "cost_delta": 2,
+        "label": "Remodel +2 Cost"
+      }
+    ]
+  },
+  {
+    "id": "clockwork_sentry",
+    "name": "Clockwork Sentry",
+    "type": "action",
+    "art_id": "tinker_wren",
+    "cost": 5,
+    "description": "Draws 1 card, grants 1 action, then inspects 2 cards and discards revealed victory cards.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "inspect_top",
+        "amount": 2,
+        "label": "Inspect 2"
+      }
+    ]
+  },
+  {
+    "id": "forge_hall",
+    "name": "Forge Hall",
+    "type": "action",
+    "art_id": "amber_circlet",
+    "cost": 4,
+    "description": "Draws 3 cards.",
+    "draw_cards": 3
+  },
+  {
+    "id": "astral_spyglass",
+    "name": "Astral Spyglass",
+    "type": "action",
+    "art_id": "astral_vault",
+    "cost": 4,
+    "description": "Draws 1 card, grants 1 action, then discards the next card if it is a victory card.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "inspect_top_one",
+        "label": "Inspect Top Card"
+      }
+    ]
+  },
+  {
+    "id": "relic_seeker",
+    "name": "Relic Seeker",
+    "type": "action",
+    "art_id": "gilded_reliquary",
+    "cost": 4,
+    "description": "Reveals 2 cards, trashes the strongest revealed resource for its coin value, and discards the rest.",
+    "special_effects": [
+      {
+        "kind": "salvage_resource",
+        "amount": 2,
+        "label": "Salvage 2 Cards"
+      }
+    ]
+  },
+  {
+    "id": "echoing_hall",
+    "name": "Echoing Hall",
+    "type": "action",
+    "art_id": "hearthsong",
+    "cost": 4,
+    "description": "Automatically plays the strongest action remaining in your hand twice without spending another action.",
+    "special_effects": [
+      {
+        "kind": "replay_action",
+        "label": "Play an Action Twice"
+      }
+    ]
+  },
+  {
+    "id": "banner_vassal",
+    "name": "Banner Vassal",
+    "type": "action",
+    "art_id": "river_courier",
+    "cost": 3,
+    "description": "Produces 2 coins, reveals the top card, and plays it for free if it is an action; otherwise it is discarded.",
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "vassal",
+        "label": "Reveal and Play Action"
+      }
+    ]
+  },
+  {
+    "id": "village_bell",
+    "name": "Village Bell",
+    "type": "action",
+    "art_id": "village_bell",
+    "cost": 3,
+    "description": "Draws 1 card and grants 2 actions.",
+    "draw_cards": 1,
+    "gain_actions": 2
+  },
+  {
+    "id": "briar_witch",
+    "name": "Briar Witch",
+    "type": "action",
+    "art_id": "briar_gate",
+    "cost": 5,
+    "description": "Draws 2 cards.",
+    "draw_cards": 2
+  },
+  {
+    "id": "timber_camp",
+    "name": "Timber Camp",
+    "type": "action",
+    "art_id": "moss_thread",
+    "cost": 3,
+    "description": "Grants 1 buy and produces 2 coins.",
+    "gain_buys": 1,
+    "gain_coins": 2
+  },
+  {
+    "id": "guild_workshop",
+    "name": "Guild Workshop",
+    "type": "action",
+    "art_id": "weavers_loom",
+    "cost": 3,
+    "description": "Gains the strongest card costing up to 4 into your discard pile.",
+    "special_effects": [
+      {
+        "kind": "gain_best",
+        "max_cost": 4,
+        "destination": "discard",
+        "label": "Gain Cost 4"
+      }
+    ]
   }
 ]

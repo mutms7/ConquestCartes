@@ -8,11 +8,12 @@ contents of your deck into victory points.
 
 ## Current Game
 
-- 29 data-driven cards with original painterly artwork
-- A 12-card market: 2 resources, 6 actions, and 4 victory cards
+- 38 data-driven cards with original names and painterly artwork
+- A 12-card market: 2 resources, 7 actions, and 3 victory cards
 - Seven Pebble Coins and three Homesteads in the starting deck
 - Five-card hands, reshuffling discard piles, actions, coins, and buys
-- Hybrid resource/action cards that also score victory points
+- Deck searching, trashing, gaining, upgrading, replaying, and variable scoring
+- Automatic solo resolution for effects that would otherwise require card choices
 - Final scoring after turn 15
 - Handcrafted medieval tabletop UI using dark walnut cards, brass, leather, and
   restrained heraldic ornament
@@ -53,7 +54,8 @@ godot --headless --path . --script res://tests/smoke_test.gd
 godot --headless --path . --script res://tests/ui_smoke_test.gd
 ```
 
-The rules smoke test covers the main game loop and card effects. The UI smoke test
+The rules smoke test covers the main game loop, all card data, representative
+special effects, and market composition. The UI smoke test
 checks rendering, artwork, medieval UI assets, interactions, animations, audio,
 preview placement, and the final-score overlay.
 
@@ -100,7 +102,10 @@ See `assets/licenses/ASSET_SOURCES.md` for provenance details.
 - Single-player only; there is no opponent, multiplayer, or campaign.
 - Market piles have unlimited copies.
 - No save system, settings menu, music, or accessibility menu.
-- Card effects currently use the numerical starter schema rather than unique
-  scripted mechanics.
+- Effects that would normally ask the player to choose cards use documented
+  automatic solo heuristics.
+- Rival-only attack and reaction clauses are omitted in the solo ruleset.
+- Several replacement cards intentionally share illustrations through `art_id`
+  until dedicated artwork is produced.
 - The game is balanced as a compact prototype rather than a finished commercial
   release.

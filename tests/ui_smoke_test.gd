@@ -31,13 +31,18 @@ func _initialize() -> void:
 		"The obsolete persistent status panel should not exist."
 	)
 	_check(
-		main_ui._get_card_effect_text(main_ui.game_state.card_catalog["trail_biscuit"])
-		== "+1 Card  +1 Action  +2 Coins",
+		main_ui._get_card_effect_text(main_ui.game_state.card_catalog["crossroads_market"])
+		== "+1 Card  +1 Action  +1 Coin  +1 Buy",
 		"Combined card effects should use concise singular and plural labels."
 	)
 	_check(
 		main_ui._get_card_effect_text(main_ui.game_state.card_catalog["briar_gate"]) == "3 VP",
 		"Victory-only cards should show their point value concisely."
+	)
+	_check(
+		main_ui._get_card_effect_text(main_ui.game_state.card_catalog["wishing_garden"])
+		== "1 VP / 10 Cards",
+		"Variable victory cards should explain their scoring rule concisely."
 	)
 	_check(
 		_hand_panel().get_global_rect().end.y <= root.get_visible_rect().end.y,

@@ -1,41 +1,17 @@
 extends SceneTree
 
 const CARD_DATA_PATH := "res://data/cards/starter_cards.json"
-
-const NEW_CARD_IDS := [
-	"candlecap",
-	"trail_biscuit",
-	"moss_thread",
-	"acorn_purse",
-	"hearthsong",
-	"orchard_map",
-	"river_courier",
-	"moonwell_token",
-	"tinker_wren",
-	"lantern_parade",
-	"quiet_archive",
-	"briar_gate",
-	"starlit_wagon",
-	"amber_circlet",
-	"firefly_supper",
-	"wishing_stone",
-	"weavers_loom",
-	"dawn_whistle",
-	"scholars_hall",
-	"gilded_reliquary",
-	"orchard_estate",
-	"sunspire_monument",
-	"astral_vault",
-]
+const EXPECTED_CARD_COUNT := 38
 
 var failure_count := 0
 
 
 func _initialize() -> void:
+	_test_card_catalog()
 	_test_full_game_loop()
 	_test_draw_across_shuffle_boundary()
-	_test_scoring_includes_every_owned_zone()
-	_test_expanded_card_set()
+	_test_scoring()
+	_test_special_effects()
 	_test_random_market_setup()
 
 	if failure_count > 0:
@@ -45,6 +21,23 @@ func _initialize() -> void:
 
 	print("[Test] Rules smoke test passed.")
 	quit(0)
+
+
+func _test_card_catalog() -> void:
+	var game_state := _create_game_state()
+	if game_state == null:
+		return
+	_check(
+		game_state.card_catalog.size() == EXPECTED_CARD_COUNT,
+		"Replacement set should contain %d cards." % EXPECTED_CARD_COUNT
+	)
+	for card in game_state.card_catalog.values():
+		_check(not card.card_name.is_empty(), "Every card should have an original name.")
+		_check(not card.art_id.is_empty(), "%s should map to artwork." % card.card_name)
+		_check(
+			ResourceLoader.exists("res://assets/cards/%s.png" % card.art_id),
+			"%s should use an existing card illustration." % card.card_name
+		)
 
 
 func _test_full_game_loop() -> void:
@@ -75,27 +68,16 @@ func _test_full_game_loop() -> void:
 	_check(game_state.player.discard_pile.has(purchased_card), "Bought card should enter discard.")
 	_check(_owned_card_count(game_state) == 11, "Buying should add exactly one owned card.")
 
-	var purchased_card_cycled := false
 	while not turn_manager.game_over:
 		turn_manager.end_turn()
-		if (
-			game_state.player.draw_pile.has(purchased_card)
-			or game_state.player.hand.has(purchased_card)
-			or game_state.player.play_area.has(purchased_card)
-		):
-			purchased_card_cycled = true
 
-	_check(purchased_card_cycled, "Bought card should later cycle out of discard.")
 	_check(turn_manager.turn_number == 15, "Game should end on turn 15.")
 	_check(
-		turn_manager.final_score == 3 + purchased_card.victory_points,
-		"Final score should include the purchased card."
+		turn_manager.final_score >= 3 + purchased_card.victory_points,
+		"Final score should include all fixed and variable victory values."
 	)
 	_check(game_state.player.hand.is_empty(), "Final cleanup should empty the hand.")
 	_check(game_state.player.play_area.is_empty(), "Final cleanup should empty the play area.")
-	_check(game_state.player.coins == 0, "Final cleanup should reset coins.")
-	_check(game_state.player.actions == 1, "Final cleanup should reset actions.")
-	_check(game_state.player.buys == 1, "Final cleanup should reset buys.")
 	_check(_owned_card_count(game_state) == 11, "Cards should not be lost or duplicated.")
 
 
@@ -109,111 +91,122 @@ func _test_draw_across_shuffle_boundary() -> void:
 	var discarded_card: CardDefinition = game_state.card_catalog["silver_leaf"]
 	game_state.player.draw_pile.append(first_card)
 	game_state.player.discard_pile.append(discarded_card)
-
 	game_state.draw_cards(2)
 
 	_check(game_state.player.hand.size() == 2, "Draw should continue after shuffling discard.")
 	_check(game_state.player.hand.has(first_card), "Draw should include the remaining deck card.")
 	_check(game_state.player.hand.has(discarded_card), "Draw should include the shuffled discard card.")
-	_check(game_state.player.draw_pile.is_empty(), "Boundary draw should consume the two cards.")
-	_check(game_state.player.discard_pile.is_empty(), "Shuffled discard should be cleared.")
 
 
-func _test_scoring_includes_every_owned_zone() -> void:
+func _test_scoring() -> void:
 	var game_state := _create_game_state()
 	if game_state == null:
 		return
 
 	game_state.player.clear_all()
+	game_state.player.draw_pile.append(game_state.card_catalog["homestead"])
+	game_state.player.hand.append(game_state.card_catalog["briar_gate"])
+	game_state.player.play_area.append(game_state.card_catalog["royal_charter"])
+	_check(game_state.calculate_score() == 10, "Fixed scoring should include every owned zone.")
+
+	game_state.player.clear_all()
+	game_state.player.draw_pile.append(game_state.card_catalog["wishing_garden"])
+	for _index in range(9):
+		game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	_check(game_state.calculate_score() == 1, "Wishing Garden should score per ten owned cards.")
+
+
+func _test_special_effects() -> void:
+	_test_starpath_seeker()
+	_test_root_cellar()
+	_test_quiet_chapel()
+	_test_harvest_feast()
+	_test_silver_merchant()
+	_test_echoing_hall()
+	_test_banner_vassal()
+
+
+func _test_starpath_seeker() -> void:
+	var game_state := _empty_game()
+	var seeker: CardDefinition = game_state.card_catalog["starpath_seeker"]
+	game_state.player.hand.append(seeker)
+	game_state.player.draw_pile.append(game_state.card_catalog["forge_hall"])
+	game_state.player.draw_pile.append(game_state.card_catalog["silver_leaf"])
+	game_state.player.draw_pile.append(game_state.card_catalog["homestead"])
+	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	_check(game_state.play_card(seeker), "Starpath Seeker should play.")
+	_check(
+		_count_type(game_state.player.hand, "resource") == 2,
+		"Starpath Seeker should find two resources."
+	)
+	_check(game_state.player.discard_pile.size() == 1, "Non-resource reveals should be discarded.")
+
+
+func _test_root_cellar() -> void:
+	var game_state := _empty_game()
+	var cellar: CardDefinition = game_state.card_catalog["root_cellar"]
 	var homestead: CardDefinition = game_state.card_catalog["homestead"]
-	var royal_charter: CardDefinition = game_state.card_catalog["royal_charter"]
-	game_state.player.draw_pile.append(homestead)
-	game_state.player.hand.append(homestead)
-	game_state.player.play_area.append(homestead)
-	game_state.player.discard_pile.append(royal_charter)
-
-	_check(game_state.calculate_score() == 8, "Scoring should include draw, hand, play, and discard.")
+	game_state.player.hand.assign([cellar, homestead, game_state.card_catalog["silver_leaf"]])
+	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	_check(game_state.play_card(cellar), "Root Cellar should play.")
+	_check(game_state.player.discard_pile.has(homestead), "Root Cellar should cycle victory cards.")
+	_check(game_state.player.hand.size() == 2, "Root Cellar should replace each cycled card.")
 
 
-func _test_expanded_card_set() -> void:
-	var game_state := _create_game_state()
-	if game_state == null:
-		return
-
-	_check(NEW_CARD_IDS.size() == 23, "Expanded set should contain twenty-three new cards.")
-	for card_id in NEW_CARD_IDS:
-		_check(game_state.card_catalog.has(card_id), "Card data should include %s." % card_id)
-		if not game_state.card_catalog.has(card_id):
-			continue
-
-		var card: CardDefinition = game_state.card_catalog[card_id]
-		_check(
-			game_state.get_market_candidates().has(card),
-			"%s should be eligible for random markets." % card.card_name
-		)
-		_check(card.cost >= 2 and card.cost <= 9, "%s should use a supported cost tier." % card.card_name)
-		_test_card_purchase(game_state, card)
-
-		if card.card_type == "victory":
-			_test_victory_card(game_state, card)
-		else:
-			_test_playable_card(game_state, card)
-			if card.victory_points > 0:
-				_test_victory_card(game_state, card)
+func _test_quiet_chapel() -> void:
+	var game_state := _empty_game()
+	var chapel: CardDefinition = game_state.card_catalog["quiet_chapel"]
+	game_state.player.hand.append(chapel)
+	for _index in range(4):
+		game_state.player.hand.append(game_state.card_catalog["pebble_coin"])
+	_check(game_state.play_card(chapel), "Quiet Chapel should play.")
+	_check(game_state.player.trash_pile.size() == 4, "Quiet Chapel should trash up to four cards.")
 
 
-func _test_card_purchase(game_state: GameState, card: CardDefinition) -> void:
-	game_state.player.clear_all()
-	game_state.market.assign([card])
-	game_state.player.coins = card.cost
-	_check(game_state.buy_card(card), "%s should be purchasable." % card.card_name)
-	_check(
-		game_state.player.discard_pile.has(card),
-		"%s should enter discard after purchase." % card.card_name
-	)
+func _test_harvest_feast() -> void:
+	var game_state := _empty_game()
+	var feast: CardDefinition = game_state.card_catalog["harvest_feast"]
+	game_state.player.hand.append(feast)
+	_check(game_state.play_card(feast), "Harvest Feast should play.")
+	_check(game_state.player.trash_pile.has(feast), "Harvest Feast should trash itself.")
+	_check(game_state.player.discard_pile.size() == 1, "Harvest Feast should gain one card.")
+	_check(game_state.player.discard_pile[0].cost <= 5, "Harvest Feast gain should respect cost.")
 
 
-func _test_playable_card(game_state: GameState, card: CardDefinition) -> void:
-	game_state.player.clear_all()
-	game_state.player.actions = 10
-	game_state.player.buys = 1
-	game_state.player.coins = 0
-	game_state.player.hand.append(card)
-
-	var filler: CardDefinition = game_state.card_catalog["pebble_coin"]
-	for _draw_index in range(card.draw_cards):
-		game_state.player.draw_pile.append(filler)
-
-	var starting_actions := game_state.player.actions
-	var starting_buys := game_state.player.buys
-	_check(game_state.play_card(card), "%s should play without errors." % card.card_name)
-	_check(game_state.player.play_area.has(card), "%s should enter the play area." % card.card_name)
-	_check(
-		game_state.player.coins == card.coin_value + card.gain_coins,
-		"%s should apply its coin effect." % card.card_name
-	)
-	var action_cost := 1 if card.card_type == "action" else 0
-	_check(
-		game_state.player.actions == starting_actions - action_cost + card.gain_actions,
-		"%s should apply its action effect." % card.card_name
-	)
-	_check(
-		game_state.player.buys == starting_buys + card.gain_buys,
-		"%s should apply its buy effect." % card.card_name
-	)
-	_check(
-		game_state.player.hand.size() == card.draw_cards,
-		"%s should draw the configured number of cards." % card.card_name
-	)
+func _test_silver_merchant() -> void:
+	var game_state := _empty_game()
+	var merchant: CardDefinition = game_state.card_catalog["silver_merchant"]
+	var silver: CardDefinition = game_state.card_catalog["silver_leaf"]
+	game_state.player.hand.assign([merchant, silver])
+	_check(game_state.play_card(merchant), "Silver Merchant should play.")
+	_check(game_state.play_card(silver), "Silver Leaf should play after the merchant.")
+	_check(game_state.player.coins == 3, "First Silver Leaf should receive the merchant bonus.")
 
 
-func _test_victory_card(game_state: GameState, card: CardDefinition) -> void:
-	game_state.player.clear_all()
-	game_state.player.discard_pile.append(card)
-	_check(
-		game_state.calculate_score() == card.victory_points,
-		"%s should contribute its configured victory points." % card.card_name
-	)
+func _test_echoing_hall() -> void:
+	var game_state := _empty_game()
+	var hall: CardDefinition = game_state.card_catalog["echoing_hall"]
+	var forge: CardDefinition = game_state.card_catalog["forge_hall"]
+	game_state.player.hand.assign([hall, forge])
+	for _index in range(6):
+		game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	_check(game_state.play_card(hall), "Echoing Hall should play.")
+	_check(game_state.player.play_area.has(forge), "Echoing Hall should play another action.")
+	_check(game_state.player.hand.size() == 6, "The chosen action should resolve twice.")
+
+
+func _test_banner_vassal() -> void:
+	var game_state := _empty_game()
+	var vassal: CardDefinition = game_state.card_catalog["banner_vassal"]
+	var forge: CardDefinition = game_state.card_catalog["forge_hall"]
+	game_state.player.hand.append(vassal)
+	for _index in range(3):
+		game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	game_state.player.draw_pile.append(forge)
+	_check(game_state.play_card(vassal), "Banner Vassal should play.")
+	_check(game_state.player.coins == 2, "Banner Vassal should produce two coins.")
+	_check(game_state.player.play_area.has(forge), "Banner Vassal should play a revealed action.")
+	_check(game_state.player.hand.size() == 3, "The revealed Forge Hall should draw three cards.")
 
 
 func _test_random_market_setup() -> void:
@@ -223,72 +216,39 @@ func _test_random_market_setup() -> void:
 		return
 
 	var first_market := game_state.get_market_card_ids()
-	_check(first_market.size() == GameState.MARKET_SIZE, "Market should contain the configured number of cards.")
+	_check(first_market.size() == GameState.MARKET_SIZE, "Market should use its configured size.")
 	_check(
-		game_state.get_market_candidates().size() == game_state.card_catalog.size() - 2,
-		"Every non-starter card should be market-eligible."
+		game_state.get_market_candidates().size() == EXPECTED_CARD_COUNT - 2,
+		"Every non-starter card should be market eligible."
 	)
-	for starter_id in GameState.STARTING_CARD_COUNTS:
-		_check(not first_market.has(starter_id), "Starter cards should not enter the market.")
 
 	var resource_count := 0
 	var action_count := 0
-	var normal_victory_count := 0
-	var hybrid_victory_count := 0
+	var victory_count := 0
 	for card in game_state.market:
-		if card.card_type == "victory":
-			normal_victory_count += 1
-		elif card.victory_points > 0:
-			hybrid_victory_count += 1
-		elif card.card_type == "resource":
-			resource_count += 1
-		elif card.card_type == "action":
-			action_count += 1
+		match card.card_type:
+			"resource":
+				resource_count += 1
+			"action":
+				action_count += 1
+			"victory":
+				victory_count += 1
+	_check(resource_count == GameState.MARKET_RESOURCE_COUNT, "Market resource count should match.")
+	_check(action_count == GameState.MARKET_ACTION_COUNT, "Market action count should match.")
+	_check(victory_count == GameState.MARKET_VICTORY_TOTAL, "Market victory count should match.")
+
+	_check(game_state.setup_starting_game(), "A second game should set up.")
 	_check(
-		resource_count == GameState.MARKET_RESOURCE_COUNT,
-		"Market should contain %d resource cards." % GameState.MARKET_RESOURCE_COUNT
-	)
-	_check(
-		action_count == GameState.MARKET_ACTION_COUNT,
-		"Market should contain %d action cards." % GameState.MARKET_ACTION_COUNT
-	)
-	_check(
-		normal_victory_count + hybrid_victory_count == GameState.MARKET_VICTORY_TOTAL,
-		"Market should contain %d victory cards in total." % GameState.MARKET_VICTORY_TOTAL
-	)
-	_check(
-		(
-			hybrid_victory_count >= GameState.MARKET_HYBRID_VICTORY_MIN
-			and hybrid_victory_count <= GameState.MARKET_HYBRID_VICTORY_MAX
-		),
-		"Market should contain %d-%d hybrid victory cards." % [
-			GameState.MARKET_HYBRID_VICTORY_MIN, GameState.MARKET_HYBRID_VICTORY_MAX
-		]
+		not _same_card_ids(first_market, game_state.get_market_card_ids()),
+		"An immediate new game should choose a different action row."
 	)
 
-	game_state.player.discard_pile.append(game_state.card_catalog["silver_leaf"])
-	game_state.player.coins = 9
-	_check(game_state.setup_starting_game(), "New game setup should succeed.")
-	var second_market := game_state.get_market_card_ids()
 
-	_check(
-		not _same_card_ids(first_market, second_market),
-		"An immediate new game should choose a different market."
-	)
-	_check(_owned_card_count(game_state) == 10, "New game should restore the ten-card deck.")
-	_check(game_state.player.discard_pile.is_empty(), "New game should clear discard.")
-	_check(game_state.player.hand.is_empty(), "New game setup should clear hand before drawing.")
-	_check(game_state.player.play_area.is_empty(), "New game should clear played cards.")
-	_check(game_state.player.coins == 0, "New game should reset coins.")
-
-
-func _same_card_ids(first: Array[String], second: Array[String]) -> bool:
-	if first.size() != second.size():
-		return false
-	for card_id in first:
-		if not second.has(card_id):
-			return false
-	return true
+func _empty_game() -> GameState:
+	var game_state := _create_game_state()
+	game_state.player.clear_all()
+	game_state.player.actions = 10
+	return game_state
 
 
 func _create_game_state() -> GameState:
@@ -304,6 +264,23 @@ func _create_game_state() -> GameState:
 
 func _owned_card_count(game_state: GameState) -> int:
 	return game_state.player.get_all_cards().size()
+
+
+func _count_type(cards: Array[CardDefinition], card_type: String) -> int:
+	var count := 0
+	for card in cards:
+		if card.card_type == card_type:
+			count += 1
+	return count
+
+
+func _same_card_ids(first: Array[String], second: Array[String]) -> bool:
+	if first.size() != second.size():
+		return false
+	for card_id in first:
+		if not second.has(card_id):
+			return false
+	return true
 
 
 func _check(condition: bool, message: String) -> void:

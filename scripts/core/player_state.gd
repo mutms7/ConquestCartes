@@ -5,6 +5,7 @@ var draw_pile: Array[CardDefinition] = []
 var hand: Array[CardDefinition] = []
 var play_area: Array[CardDefinition] = []
 var discard_pile: Array[CardDefinition] = []
+var trash_pile: Array[CardDefinition] = []
 
 var coins: int = 0
 var actions: int = 1
@@ -16,6 +17,7 @@ func clear_all() -> void:
 	hand.clear()
 	play_area.clear()
 	discard_pile.clear()
+	trash_pile.clear()
 	reset_turn_resources()
 
 
