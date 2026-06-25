@@ -19,15 +19,15 @@ func _initialize() -> void:
 	)
 	_check(
 		_treasury_cards().get_child_count() == GameState.MARKET_RESOURCE_COUNT,
-		"Royal Treasury should render two resource piles."
+		"The left market column should render two resource piles."
 	)
 	_check(
 		_barracks_cards().get_child_count() == GameState.MARKET_ACTION_COUNT,
-		"Guild Barracks should render ten action piles."
+		"The center market grid should render ten action piles."
 	)
 	_check(
 		_estates_cards().get_child_count() == GameState.MARKET_VICTORY_TOTAL,
-		"Crown Estates should render two victory piles."
+		"The right market column should render two victory piles."
 	)
 	_check(
 		_container_has_type(_treasury_cards(), "resource")
@@ -56,10 +56,9 @@ func _initialize() -> void:
 		"The complete market should fit without scrolling."
 	)
 	_check(
-		_zone_title("TreasuryCarpet") == "ROYAL TREASURY"
-		and _zone_title("BarracksCarpet") == "GUILD BARRACKS"
-		and _zone_title("EstatesCarpet") == "CROWN ESTATES",
-		"Each functional market carpet should display its themed name."
+		_market_container().find_child("Title", true, false) == null
+		and _market_container().find_child("Subtitle", true, false) == null,
+		"The art-first market should not reserve space for section titles."
 	)
 	_check(_play_area_container().get_child_count() == 1, "Empty play area should show its hint.")
 	_check(main_ui.title_font != null, "Imported title font should load.")
@@ -73,25 +72,6 @@ func _initialize() -> void:
 	_check(
 		not main_ui.has_node("Margin/Layout/StatusPanel"),
 		"The obsolete persistent status panel should not exist."
-	)
-	_check(
-		main_ui._get_card_effect_text(main_ui.game_state.card_catalog["crossroads_market"])
-		== "+1 Card  +1 Action  +1 Coin  +1 Buy",
-		"Combined card effects should use concise singular and plural labels."
-	)
-	_check(
-		main_ui._get_card_effect_text(main_ui.game_state.card_catalog["briar_gate"]) == "3 VP",
-		"Victory-only cards should show their point value concisely."
-	)
-	_check(
-		main_ui._get_card_effect_text(main_ui.game_state.card_catalog["wishing_garden"])
-		== "1 VP / 10 Cards",
-		"Variable victory cards should explain their scoring rule concisely."
-	)
-	_check(
-		main_ui._get_card_effect_text(main_ui.game_state.card_catalog["river_trail"])
-		== "+1 Card  +1 Action  Event: Play This",
-		"Repeated trigger labels should appear only once on compact card faces."
 	)
 	_check(
 		main_ui.COLOR_RESOURCE_CARD != main_ui.COLOR_ACTION_CARD
@@ -117,7 +97,7 @@ func _initialize() -> void:
 	)
 	_check(
 		_market_panel().get_global_rect().end.y <= root.get_visible_rect().end.y,
-		"The complete three-carpet market should remain inside the viewport."
+		"The complete art-first market should remain inside the viewport."
 	)
 	_check(
 		_children_fit_parent(_treasury_cards())
@@ -127,16 +107,23 @@ func _initialize() -> void:
 	)
 	_check(
 		main_ui.left_ledger.get_global_rect().end.x
-		< main_ui.brand_panel.get_global_rect().end.x
+		<= _hand_panel().get_global_rect().position.x
 		and main_ui.right_ledger.get_global_rect().position.x
-		> main_ui.brand_panel.get_global_rect().position.x,
-		"Persistent game details should occupy the upper side ledgers."
+		>= _hand_panel().get_global_rect().end.x,
+		"Persistent game details should occupy the lower sides of the hand."
 	)
 	_check(
 		main_ui.left_ledger.get_global_rect().position.x >= 0.0
 		and main_ui.right_ledger.get_global_rect().end.x <= root.get_visible_rect().end.x
 		and main_ui.right_ledger.get_global_rect().end.y <= root.get_visible_rect().end.y,
-		"Both upper ledgers should remain inside the 1280x720 viewport."
+		"Both lower docks should remain inside the 1280x720 viewport."
+	)
+	_check(
+		main_ui.left_ledger.get_global_rect().position.y
+		>= _play_area_container().get_global_rect().end.y
+		and main_ui.right_ledger.get_global_rect().position.y
+		>= _play_area_container().get_global_rect().end.y,
+		"The side docks should sit below the market and played-card strip."
 	)
 
 	var resource_button := _find_card_button(_hand_container(), "pebble_coin")
@@ -163,11 +150,12 @@ func _initialize() -> void:
 		)
 		_check(_card_art(resource_button).texture != null, "Card faces should display card artwork.")
 		_check(
-			_card_effect(resource_button).get_parsed_text() == "+1 Coin",
-			"Card faces should show concise data-derived effect text."
+			_card_effect(resource_button).get_parsed_text()
+			== main_ui.game_state.card_catalog["pebble_coin"].description,
+			"Card faces should show the complete data-driven rules description."
 		)
 		_check(
-			_card_art(resource_button).get_parent().size.y >= 108.0,
+			_card_art(resource_button).get_parent().size.y >= 112.0,
 			"Card artwork should use the enlarged art window."
 		)
 		resource_button.mouse_entered.emit()
@@ -183,12 +171,9 @@ func _initialize() -> void:
 			"Hand preview should display the hovered card artwork."
 		)
 		_check(
-			_preview_effect().get_parsed_text() == "+1 Coin",
-			"Hand preview should reuse the concise effect summary."
-		)
-		_check(
-			_preview_description().get_parsed_text() == "Gain 1 coin.",
-			"Card previews should show the full detailed rules wording."
+			_preview_effect().get_parsed_text()
+			== main_ui.game_state.card_catalog["pebble_coin"].description,
+			"Hand previews should show the same complete rules description once."
 		)
 		_check(
 			_card_preview().get_meta("card_base_color") == main_ui.COLOR_RESOURCE_CARD,
@@ -253,8 +238,16 @@ func _initialize() -> void:
 			"Market cards should show their remaining pile count."
 		)
 		_check(
-			market_button.size.y <= 140.0,
-			"Market cards should use the compact two-row presentation."
+			market_button.size.y >= 190.0,
+			"Market cards should use the enlarged art-first presentation."
+		)
+		_check(
+			_card_art(market_button).get_parent().size.y >= 84.0,
+			"Market artwork should be materially larger than the old compact window."
+		)
+		_check(
+			_card_effect(market_button).get_parsed_text() == market_card.description,
+			"Market card faces should show their complete rules description."
 		)
 		market_button.mouse_entered.emit()
 		await process_frame
@@ -266,6 +259,10 @@ func _initialize() -> void:
 		_check(
 			_preview_art().texture == _card_art(market_button).texture,
 			"Market preview should display the hovered card artwork."
+		)
+		_check(
+			_preview_effect().get_parsed_text() == market_card.description,
+			"Market previews should show the exact data-driven rules description."
 		)
 		_check(
 			_card_preview().get_meta("card_base_color")
@@ -413,11 +410,11 @@ func _initialize() -> void:
 
 
 func _hand_container() -> HBoxContainer:
-	return main_ui.get_node("Margin/Layout/HandPanel/HandMargin/HandScroll/HandContainer")
+	return main_ui.hand_container
 
 
 func _hand_panel() -> PanelContainer:
-	return main_ui.get_node("Margin/Layout/HandPanel")
+	return main_ui.hand_panel
 
 
 func _market_container() -> HBoxContainer:
@@ -452,12 +449,6 @@ func _all_market_buttons() -> Array[Button]:
 		for child in container.get_children():
 			buttons.append(child as Button)
 	return buttons
-
-
-func _zone_title(carpet_name: String) -> String:
-	var carpet := _market_container().get_node(carpet_name)
-	var title := carpet.find_child("Title", true, false) as Label
-	return title.text
 
 
 func _container_has_type(container: GridContainer, card_type: String) -> bool:
@@ -554,10 +545,6 @@ func _preview_art() -> TextureRect:
 
 func _preview_effect() -> RichTextLabel:
 	return main_ui.get_node("CardPreview/Margin/Layout/EffectLabel")
-
-
-func _preview_description() -> RichTextLabel:
-	return main_ui.get_node("CardPreview/Margin/Layout/DescriptionLabel")
 
 
 func _choice_overlay() -> Control:

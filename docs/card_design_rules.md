@@ -26,8 +26,9 @@ process.
 
 ## Special effects
 
-Every special effect has a `kind`, optional parameters, and a short `label` used
-by card faces and previews. Add generalized effect kinds to the rules engine; do
+Every special effect has a `kind`, optional parameters, and a short `label` for
+compact interaction contexts. Card faces and previews display the complete
+data-driven `description`. Add generalized effect kinds to the rules engine; do
 not branch on individual card IDs in UI code.
 
 Effects default to `trigger: "play"`. Reactive effects may instead use
@@ -82,8 +83,8 @@ Supported kinds:
 - `shuffle_actions_from_discard`
 - `upgrade_exact_nonself`
 
-Effects resolve in array order. Descriptions and compact labels must present that
-same order.
+Effects resolve in array order. Descriptions and compact labels must present
+that same order.
 
 ## Interactive choices
 
@@ -139,9 +140,9 @@ uses the card body, art-frame accent, and footer label and must be derived from
 - 10 action cards
 - 2 victory cards
 
-The UI routes these definitions by `card_type` into the Royal Treasury, Guild
-Barracks, and Crown Estates carpets. Market presentation must not branch on
-individual card IDs.
+The UI routes these definitions by `card_type` into the left resource column,
+center action grid, and right victory column of the unified market field.
+Market presentation must not branch on individual card IDs.
 
 Pebble Coin and Homestead are starter cards and do not enter the market. Every
 other definition with `market_enabled: true` is eligible. A

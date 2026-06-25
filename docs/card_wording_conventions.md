@@ -73,7 +73,8 @@ actually resolves it automatically.
 
 ## Special-effect labels
 
-Card faces use compact labels derived from each `special_effects` entry. Labels:
+Compact interaction contexts may use labels derived from each `special_effects`
+entry. Card faces and previews use the complete `description`. Labels:
 
 - use title case;
 - omit periods;

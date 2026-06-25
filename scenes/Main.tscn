@@ -127,17 +127,17 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 10
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
 
 [node name="Layout" type="VBoxContainer" parent="Margin"]
 layout_mode = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 3
 
 [node name="HudPanel" type="PanelContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 58)
+custom_minimum_size = Vector2(0, 246)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleHud")
 
@@ -150,7 +150,7 @@ theme_override_constants/margin_bottom = 0
 
 [node name="Hud" type="HBoxContainer" parent="Margin/Layout/HudPanel/HudMargin"]
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 8
 
 [node name="Brand" type="VBoxContainer" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
 custom_minimum_size = Vector2(205, 0)
@@ -376,7 +376,7 @@ theme_override_styles/pressed = SubResource("StyleButtonPressed")
 text = "END TURN"
 
 [node name="MarketPanel" type="PanelContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 326)
+custom_minimum_size = Vector2(0, 410)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleSection")
 
@@ -399,26 +399,26 @@ theme_override_constants/separation = 10
 alignment = 1
 
 [node name="PlayAreaPanel" type="PanelContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 42)
+custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleSection")
 
 [node name="PlayAreaMargin" type="MarginContainer" parent="Margin/Layout/PlayAreaPanel"]
 layout_mode = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 5
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 5
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 3
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 3
 
 [node name="Row" type="HBoxContainer" parent="Margin/Layout/PlayAreaPanel/PlayAreaMargin"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
 [node name="PlayAreaLabel" type="Label" parent="Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row"]
-custom_minimum_size = Vector2(170, 0)
+custom_minimum_size = Vector2(148, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.956863, 0.870588, 0.635294, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 13
 text = "PLAYED THIS TURN  0"
 vertical_alignment = 1
 
@@ -437,19 +437,19 @@ size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
 [node name="HandHeader" type="HBoxContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 20)
+custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
 
 [node name="Title" type="Label" parent="Margin/Layout/HandHeader"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.956863, 0.870588, 0.635294, 1)
-theme_override_font_sizes/font_size = 19
+theme_override_font_sizes/font_size = 15
 text = "YOUR HAND"
 
 [node name="HandCount" type="Label" parent="Margin/Layout/HandHeader"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 11
 text = "5 cards"
 vertical_alignment = 1
 
@@ -461,20 +461,20 @@ size_flags_horizontal = 3
 layout_mode = 2
 theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
 theme_override_font_sizes/font_size = 13
-text = "Slate trim marks playable cards  •  Muted trim is unavailable"
+text = "Hover a card for a larger view"
 
 [node name="HandPanel" type="PanelContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 196)
+custom_minimum_size = Vector2(0, 222)
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_styles/panel = SubResource("StyleSection")
 
 [node name="HandMargin" type="MarginContainer" parent="Margin/Layout/HandPanel"]
 layout_mode = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 6
-theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 6
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 3
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 3
 
 [node name="HandScroll" type="ScrollContainer" parent="Margin/Layout/HandPanel/HandMargin"]
 layout_mode = 2
@@ -484,7 +484,7 @@ vertical_scroll_mode = 0
 [node name="HandContainer" type="HBoxContainer" parent="Margin/Layout/HandPanel/HandMargin/HandScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 alignment = 1
 
 [node name="AnimationLayer" type="Control" parent="."]
@@ -752,7 +752,7 @@ horizontal_alignment = 1
 
 [node name="ArtFrame" type="PanelContainer" parent="CardPreview/Margin/Layout"]
 clip_contents = true
-custom_minimum_size = Vector2(0, 190)
+custom_minimum_size = Vector2(0, 210)
 layout_mode = 2
 mouse_filter = 2
 
@@ -763,25 +763,13 @@ expand_mode = 3
 stretch_mode = 6
 
 [node name="EffectLabel" type="RichTextLabel" parent="CardPreview/Margin/Layout"]
-custom_minimum_size = Vector2(0, 50)
+custom_minimum_size = Vector2(0, 112)
 layout_mode = 2
 mouse_filter = 2
 theme_override_colors/default_color = Color(0.917647, 0.929412, 0.898039, 1)
-theme_override_font_sizes/normal_font_size = 19
-theme_override_font_sizes/bold_font_size = 19
+theme_override_font_sizes/normal_font_size = 16
+theme_override_font_sizes/bold_font_size = 16
 bbcode_enabled = true
 text = "[center][b]+1 Coin[/b][/center]"
-fit_content = false
-scroll_active = false
-
-[node name="DescriptionLabel" type="RichTextLabel" parent="CardPreview/Margin/Layout"]
-custom_minimum_size = Vector2(0, 88)
-layout_mode = 2
-size_flags_vertical = 3
-mouse_filter = 2
-theme_override_colors/default_color = Color(0.878431, 0.827451, 0.705882, 1)
-theme_override_font_sizes/normal_font_size = 14
-bbcode_enabled = true
-text = "[center]Detailed card rules appear here.[/center]"
 fit_content = false
 scroll_active = false

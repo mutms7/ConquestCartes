@@ -19,14 +19,18 @@ The market contains 14 cards: 2 resources, 10 actions, and 2 victory cards. The
 catalog contains 64 cards: 2 starters, 56 random-market candidates, and 6
 archived cards retained for testing, future sets, and art-linked reuse.
 
-The market is arranged as three medieval tabletop carpets. The Royal Treasury
-holds the two resource piles in one column, the Guild Barracks holds ten action
-piles in a two-by-five grid, and the Crown Estates holds the two victory piles
-in one column. Compact ledgers at the upper sides show turn and deck details on
-the left and spendable turn resources on the right. Treasury and Estate piles
-descend in cost from top to bottom. Barracks piles descend from the top-right
-across to the top-left, then continue from the bottom-right to the cheapest pile
-at the bottom-left.
+The market is arranged as one nearly edge-to-edge field: two resource piles on
+the left, ten action piles in a two-by-five center grid, and two victory piles
+on the right. Card type colors identify these groups without large enclosing
+carpets or headers. Resource and victory piles descend in cost from top to
+bottom. Action piles descend from the top-right across to the top-left, then
+continue from the bottom-right to the cheapest pile at the bottom-left.
+
+The hand occupies the lower center of the table. Compact docks at its sides hold
+turn/deck/discard controls on the left and coins/actions/buys controls on the
+right, leaving the top of the screen to the market artwork. Card faces display
+their complete data-driven rules description; hovering provides a larger art
+and reading view.
 
 ## Solo Effect Resolution
 

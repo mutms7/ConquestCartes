@@ -25,8 +25,9 @@ contents of your deck into victory points.
 - Final scoring after turn 15
 - Handcrafted medieval tabletop UI using dark jewel-toned cards, bright brass,
   cool slate, and restrained heraldic ornament
-- A three-carpet market board: Royal Treasury resources, Guild Barracks
-  actions, and Crown Estates victory cards
+- An art-first market field with resources on the left, ten actions in the
+  center, and victory cards on the right
+- Full rules descriptions directly on card faces, with large hover previews
 - Card previews, movement animation, audio feedback, and an end-game score plaque
 - Automated rules and UI smoke tests
 - Automated Web export and production deployment
