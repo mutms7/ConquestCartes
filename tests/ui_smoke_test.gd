@@ -155,8 +155,8 @@ func _initialize() -> void:
 			"Card faces should show the complete data-driven rules description."
 		)
 		_check(
-			_card_name(resource_button).get_theme_font_size("font_size") >= 14
-			and _card_effect(resource_button).get_theme_font_size("normal_font_size") >= 11,
+			_card_name(resource_button).get_theme_font_size("font_size") >= 15
+			and _card_effect(resource_button).get_theme_font_size("normal_font_size") >= 12,
 			"Hand card titles and rules text should use the enlarged type."
 		)
 		_check(
@@ -255,8 +255,8 @@ func _initialize() -> void:
 			"Market card faces should show their complete rules description."
 		)
 		_check(
-			_card_name(market_button).get_theme_font_size("font_size") >= 11
-			and _card_effect(market_button).get_theme_font_size("normal_font_size") >= 9,
+			_card_name(market_button).get_theme_font_size("font_size") >= 12
+			and _card_effect(market_button).get_theme_font_size("normal_font_size") >= 10,
 			"Market card titles and rules text should use the enlarged type."
 		)
 		market_button.mouse_entered.emit()

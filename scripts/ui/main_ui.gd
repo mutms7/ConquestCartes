@@ -718,7 +718,7 @@ func _create_card_button(
 	var card_surface := _get_card_surface_color(card.card_type)
 	var is_market_card := visual_state.begins_with("market_")
 	var button := Button.new()
-	button.custom_minimum_size = Vector2(172, 200) if is_market_card else Vector2(172, 218)
+	button.custom_minimum_size = Vector2(172, 202) if is_market_card else Vector2(172, 218)
 	if is_market_card:
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.focus_mode = Control.FOCUS_ALL
@@ -772,9 +772,9 @@ func _create_card_button(
 	content.name = "CardContent"
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_theme_constant_override("margin_left", 7 if is_market_card else 9)
-	content.add_theme_constant_override("margin_top", 7)
+	content.add_theme_constant_override("margin_top", 9)
 	content.add_theme_constant_override("margin_right", 7 if is_market_card else 9)
-	content.add_theme_constant_override("margin_bottom", 3)
+	content.add_theme_constant_override("margin_bottom", 1)
 	button.add_child(content)
 	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
@@ -793,7 +793,7 @@ func _create_card_button(
 	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.add_theme_color_override("font_color", palette.text)
-	name_label.add_theme_font_size_override("font_size", 11 if is_market_card else 14)
+	name_label.add_theme_font_size_override("font_size", 12 if is_market_card else 15)
 	if title_font != null:
 		name_label.add_theme_font_override("font", title_font)
 	layout.add_child(name_label)
@@ -828,7 +828,7 @@ func _create_card_button(
 
 	var effect_label := RichTextLabel.new()
 	effect_label.name = "EffectLabel"
-	effect_label.custom_minimum_size = Vector2(0, 54 if is_market_card else 52)
+	effect_label.custom_minimum_size = Vector2(0, 56 if is_market_card else 54)
 	effect_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	effect_label.bbcode_enabled = true
 	effect_label.fit_content = false
@@ -836,8 +836,8 @@ func _create_card_button(
 	effect_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	effect_label.text = "[center]%s[/center]" % card.description
 	effect_label.add_theme_color_override("default_color", palette.text)
-	effect_label.add_theme_font_size_override("normal_font_size", 9 if is_market_card else 11)
-	effect_label.add_theme_font_size_override("bold_font_size", 9 if is_market_card else 11)
+	effect_label.add_theme_font_size_override("normal_font_size", 10 if is_market_card else 12)
+	effect_label.add_theme_font_size_override("bold_font_size", 10 if is_market_card else 12)
 	if body_font != null:
 		effect_label.add_theme_font_override("normal_font", body_font)
 	if body_bold_font != null:
