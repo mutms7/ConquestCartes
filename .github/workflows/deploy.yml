@@ -1,0 +1,85 @@
+name: Export and deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Cache Godot
+        id: godot-cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.local/bin/godot
+            ~/.local/share/godot/export_templates/4.7.stable
+          key: godot-4.7-stable-linux
+
+      - name: Install Godot and export templates
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          curl --fail --location --output godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          mkdir -p ~/.local/bin
+          mv Godot_v4.7-stable_linux.x86_64 ~/.local/bin/godot
+          chmod +x ~/.local/bin/godot
+
+          curl --fail --location --output templates.tpz \
+            https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_export_templates.tpz
+          unzip -q templates.tpz
+          mkdir -p ~/.local/share/godot/export_templates/4.7.stable
+          mv templates/* ~/.local/share/godot/export_templates/4.7.stable/
+
+      - name: Run rules smoke test
+        run: ~/.local/bin/godot --headless --path . --script res://tests/smoke_test.gd
+
+      - name: Run UI smoke test
+        run: ~/.local/bin/godot --headless --path . --script res://tests/ui_smoke_test.gd
+
+      - name: Export Web build
+        run: |
+          mkdir -p web
+          ~/.local/bin/godot \
+            --headless \
+            --path . \
+            --export-release "Web" \
+            web/index.html
+          test -f web/index.html
+          test -f web/index.wasm
+          test -f web/index.pck
+
+      - name: Link generated build to Vercel project
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          mkdir -p web/.vercel
+          printf '{"orgId":"%s","projectId":"%s"}\n' \
+            "$VERCEL_ORG_ID" \
+            "$VERCEL_PROJECT_ID" \
+            > web/.vercel/project.json
+
+      - name: Deploy production build to Vercel
+        run: |
+          npx --yes vercel@54.17.0 \
+            --cwd web \
+            --prod \
+            --yes \
+            --archive=tgz \
+            --token="${{ secrets.VERCEL_TOKEN }}"

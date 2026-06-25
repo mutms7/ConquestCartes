@@ -7,6 +7,7 @@ var main_ui: Control
 
 
 func _initialize() -> void:
+	root.size = Vector2i(1280, 720)
 	main_ui = MAIN_SCENE.instantiate()
 	root.add_child(main_ui)
 	await process_frame
@@ -19,15 +20,42 @@ func _initialize() -> void:
 	_check(_play_area_container().get_child_count() == 1, "Empty play area should show its hint.")
 	_check(main_ui.title_font != null, "Imported title font should load.")
 	_check(main_ui.body_font != null, "Imported body font should load.")
+	_check(main_ui.body_bold_font != null, "Imported bold effect font should load.")
 	_check(_hud_icon("CoinStat").texture != null, "Coin HUD icon should load.")
 	_check(_hud_icon("ActionStat").texture != null, "Action HUD icon should load.")
 	_check(_hud_icon("BuyStat").texture != null, "Buy HUD icon should load.")
 	_check(main_ui.ui_sound_players.size() == 8, "All configured UI sounds should load.")
+	_check(
+		not main_ui.has_node("Margin/Layout/StatusPanel"),
+		"The obsolete persistent status panel should not exist."
+	)
+	_check(
+		main_ui._get_card_effect_text(main_ui.game_state.card_catalog["trail_biscuit"])
+		== "+1 Card  +1 Action  +2 Coins",
+		"Combined card effects should use concise singular and plural labels."
+	)
+	_check(
+		main_ui._get_card_effect_text(main_ui.game_state.card_catalog["briar_gate"]) == "3 VP",
+		"Victory-only cards should show their point value concisely."
+	)
+	_check(
+		_hand_panel().get_global_rect().end.y <= root.get_visible_rect().end.y,
+		"The full hand panel should remain inside the 1280x720 viewport."
+	)
 
 	var resource_button := _find_card_button(_hand_container(), "pebble_coin")
 	_check(resource_button != null, "A Pebble Coin button should render in hand.")
 	if resource_button != null:
 		_check(not resource_button.disabled, "A resource card should be visibly playable.")
+		_check(_card_art(resource_button).texture != null, "Card faces should display card artwork.")
+		_check(
+			_card_effect(resource_button).get_parsed_text() == "+1 Coin",
+			"Card faces should show concise data-derived effect text."
+		)
+		_check(
+			_card_art(resource_button).get_parent().size.y >= 108.0,
+			"Card artwork should use the enlarged art window."
+		)
 		resource_button.mouse_entered.emit()
 		await create_timer(0.2).timeout
 		_check(_card_preview().visible, "Hovering a hand card should show its preview.")
@@ -35,6 +63,19 @@ func _initialize() -> void:
 		_check(
 			_preview_name_label().text == "Pebble Coin",
 			"Hand preview should show the hovered card name."
+		)
+		_check(
+			_preview_art().texture == _card_art(resource_button).texture,
+			"Hand preview should display the hovered card artwork."
+		)
+		_check(
+			_preview_effect().get_parsed_text() == "+1 Coin",
+			"Hand preview should reuse the concise effect summary."
+		)
+		_check(
+			_card_preview().get_global_rect().end.x <= root.get_visible_rect().end.x
+			and _card_preview().get_global_rect().end.y <= root.get_visible_rect().end.y,
+			"Card previews should remain inside the viewport."
 		)
 		_check(
 			resource_button.scale.x > 1.0,
@@ -68,6 +109,15 @@ func _initialize() -> void:
 		_check(
 			_preview_name_label().text == market_card.card_name,
 			"Market preview should show the hovered card name."
+		)
+		_check(
+			_preview_art().texture == _card_art(market_button).texture,
+			"Market preview should display the hovered card artwork."
+		)
+		_check(
+			_card_preview().get_global_rect().end.x <= root.get_visible_rect().end.x
+			and _card_preview().get_global_rect().end.y <= root.get_visible_rect().end.y,
+			"Market card previews should remain inside the viewport."
 		)
 		market_button.mouse_exited.emit()
 		await process_frame
@@ -160,6 +210,10 @@ func _hand_container() -> HBoxContainer:
 	return main_ui.get_node("Margin/Layout/HandPanel/HandMargin/HandScroll/HandContainer")
 
 
+func _hand_panel() -> PanelContainer:
+	return main_ui.get_node("Margin/Layout/HandPanel")
+
+
 func _market_container() -> HBoxContainer:
 	return main_ui.get_node(
 		"Margin/Layout/MarketPanel/MarketMargin/MarketScroll/MarketContainer"
@@ -202,6 +256,22 @@ func _play_again_button() -> Button:
 
 func _preview_name_label() -> Label:
 	return main_ui.get_node("CardPreview/Margin/Layout/NameLabel")
+
+
+func _preview_art() -> TextureRect:
+	return main_ui.get_node("CardPreview/Margin/Layout/ArtFrame/Art")
+
+
+func _preview_effect() -> RichTextLabel:
+	return main_ui.get_node("CardPreview/Margin/Layout/EffectLabel")
+
+
+func _card_art(button: Button) -> TextureRect:
+	return button.get_node("CardContent/CardLayout/ArtFrame/Art")
+
+
+func _card_effect(button: Button) -> RichTextLabel:
+	return button.get_node("CardContent/CardLayout/EffectLabel")
 
 
 func _hud_value(stat_name: String) -> String:

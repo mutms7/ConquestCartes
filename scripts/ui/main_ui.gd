@@ -12,11 +12,12 @@ const HOVER_ANIMATION_SECONDS := 0.08
 const CARD_MOVE_SECONDS := 0.18
 const CARD_DRAW_SECONDS := 0.16
 const CLEANUP_SECONDS := 0.2
-const PREVIEW_SIZE := Vector2(300, 300)
+const PREVIEW_SIZE := Vector2(340, 440)
 const PREVIEW_EDGE_MARGIN := 24.0
 
 const TITLE_FONT_PATH := "res://assets/fonts/Cinzel/static/Cinzel-SemiBold.ttf"
 const BODY_FONT_PATH := "res://assets/fonts/Inter/static/Inter_18pt-Regular.ttf"
+const BODY_BOLD_FONT_PATH := "res://assets/fonts/Inter/static/Inter_18pt-Bold.ttf"
 const PANEL_TEXTURE_PATH := (
 	"res://assets/imported/kenney_fantasy-ui-borders/"
 	+ "PNG/Double/Panel/panel-024.png"
@@ -55,6 +56,7 @@ var game_state := GameState.new()
 var turn_manager := TurnManager.new()
 var title_font: Font
 var body_font: Font
+var body_bold_font: Font
 var panel_texture: Texture2D
 var card_frame_texture: Texture2D
 var button_texture: Texture2D
@@ -78,13 +80,11 @@ var card_art_cache: Dictionary = {}
 @onready var end_turn_button: Button = $Margin/Layout/HudPanel/HudMargin/Hud/EndTurnButton
 @onready var hud_panel: PanelContainer = $Margin/Layout/HudPanel
 @onready var market_panel: PanelContainer = $Margin/Layout/MarketPanel
-@onready var status_panel: PanelContainer = $Margin/Layout/StatusPanel
 @onready var play_area_panel: PanelContainer = $Margin/Layout/PlayAreaPanel
 @onready var hand_panel: PanelContainer = $Margin/Layout/HandPanel
 @onready var market_container: HBoxContainer = (
 	$Margin/Layout/MarketPanel/MarketMargin/MarketScroll/MarketContainer
 )
-@onready var status_label: Label = $Margin/Layout/StatusPanel/StatusLabel
 @onready var play_area_label: Label = (
 	$Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row/PlayAreaLabel
 )
@@ -108,11 +108,11 @@ var card_art_cache: Dictionary = {}
 	$EndGameOverlay/Center/Panel/Margin/Layout/PlayAgainButton
 )
 @onready var card_preview: PanelContainer = $CardPreview
-@onready var preview_location_label: Label = $CardPreview/Margin/Layout/LocationLabel
-@onready var preview_state_label: Label = $CardPreview/Margin/Layout/StateLabel
 @onready var preview_name_label: Label = $CardPreview/Margin/Layout/NameLabel
 @onready var preview_meta_label: Label = $CardPreview/Margin/Layout/MetaLabel
-@onready var preview_description_label: Label = $CardPreview/Margin/Layout/DescriptionLabel
+@onready var preview_art_frame: PanelContainer = $CardPreview/Margin/Layout/ArtFrame
+@onready var preview_art: TextureRect = $CardPreview/Margin/Layout/ArtFrame/Art
+@onready var preview_effect_label: RichTextLabel = $CardPreview/Margin/Layout/EffectLabel
 
 
 func _ready() -> void:
@@ -130,7 +130,7 @@ func _ready() -> void:
 	turn_manager.configure(game_state)
 
 	if not game_state.load_cards(CARD_DATA_PATH):
-		status_label.text = "Could not load card data. Check the Godot output."
+		push_error("Could not load card data from %s." % CARD_DATA_PATH)
 		new_game_button.disabled = true
 		end_turn_button.disabled = true
 		return
@@ -138,19 +138,15 @@ func _ready() -> void:
 	_start_new_game(false)
 
 
-func _start_new_game(is_restart: bool) -> void:
+func _start_new_game(_is_restart: bool) -> void:
 	_hide_end_game_overlay()
 	_clear_animation_layer()
 	if not game_state.setup_starting_game():
-		status_label.text = "Could not prepare a new game. Check the Godot output."
+		push_error("Could not prepare a new game.")
 		end_turn_button.disabled = true
 		return
 
 	turn_manager.start_first_turn()
-	if is_restart:
-		status_label.text = "New game started with a fresh deck and random market."
-	else:
-		status_label.text = "Start by clicking a purple resource or action card in your hand."
 	_refresh_ui()
 	call_deferred("_animate_draw_cards", game_state.player.hand.size())
 
@@ -158,6 +154,7 @@ func _start_new_game(is_restart: bool) -> void:
 func _load_optional_assets() -> void:
 	title_font = _load_optional_font(TITLE_FONT_PATH)
 	body_font = _load_optional_font(BODY_FONT_PATH)
+	body_bold_font = _load_optional_font(BODY_BOLD_FONT_PATH)
 	panel_texture = _load_optional_texture(PANEL_TEXTURE_PATH)
 	card_frame_texture = _load_optional_texture(CARD_FRAME_TEXTURE_PATH)
 	button_texture = _load_optional_texture(BUTTON_TEXTURE_PATH)
@@ -196,6 +193,9 @@ func _load_optional_texture(path: String) -> Texture2D:
 func _apply_imported_theme() -> void:
 	if body_font != null:
 		_apply_body_font_recursive(self)
+		preview_effect_label.add_theme_font_override("normal_font", body_font)
+	if body_bold_font != null:
+		preview_effect_label.add_theme_font_override("bold_font", body_bold_font)
 
 	if title_font != null:
 		var title_paths := [
@@ -228,10 +228,6 @@ func _apply_imported_theme() -> void:
 		hand_panel.add_theme_stylebox_override(
 			"panel",
 			_make_asset_style(panel_texture, Color("#152b24"), 24.0)
-		)
-		status_panel.add_theme_stylebox_override(
-			"panel",
-			_make_asset_style(panel_texture, Color("#34452f"), 24.0)
 		)
 		end_game_panel.add_theme_stylebox_override(
 			"panel",
@@ -317,9 +313,8 @@ func _refresh_hand() -> void:
 	_clear_container(hand_container)
 	for card in game_state.player.hand:
 		var playable := _can_play_card(card)
-		var status_text := _get_hand_status(card)
 		var visual_state := HAND_PLAYABLE if playable else HAND_UNPLAYABLE
-		var button := _create_card_button(card, visual_state, status_text)
+		var button := _create_card_button(card, visual_state)
 		button.disabled = not playable
 		button.mouse_default_cursor_shape = (
 			Control.CURSOR_POINTING_HAND if playable else Control.CURSOR_ARROW
@@ -332,9 +327,8 @@ func _refresh_market() -> void:
 	_clear_container(market_container)
 	for card in game_state.market:
 		var affordable := _can_buy_card(card)
-		var status_text := _get_market_status(card)
 		var visual_state := MARKET_AFFORDABLE if affordable else MARKET_UNAFFORDABLE
-		var button := _create_card_button(card, visual_state, status_text)
+		var button := _create_card_button(card, visual_state)
 		button.disabled = not affordable
 		button.mouse_default_cursor_shape = (
 			Control.CURSOR_POINTING_HAND if affordable else Control.CURSOR_ARROW
@@ -377,44 +371,20 @@ func _can_buy_card(card: CardDefinition) -> bool:
 	)
 
 
-func _get_hand_status(card: CardDefinition) -> String:
-	if turn_manager.game_over:
-		return "GAME COMPLETE"
-	if not card.is_playable():
-		return "SCORE CARD • NOT PLAYABLE"
-	if card.card_type == "action" and game_state.player.actions <= 0:
-		return "NO ACTIONS LEFT"
-	return "CLICK TO PLAY"
-
-
-func _get_market_status(card: CardDefinition) -> String:
-	if turn_manager.game_over:
-		return "GAME COMPLETE"
-	if game_state.player.buys <= 0:
-		return "NO BUYS LEFT"
-	if game_state.player.coins < card.cost:
-		return "NEED %d MORE COIN%s" % [
-			card.cost - game_state.player.coins,
-			"" if card.cost - game_state.player.coins == 1 else "S",
-		]
-	return "CLICK TO BUY"
-
-
 func _create_card_button(
 	card: CardDefinition,
-	visual_state: String,
-	status_text: String
+	visual_state: String
 ) -> Button:
 	var palette := _get_card_palette(visual_state)
 	var button := Button.new()
-	button.custom_minimum_size = Vector2(164, 186)
+	button.custom_minimum_size = Vector2(164, 208)
 	button.focus_mode = Control.FOCUS_ALL
 	button.set_meta("card_id", card.id)
 	button.set_meta("visual_state", visual_state)
 	button.tooltip_text = "%s — %s" % [card.card_name, card.description]
 	button.resized.connect(_update_card_pivot.bind(button))
 	button.mouse_entered.connect(
-		_on_card_mouse_entered.bind(card, button, visual_state, status_text)
+		_on_card_mouse_entered.bind(card, button, visual_state)
 	)
 	button.mouse_exited.connect(_on_card_mouse_exited.bind(button))
 	button.add_theme_stylebox_override(
@@ -439,35 +409,31 @@ func _create_card_button(
 	)
 
 	var content := MarginContainer.new()
+	content.name = "CardContent"
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_theme_constant_override("margin_left", 11)
-	content.add_theme_constant_override("margin_top", 9)
+	content.add_theme_constant_override("margin_top", 7)
 	content.add_theme_constant_override("margin_right", 11)
-	content.add_theme_constant_override("margin_bottom", 9)
+	content.add_theme_constant_override("margin_bottom", 7)
 	button.add_child(content)
 	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var layout := VBoxContainer.new()
+	layout.name = "CardLayout"
 	layout.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layout.add_theme_constant_override("separation", 2)
+	layout.add_theme_constant_override("separation", 3)
 	content.add_child(layout)
 
-	var state_label := Label.new()
-	state_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	state_label.text = status_text
-	state_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	state_label.add_theme_color_override("font_color", palette.status)
-	state_label.add_theme_font_size_override("font_size", 10)
-	layout.add_child(state_label)
-
 	var name_label := Label.new()
+	name_label.name = "NameLabel"
+	name_label.custom_minimum_size = Vector2(0, 28)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_label.text = card.card_name
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.add_theme_color_override("font_color", palette.text)
-	name_label.add_theme_font_size_override("font_size", 15)
+	name_label.add_theme_font_size_override("font_size", 14)
 	if title_font != null:
 		name_label.add_theme_font_override("font", title_font)
 	layout.add_child(name_label)
@@ -476,43 +442,47 @@ func _create_card_button(
 	var art_texture := _load_card_texture(card.id)
 	if art_texture != null:
 		var art_frame := PanelContainer.new()
+		art_frame.name = "ArtFrame"
 		art_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		art_frame.clip_contents = true
-		art_frame.custom_minimum_size = Vector2(0, 84)
+		art_frame.custom_minimum_size = Vector2(0, 108)
 		art_frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		art_frame.add_theme_stylebox_override(
 			"panel",
 			_make_flat_card_style(Color("#241712"), palette.border, 1)
 		)
 		var art_rect := TextureRect.new()
+		art_rect.name = "Art"
 		art_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		art_rect.texture = art_texture
 		art_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		art_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		art_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 		art_rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		art_rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		art_frame.add_child(art_rect)
 		layout.add_child(art_frame)
 
-	var separator := HSeparator.new()
-	separator.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layout.add_child(separator)
-
-	# Rules text sits below the art.
-	var description_label := Label.new()
-	description_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	description_label.text = card.description
-	description_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	description_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	description_label.add_theme_color_override("font_color", palette.text)
-	description_label.add_theme_font_size_override("font_size", 11)
+	var effect_label := RichTextLabel.new()
+	effect_label.name = "EffectLabel"
+	effect_label.custom_minimum_size = Vector2(0, 32)
+	effect_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	effect_label.bbcode_enabled = true
+	effect_label.fit_content = false
+	effect_label.scroll_active = false
+	effect_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	effect_label.text = "[center][b]%s[/b][/center]" % _get_card_effect_text(card)
+	effect_label.add_theme_color_override("default_color", palette.text)
+	effect_label.add_theme_font_size_override("normal_font_size", 11)
+	effect_label.add_theme_font_size_override("bold_font_size", 11)
 	if body_font != null:
-		description_label.add_theme_font_override("font", body_font)
-	layout.add_child(description_label)
+		effect_label.add_theme_font_override("normal_font", body_font)
+	if body_bold_font != null:
+		effect_label.add_theme_font_override("bold_font", body_bold_font)
+	layout.add_child(effect_label)
 
 	# Footer: cost and type along the bottom edge.
 	var meta_row := HBoxContainer.new()
+	meta_row.name = "MetaRow"
 	meta_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	meta_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	meta_row.add_theme_constant_override("separation", 4)
@@ -555,6 +525,23 @@ func _create_card_button(
 	return button
 
 
+func _get_card_effect_text(card: CardDefinition) -> String:
+	var effects: Array[String] = []
+	_append_effect(effects, card.draw_cards, "Card", "Cards")
+	_append_effect(effects, card.gain_actions, "Action", "Actions")
+	_append_effect(effects, card.coin_value + card.gain_coins, "Coin", "Coins")
+	_append_effect(effects, card.gain_buys, "Buy", "Buys")
+	if card.victory_points > 0:
+		effects.append("%d VP" % card.victory_points)
+	return "  ".join(effects)
+
+
+func _append_effect(effects: Array[String], amount: int, singular: String, plural: String) -> void:
+	if amount <= 0:
+		return
+	effects.append("+%d %s" % [amount, singular if amount == 1 else plural])
+
+
 func _create_icon(texture: Texture2D, size: Vector2, color: Color) -> TextureRect:
 	var icon := TextureRect.new()
 	icon.custom_minimum_size = size
@@ -588,13 +575,12 @@ func _update_card_pivot(button: Button) -> void:
 func _on_card_mouse_entered(
 	card: CardDefinition,
 	button: Button,
-	visual_state: String,
-	status_text: String
+	visual_state: String
 ) -> void:
 	_play_ui_sound("hover")
 	_animate_card_scale(button, CARD_HOVER_SCALE)
 	button.z_index = 10
-	_show_card_preview(card, button, visual_state, status_text)
+	_show_card_preview(card, button, visual_state)
 
 
 func _on_card_mouse_exited(button: Button) -> void:
@@ -641,19 +627,21 @@ func _animate_control_scale(control: Control, target_scale: Vector2, duration: f
 func _show_card_preview(
 	card: CardDefinition,
 	source_button: Button,
-	visual_state: String,
-	status_text: String
+	visual_state: String
 ) -> void:
 	var palette := _get_card_palette(visual_state)
-	var is_market_card := visual_state.begins_with("market_")
-	preview_location_label.text = "MARKET PREVIEW" if is_market_card else "HAND PREVIEW"
-	preview_state_label.text = status_text
 	preview_name_label.text = card.card_name
 	preview_meta_label.text = "%s  |  COST %d" % [card.card_type.to_upper(), card.cost]
-	if card.victory_points > 0:
-		preview_meta_label.text += "  |  %d VP" % card.victory_points
-	preview_description_label.text = card.description
-	preview_state_label.add_theme_color_override("font_color", palette.status)
+	preview_art.texture = _load_card_texture(card.id)
+	preview_art_frame.visible = preview_art.texture != null
+	preview_art_frame.add_theme_stylebox_override(
+		"panel",
+		_make_flat_card_style(Color("#241712"), palette.border, 2)
+	)
+	preview_effect_label.text = (
+		"[center][b]%s[/b][/center]" % _get_card_effect_text(card)
+	)
+	preview_effect_label.add_theme_color_override("default_color", palette.text)
 	card_preview.add_theme_stylebox_override(
 		"panel",
 		_make_preview_style(palette.base, palette.border)
@@ -674,7 +662,18 @@ func _get_preview_position(source_button: Button) -> Vector2:
 	if source_center.y < viewport_size.y * 0.5:
 		preview_y = viewport_size.y - PREVIEW_SIZE.y - PREVIEW_EDGE_MARGIN
 
-	return Vector2(preview_x, preview_y)
+	return Vector2(
+		clampf(
+			preview_x,
+			PREVIEW_EDGE_MARGIN,
+			viewport_size.x - PREVIEW_SIZE.x - PREVIEW_EDGE_MARGIN
+		),
+		clampf(
+			preview_y,
+			PREVIEW_EDGE_MARGIN,
+			viewport_size.y - PREVIEW_SIZE.y - PREVIEW_EDGE_MARGIN
+		)
+	)
 
 
 func _hide_card_preview() -> void:
@@ -707,7 +706,6 @@ func _get_card_palette(visual_state: String) -> Dictionary:
 				"base": Color("#3b3153"),
 				"hover": Color("#50416f"),
 				"border": Color("#b69adb"),
-				"status": Color("#e7d3ff"),
 				"text": Color("#f5f0fa"),
 				"muted": Color("#c5b8d4"),
 			}
@@ -716,7 +714,6 @@ func _get_card_palette(visual_state: String) -> Dictionary:
 				"base": Color("#244d3d"),
 				"hover": Color("#30634f"),
 				"border": Color("#79d49e"),
-				"status": Color("#a9f5c6"),
 				"text": Color("#f0f8ef"),
 				"muted": Color("#b5cbbd"),
 			}
@@ -725,7 +722,6 @@ func _get_card_palette(visual_state: String) -> Dictionary:
 				"base": Color("#302c28"),
 				"hover": Color("#302c28"),
 				"border": Color("#715f52"),
-				"status": Color("#d6a88f"),
 				"text": Color("#c8c0b9"),
 				"muted": Color("#928a83"),
 			}
@@ -734,7 +730,6 @@ func _get_card_palette(visual_state: String) -> Dictionary:
 				"base": Color("#292b31"),
 				"hover": Color("#292b31"),
 				"border": Color("#5b606a"),
-				"status": Color("#b5bac4"),
 				"text": Color("#c6c9cf"),
 				"muted": Color("#858a94"),
 			}
@@ -954,16 +949,6 @@ func _pulse_control(control: Control, color: Color) -> void:
 	tween.tween_property(control, "modulate", original_color, 0.2)
 
 
-func _pulse_status_panel() -> void:
-	status_panel.pivot_offset = status_panel.size * 0.5
-	status_panel.scale = Vector2(0.985, 0.985)
-	var tween := create_tween()
-	tween.bind_node(status_panel)
-	tween.set_trans(Tween.TRANS_BACK)
-	tween.set_ease(Tween.EASE_OUT)
-	tween.tween_property(status_panel, "scale", Vector2.ONE, 0.18)
-
-
 func _clear_animation_layer() -> void:
 	for child in animation_layer.get_children():
 		child.queue_free()
@@ -997,11 +982,10 @@ func _on_hand_card_pressed(card: CardDefinition) -> void:
 	if played:
 		last_animation_event = "play"
 		_play_ui_sound("play_card")
-		status_label.text = "Played %s. Its effects have been applied." % card.card_name
 	else:
 		if ghost != null:
 			ghost.queue_free()
-		status_label.text = "That card cannot be played right now."
+		push_warning("Card cannot be played right now: %s" % card.card_name)
 	_refresh_ui()
 	if played and ghost != null:
 		_animate_moving_card(
@@ -1027,11 +1011,10 @@ func _on_market_card_pressed(card: CardDefinition) -> void:
 	if bought:
 		last_animation_event = "buy"
 		_play_ui_sound("buy_card")
-		status_label.text = "Bought %s. It is now in your discard pile." % card.card_name
 	else:
 		if ghost != null:
 			ghost.queue_free()
-		status_label.text = "That card requires enough coins and an available buy."
+		push_warning("Card cannot be bought right now: %s" % card.card_name)
 	_refresh_ui()
 	if bought and ghost != null:
 		_animate_moving_card(
@@ -1047,15 +1030,8 @@ func _on_end_turn_pressed() -> void:
 	var cleanup_ghosts := _capture_cleanup_cards()
 	_play_ui_sound("end_turn")
 	turn_manager.end_turn()
-	if turn_manager.game_over:
-		status_label.text = "Game complete — final score: %d victory points." % turn_manager.final_score
-	else:
-		status_label.text = "Turn %d started. Your hand and turn resources have refreshed." % (
-			turn_manager.turn_number
-		)
 	_refresh_ui()
 	_animate_cleanup_cards(cleanup_ghosts)
-	_pulse_status_panel()
 	if turn_manager.game_over:
 		_show_final_score(turn_manager.final_score)
 	else:

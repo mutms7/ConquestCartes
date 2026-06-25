@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://155xx7s6y6ta"]
+[gd_scene load_steps=7 format=3 uid="uid://155xx7s6y6ta"]
 
 [ext_resource type="Script" path="res://scripts/ui/main_ui.gd" id="1_main_ui"]
 
@@ -21,18 +21,6 @@ border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
 border_color = Color(0.419608, 0.305882, 0.168627, 0.65)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
-
-[sub_resource type="StyleBoxFlat" id="StyleStatus"]
-bg_color = Color(0.2, 0.145098, 0.0862745, 0.96)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.623529, 0.501961, 0.282353, 0.8)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
@@ -402,7 +390,7 @@ theme_override_font_sizes/font_size = 13
 text = "Green cards are affordable  •  Bought cards go to discard"
 
 [node name="MarketPanel" type="PanelContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 224)
+custom_minimum_size = Vector2(0, 235)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleSection")
 
@@ -423,19 +411,6 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 10
 alignment = 1
-
-[node name="StatusPanel" type="PanelContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 30)
-layout_mode = 2
-theme_override_styles/panel = SubResource("StyleStatus")
-
-[node name="StatusLabel" type="Label" parent="Margin/Layout/StatusPanel"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.92549, 0.933333, 0.803922, 1)
-theme_override_font_sizes/font_size = 15
-text = "Preparing the table..."
-horizontal_alignment = 1
-vertical_alignment = 1
 
 [node name="PlayAreaPanel" type="PanelContainer" parent="Margin/Layout"]
 custom_minimum_size = Vector2(0, 54)
@@ -503,7 +478,7 @@ theme_override_font_sizes/font_size = 13
 text = "Purple cards can be played  •  Dim cards are unavailable"
 
 [node name="HandPanel" type="PanelContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 224)
+custom_minimum_size = Vector2(0, 235)
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_styles/panel = SubResource("StyleSection")
@@ -639,11 +614,11 @@ text = "PLAY AGAIN"
 
 [node name="CardPreview" type="PanelContainer" parent="."]
 visible = false
-custom_minimum_size = Vector2(300, 300)
+custom_minimum_size = Vector2(340, 440)
 offset_left = 24.0
 offset_top = 92.0
-offset_right = 324.0
-offset_bottom = 392.0
+offset_right = 364.0
+offset_bottom = 532.0
 mouse_filter = 2
 z_index = 100
 
@@ -658,29 +633,14 @@ theme_override_constants/margin_bottom = 18
 [node name="Layout" type="VBoxContainer" parent="CardPreview/Margin"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 7
-
-[node name="LocationLabel" type="Label" parent="CardPreview/Margin/Layout"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_colors/font_color = Color(0.756863, 0.803922, 0.772549, 1)
-theme_override_font_sizes/font_size = 12
-text = "HAND PREVIEW"
-horizontal_alignment = 1
-
-[node name="StateLabel" type="Label" parent="CardPreview/Margin/Layout"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_font_sizes/font_size = 13
-text = "CLICK TO PLAY"
-horizontal_alignment = 1
+theme_override_constants/separation = 8
 
 [node name="NameLabel" type="Label" parent="CardPreview/Margin/Layout"]
-custom_minimum_size = Vector2(0, 54)
+custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.968627, 0.960784, 0.929412, 1)
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 27
 text = "Card Name"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -694,25 +654,27 @@ theme_override_font_sizes/font_size = 15
 text = "RESOURCE  •  COST 0"
 horizontal_alignment = 1
 
-[node name="Separator" type="HSeparator" parent="CardPreview/Margin/Layout"]
+[node name="ArtFrame" type="PanelContainer" parent="CardPreview/Margin/Layout"]
+clip_contents = true
+custom_minimum_size = Vector2(0, 222)
 layout_mode = 2
 mouse_filter = 2
 
-[node name="DescriptionLabel" type="Label" parent="CardPreview/Margin/Layout"]
+[node name="Art" type="TextureRect" parent="CardPreview/Margin/Layout/ArtFrame"]
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 3
+stretch_mode = 6
+
+[node name="EffectLabel" type="RichTextLabel" parent="CardPreview/Margin/Layout"]
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 size_flags_vertical = 3
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.917647, 0.929412, 0.898039, 1)
-theme_override_font_sizes/font_size = 18
-text = "Card description."
-horizontal_alignment = 1
-vertical_alignment = 1
-autowrap_mode = 2
-
-[node name="FooterLabel" type="Label" parent="CardPreview/Margin/Layout"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
-theme_override_font_sizes/font_size = 12
-text = "Move away to close preview"
-horizontal_alignment = 1
+theme_override_colors/default_color = Color(0.917647, 0.929412, 0.898039, 1)
+theme_override_font_sizes/normal_font_size = 19
+theme_override_font_sizes/bold_font_size = 19
+bbcode_enabled = true
+text = "[center][b]+1 Coin[/b][/center]"
+fit_content = false
+scroll_active = false
