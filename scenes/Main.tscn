@@ -128,25 +128,25 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 16
+theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 16
+theme_override_constants/margin_bottom = 10
 
 [node name="Layout" type="VBoxContainer" parent="Margin"]
 layout_mode = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 4
 
 [node name="HudPanel" type="PanelContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 66)
+custom_minimum_size = Vector2(0, 58)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleHud")
 
 [node name="HudMargin" type="MarginContainer" parent="Margin/Layout/HudPanel"]
 layout_mode = 2
-theme_override_constants/margin_left = 18
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 8
+theme_override_constants/margin_left = 0
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 0
+theme_override_constants/margin_bottom = 0
 
 [node name="Hud" type="HBoxContainer" parent="Margin/Layout/HudPanel/HudMargin"]
 layout_mode = 2
@@ -160,14 +160,16 @@ theme_override_constants/separation = 0
 [node name="Title" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/Brand"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.956863, 0.870588, 0.635294, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 20
 text = "CONQUEST CARTES"
+horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/Brand"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
-theme_override_font_sizes/font_size = 12
-text = "A handcrafted medieval deck-builder"
+theme_override_font_sizes/font_size = 10
+text = "THE KINGDOM MARKET"
+horizontal_alignment = 1
 
 [node name="Divider" type="VSeparator" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
 layout_mode = 2
@@ -373,41 +375,21 @@ theme_override_styles/hover = SubResource("StyleButtonHover")
 theme_override_styles/pressed = SubResource("StyleButtonPressed")
 text = "END TURN"
 
-[node name="MarketHeader" type="HBoxContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 24)
-layout_mode = 2
-
-[node name="Title" type="Label" parent="Margin/Layout/MarketHeader"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.956863, 0.870588, 0.635294, 1)
-theme_override_font_sizes/font_size = 19
-text = "SHARED MARKET"
-
-[node name="Spacer" type="Control" parent="Margin/Layout/MarketHeader"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="Hint" type="Label" parent="Margin/Layout/MarketHeader"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.607843, 0.698039, 0.643137, 1)
-theme_override_font_sizes/font_size = 13
-text = "Forest trim marks affordable cards  •  Purchases enter discard"
-
 [node name="MarketPanel" type="PanelContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 235)
+custom_minimum_size = Vector2(0, 326)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleSection")
 
 [node name="MarketMargin" type="MarginContainer" parent="Margin/Layout/MarketPanel"]
 layout_mode = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 9
-theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 9
+theme_override_constants/margin_left = 0
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 0
+theme_override_constants/margin_bottom = 0
 
 [node name="MarketScroll" type="ScrollContainer" parent="Margin/Layout/MarketPanel/MarketMargin"]
 layout_mode = 2
-horizontal_scroll_mode = 1
+horizontal_scroll_mode = 0
 vertical_scroll_mode = 0
 
 [node name="MarketContainer" type="HBoxContainer" parent="Margin/Layout/MarketPanel/MarketMargin/MarketScroll"]
@@ -417,16 +399,16 @@ theme_override_constants/separation = 10
 alignment = 1
 
 [node name="PlayAreaPanel" type="PanelContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 54)
+custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleSection")
 
 [node name="PlayAreaMargin" type="MarginContainer" parent="Margin/Layout/PlayAreaPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 8
+theme_override_constants/margin_top = 5
 theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 8
+theme_override_constants/margin_bottom = 5
 
 [node name="Row" type="HBoxContainer" parent="Margin/Layout/PlayAreaPanel/PlayAreaMargin"]
 layout_mode = 2
@@ -455,7 +437,7 @@ size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
 [node name="HandHeader" type="HBoxContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 24)
+custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 
 [node name="Title" type="Label" parent="Margin/Layout/HandHeader"]
@@ -482,7 +464,7 @@ theme_override_font_sizes/font_size = 13
 text = "Slate trim marks playable cards  •  Muted trim is unavailable"
 
 [node name="HandPanel" type="PanelContainer" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 235)
+custom_minimum_size = Vector2(0, 196)
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_styles/panel = SubResource("StyleSection")
@@ -490,9 +472,9 @@ theme_override_styles/panel = SubResource("StyleSection")
 [node name="HandMargin" type="MarginContainer" parent="Margin/Layout/HandPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 9
+theme_override_constants/margin_top = 6
 theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 9
+theme_override_constants/margin_bottom = 6
 
 [node name="HandScroll" type="ScrollContainer" parent="Margin/Layout/HandPanel/HandMargin"]
 layout_mode = 2

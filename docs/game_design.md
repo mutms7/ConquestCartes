@@ -15,9 +15,15 @@ from that finite supply pile. Ending a turn discards the hand and play area,
 resets turn resources, and draws a new five-card hand. Empty draw piles are
 replenished by shuffling the discard pile.
 
-The market contains 12 cards: 2 resources, 7 actions, and 3 victory cards. The
+The market contains 14 cards: 2 resources, 10 actions, and 2 victory cards. The
 catalog contains 38 cards: 2 starters, 30 random-market candidates, and 6
 archived cards retained for testing, future sets, and art-linked reuse.
+
+The market is arranged as three medieval tabletop carpets. The Royal Treasury
+holds the two resource piles in one column, the Guild Barracks holds ten action
+piles in a two-by-five grid, and the Crown Estates holds the two victory piles
+in one column. Compact ledgers at the upper sides show turn and deck details on
+the left and spendable turn resources on the right.
 
 ## Solo Effect Resolution
 
@@ -39,6 +45,6 @@ The game ends after turn 15. Final score is the total victory points on cards in
 
 - Desktop, 1280x720, 2D interface
 - One local player
-- Random twelve-card shared market with finite supply piles
+- Random fourteen-card kingdom market with finite supply piles
 - Original medieval interface, painterly card art, and UI audio
 - No AI opponent, multiplayer, campaign, or save system

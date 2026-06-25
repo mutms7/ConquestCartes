@@ -14,8 +14,43 @@ func _initialize() -> void:
 
 	_check(_hand_container().get_child_count() == 5, "Initial hand should render five cards.")
 	_check(
-		_market_container().get_child_count() == GameState.MARKET_SIZE,
+		_all_market_buttons().size() == GameState.MARKET_SIZE,
 		"Market should render the configured number of randomly selected cards."
+	)
+	_check(
+		_treasury_cards().get_child_count() == GameState.MARKET_RESOURCE_COUNT,
+		"Royal Treasury should render two resource piles."
+	)
+	_check(
+		_barracks_cards().get_child_count() == GameState.MARKET_ACTION_COUNT,
+		"Guild Barracks should render ten action piles."
+	)
+	_check(
+		_estates_cards().get_child_count() == GameState.MARKET_VICTORY_TOTAL,
+		"Crown Estates should render two victory piles."
+	)
+	_check(
+		_container_has_type(_treasury_cards(), "resource")
+		and _container_has_type(_barracks_cards(), "action")
+		and _container_has_type(_estates_cards(), "victory"),
+		"Market cards should be routed to carpets by their data-driven card type."
+	)
+	_check(
+		_treasury_cards().columns == 1
+		and _barracks_cards().columns == 5
+		and _estates_cards().columns == 1,
+		"Market carpets should use the requested 2x1, 2x5, and 2x1 grids."
+	)
+	_check(
+		_market_scroll().horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED
+		and _market_scroll().vertical_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED,
+		"The complete market should fit without scrolling."
+	)
+	_check(
+		_zone_title("TreasuryCarpet") == "ROYAL TREASURY"
+		and _zone_title("BarracksCarpet") == "GUILD BARRACKS"
+		and _zone_title("EstatesCarpet") == "CROWN ESTATES",
+		"Each functional market carpet should display its themed name."
 	)
 	_check(_play_area_container().get_child_count() == 1, "Empty play area should show its hint.")
 	_check(main_ui.title_font != null, "Imported title font should load.")
@@ -53,6 +88,29 @@ func _initialize() -> void:
 	_check(
 		_hand_panel().get_global_rect().end.y <= root.get_visible_rect().end.y,
 		"The full hand panel should remain inside the 1280x720 viewport."
+	)
+	_check(
+		_market_panel().get_global_rect().end.y <= root.get_visible_rect().end.y,
+		"The complete three-carpet market should remain inside the viewport."
+	)
+	_check(
+		_children_fit_parent(_treasury_cards())
+		and _children_fit_parent(_barracks_cards())
+		and _children_fit_parent(_estates_cards()),
+		"Every market card should remain inside its assigned carpet."
+	)
+	_check(
+		main_ui.left_ledger.get_global_rect().end.x
+		< main_ui.brand_panel.get_global_rect().end.x
+		and main_ui.right_ledger.get_global_rect().position.x
+		> main_ui.brand_panel.get_global_rect().position.x,
+		"Persistent game details should occupy the upper side ledgers."
+	)
+	_check(
+		main_ui.left_ledger.get_global_rect().position.x >= 0.0
+		and main_ui.right_ledger.get_global_rect().end.x <= root.get_visible_rect().end.x
+		and main_ui.right_ledger.get_global_rect().end.y <= root.get_visible_rect().end.y,
+		"Both upper ledgers should remain inside the 1280x720 viewport."
 	)
 
 	var resource_button := _find_card_button(_hand_container(), "pebble_coin")
@@ -138,7 +196,7 @@ func _initialize() -> void:
 
 	main_ui.game_state.player.coins = 99
 	main_ui._refresh_ui()
-	var market_button: Button = _market_container().get_child(0)
+	var market_button: Button = _all_market_buttons()[0]
 	var market_card_id: String = market_button.get_meta("card_id")
 	var market_card: CardDefinition = main_ui.game_state.card_catalog[market_card_id]
 	var market_supply_before: int = main_ui.game_state.get_supply_count(market_card_id)
@@ -160,6 +218,10 @@ func _initialize() -> void:
 		_check(
 			_market_pile_label(market_button).text == "×%d" % market_supply_before,
 			"Market cards should show their remaining pile count."
+		)
+		_check(
+			market_button.size.y <= 140.0,
+			"Market cards should use the compact two-row presentation."
 		)
 		market_button.mouse_entered.emit()
 		await process_frame
@@ -198,7 +260,7 @@ func _initialize() -> void:
 			"Buying should decrement the visible supply pile."
 		)
 		_check(_hud_value("BuyStat") == "0", "Buy HUD should update after a purchase.")
-		for button in _market_container().get_children():
+		for button in _all_market_buttons():
 			_check(button.disabled, "Market cards should be unavailable with no buys remaining.")
 		main_ui.game_state.player.buys = 1
 		main_ui.game_state.player.coins = 99
@@ -331,6 +393,61 @@ func _market_container() -> HBoxContainer:
 	)
 
 
+func _market_panel() -> PanelContainer:
+	return main_ui.get_node("Margin/Layout/MarketPanel")
+
+
+func _market_scroll() -> ScrollContainer:
+	return main_ui.get_node("Margin/Layout/MarketPanel/MarketMargin/MarketScroll")
+
+
+func _treasury_cards() -> GridContainer:
+	return main_ui.market_resource_container
+
+
+func _barracks_cards() -> GridContainer:
+	return main_ui.market_action_container
+
+
+func _estates_cards() -> GridContainer:
+	return main_ui.market_victory_container
+
+
+func _all_market_buttons() -> Array[Button]:
+	var buttons: Array[Button] = []
+	for container in [_treasury_cards(), _barracks_cards(), _estates_cards()]:
+		for child in container.get_children():
+			buttons.append(child as Button)
+	return buttons
+
+
+func _zone_title(carpet_name: String) -> String:
+	var carpet := _market_container().get_node(carpet_name)
+	var title := carpet.find_child("Title", true, false) as Label
+	return title.text
+
+
+func _container_has_type(container: GridContainer, card_type: String) -> bool:
+	for child in container.get_children():
+		if child.get_meta("card_type", "") != card_type:
+			return false
+	return true
+
+
+func _children_fit_parent(container: Container) -> bool:
+	var parent_rect := container.get_global_rect()
+	for child in container.get_children():
+		var child_rect: Rect2 = child.get_global_rect()
+		if (
+			child_rect.position.x < parent_rect.position.x
+			or child_rect.position.y < parent_rect.position.y
+			or child_rect.end.x > parent_rect.end.x
+			or child_rect.end.y > parent_rect.end.y
+		):
+			return false
+	return true
+
+
 func _play_area_container() -> HBoxContainer:
 	return main_ui.get_node(
 		"Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row/PlayAreaScroll/PlayAreaContainer"
@@ -338,11 +455,11 @@ func _play_area_container() -> HBoxContainer:
 
 
 func _end_turn_button() -> Button:
-	return main_ui.get_node("Margin/Layout/HudPanel/HudMargin/Hud/EndTurnButton")
+	return main_ui.end_turn_button
 
 
 func _new_game_button() -> Button:
-	return main_ui.get_node("Margin/Layout/HudPanel/HudMargin/Hud/NewGameButton")
+	return main_ui.new_game_button
 
 
 func _card_preview() -> PanelContainer:
@@ -410,23 +527,24 @@ func _market_pile_label(button: Button) -> Label:
 
 
 func _hud_value(stat_name: String) -> String:
-	var stat: Control = main_ui.get_node(
-		"Margin/Layout/HudPanel/HudMargin/Hud/%s" % stat_name
-	)
+	var stat := main_ui.hud_row.find_child(stat_name, true, false) as Control
 	var label := stat.find_child("Value", true, false) as Label
 	return label.text
 
 
 func _hud_icon(stat_name: String) -> TextureRect:
-	return main_ui.get_node(
-		"Margin/Layout/HudPanel/HudMargin/Hud/%s/ValueRow/Icon" % stat_name
-	)
+	var stat := main_ui.hud_row.find_child(stat_name, true, false) as Control
+	return stat.find_child("Icon", true, false) as TextureRect
 
 
 func _find_card_button(container: Container, card_id: String) -> Button:
 	for child in container.get_children():
 		if child.get_meta("card_id", "") == card_id:
 			return child
+		if child is Container:
+			var nested := _find_card_button(child as Container, card_id)
+			if nested != null:
+				return nested
 	return null
 
 

@@ -9,7 +9,7 @@ contents of your deck into victory points.
 ## Current Game
 
 - 38 data-driven cards with original names and painterly artwork
-- A 12-card market: 2 resources, 7 actions, and 3 victory cards
+- A 14-card kingdom market: 2 resources, 10 actions, and 2 victory cards
 - Six archived cards retained in the catalog but excluded from random markets
 - Seven Pebble Coins and three Homesteads in the starting deck
 - Five-card hands, reshuffling discard piles, actions, coins, and buys
@@ -23,6 +23,8 @@ contents of your deck into victory points.
 - Final scoring after turn 15
 - Handcrafted medieval tabletop UI using dark walnut cards, brass, leather, and
   restrained heraldic ornament
+- A three-carpet market board: Royal Treasury resources, Guild Barracks
+  actions, and Crown Estates victory cards
 - Card previews, movement animation, audio feedback, and an end-game score plaque
 - Automated rules and UI smoke tests
 - Automated Web export and production deployment

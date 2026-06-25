@@ -101,11 +101,15 @@ from `card_type`, never from individual card IDs.
 
 ## Market composition
 
-`GameState` builds a twelve-card market:
+`GameState` builds a fourteen-card market:
 
 - 2 resource cards
-- 7 action cards
-- 3 victory cards
+- 10 action cards
+- 2 victory cards
+
+The UI routes these definitions by `card_type` into the Royal Treasury, Guild
+Barracks, and Crown Estates carpets. Market presentation must not branch on
+individual card IDs.
 
 Pebble Coin and Homestead are starter cards and do not enter the market. Every
 other definition with `market_enabled: true` is eligible. A
