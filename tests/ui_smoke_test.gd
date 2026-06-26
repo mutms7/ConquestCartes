@@ -27,11 +27,21 @@ func _initialize() -> void:
 		main_ui.background_music_player != null
 		and main_ui.background_music_player.stream != null
 		and main_ui.background_music_player.playing
+		and main_ui.background_music_started_from_user_gesture
 		and is_equal_approx(
 			main_ui.background_music_player.volume_db,
 			main_ui.BACKGROUND_MUSIC_VOLUME_DB
 		),
 		"Background medieval music should load and start when audio is enabled."
+	)
+	main_ui.background_music_started_from_user_gesture = false
+	var unlock_click := InputEventMouseButton.new()
+	unlock_click.pressed = true
+	main_ui._input(unlock_click)
+	_check(
+		main_ui.background_music_started_from_user_gesture
+		and main_ui.background_music_player.playing,
+		"Background music should restart from a real input gesture for Web audio unlock."
 	)
 	_home_audio_toggle().set_pressed_no_signal(false)
 	_home_audio_toggle().toggled.emit(false)
@@ -46,7 +56,8 @@ func _initialize() -> void:
 	_check(
 		main_ui.audio_enabled
 		and main_ui.background_music_player != null
-		and main_ui.background_music_player.playing,
+		and main_ui.background_music_player.playing
+		and main_ui.background_music_started_from_user_gesture,
 		"Audio toggle should restart the background music."
 	)
 	_home_motion_toggle().set_pressed_no_signal(false)

@@ -78,7 +78,7 @@ const SOUND_PATHS := {
 	"game_end": "res://assets/audio/ui/game_end.ogg",
 }
 const BACKGROUND_MUSIC_PATH := "res://assets/audio/sunspire_court_loop.wav"
-const BACKGROUND_MUSIC_VOLUME_DB := -10.0
+const BACKGROUND_MUSIC_VOLUME_DB := 0.0
 
 var game_state := GameState.new()
 var turn_manager := TurnManager.new()
@@ -89,6 +89,7 @@ var ui_textures: Dictionary = {}
 var icon_textures: Dictionary = {}
 var ui_sound_players: Dictionary = {}
 var background_music_player: AudioStreamPlayer
+var background_music_started_from_user_gesture := false
 var last_ui_sound_name: String = ""
 var last_animation_event: String = ""
 var card_art_cache: Dictionary = {}
@@ -2377,6 +2378,7 @@ func _clear_animation_layer() -> void:
 func _play_ui_sound(sound_name: String) -> void:
 	if not audio_enabled or not ui_sound_players.has(sound_name):
 		return
+	_start_background_music_from_user_gesture()
 	var player: AudioStreamPlayer = ui_sound_players[sound_name]
 	last_ui_sound_name = sound_name
 	player.stop()
@@ -2391,6 +2393,17 @@ func _refresh_background_music() -> void:
 			background_music_player.play()
 	else:
 		background_music_player.stop()
+		background_music_started_from_user_gesture = false
+
+
+func _start_background_music_from_user_gesture() -> void:
+	if background_music_player == null or not audio_enabled:
+		return
+	if background_music_started_from_user_gesture and background_music_player.playing:
+		return
+	background_music_player.stop()
+	background_music_player.play()
+	background_music_started_from_user_gesture = true
 
 
 func _clear_container(container: Container) -> void:
@@ -2619,10 +2632,28 @@ func _close_kingdom_browser() -> void:
 		home_kingdoms_panel.hide()
 
 
+func _input(event: InputEvent) -> void:
+	if _is_audio_unlock_event(event):
+		_start_background_music_from_user_gesture()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel") and home_kingdoms_panel != null and home_kingdoms_panel.visible:
 		_close_kingdom_browser()
 		get_viewport().set_input_as_handled()
+
+
+func _is_audio_unlock_event(event: InputEvent) -> bool:
+	if event is InputEventMouseButton:
+		return (event as InputEventMouseButton).pressed
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+		return key_event.pressed and not key_event.echo
+	if event is InputEventScreenTouch:
+		return (event as InputEventScreenTouch).pressed
+	if event is InputEventJoypadButton:
+		return (event as InputEventJoypadButton).pressed
+	return false
 
 
 func _on_home_audio_toggled(enabled: bool) -> void:
