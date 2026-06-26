@@ -1330,12 +1330,12 @@ func _get_card_rules_text(description: String) -> String:
 func _format_rule_shorthand(text: String) -> String:
 	var formatted_text := _replace_numeric_rule_phrase(
 		text,
-		"(Gain|gain|Draw|draw) ([0-9]+) (extra |more )?(card|cards|action|actions|buy|buys|coin|coins)",
+		"(Gain|gain|Draw|draw) ([0-9]+) (extra |more )?(cards|card|actions|action|buys|buy|coins|coin)",
 		false
 	)
 	return _replace_numeric_rule_phrase(
 		formatted_text,
-		"(, and |, | and )([0-9]+) (card|cards|action|actions|buy|buys|coin|coins)",
+		"(, and |, | and )([0-9]+) (cards|card|actions|action|buys|buy|coins|coin)",
 		true
 	)
 

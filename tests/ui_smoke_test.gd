@@ -342,7 +342,7 @@ func _initialize() -> void:
 		_check(_play_area_container().get_child_count() == 1, "Played card should render in play area.")
 
 	var short_rules_card: CardDefinition = main_ui.game_state.card_catalog["candlecap_laboratory"]
-	var short_rules_button := main_ui._create_card_button(short_rules_card, "hand_playable")
+	var short_rules_button: Button = main_ui._create_card_button(short_rules_card, "hand_playable")
 	root.add_child(short_rules_button)
 	await process_frame
 	_check(
@@ -352,7 +352,7 @@ func _initialize() -> void:
 	)
 	short_rules_button.queue_free()
 
-	var long_rules := main_ui.game_state.card_catalog["grand_archive"].description
+	var long_rules: String = main_ui.game_state.card_catalog["grand_archive"].description
 	_check(
 		main_ui._get_card_rules_text(long_rules) == long_rules,
 		"Long rules text should remain a single paragraph."
