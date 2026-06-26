@@ -6,6 +6,7 @@ const HAND_PLAYABLE := "hand_playable"
 const HAND_UNPLAYABLE := "hand_unplayable"
 const MARKET_AFFORDABLE := "market_affordable"
 const MARKET_UNAFFORDABLE := "market_unaffordable"
+const MARKET_NEUTRAL := "market_neutral"
 const CARD_HOVER_SCALE := Vector2(1.025, 1.025)
 const CARD_NORMAL_SCALE := Vector2.ONE
 const HOVER_ANIMATION_SECONDS := 0.08
@@ -13,7 +14,7 @@ const CARD_MOVE_SECONDS := 0.18
 const CARD_DRAW_SECONDS := 0.16
 const CLEANUP_SECONDS := 0.2
 const CARD_FACE_SIZE := Vector2(172, 214)
-const CARD_ART_HEIGHT := 90.0
+const CARD_ART_HEIGHT := 104.0
 const PREVIEW_SIZE := Vector2(340, 480)
 const PREVIEW_EDGE_MARGIN := 24.0
 const SHORT_RULE_BREAK_LIMIT := 72
@@ -1291,9 +1292,14 @@ func _render_market_cards(
 	cards: Array[CardDefinition],
 	container: GridContainer
 ) -> void:
+	# The market stays neutral (full colour, plain frame) until the player has
+	# played a card this turn; only then do affordability cues kick in.
+	var buying_active := not game_state.player.play_area.is_empty()
 	for card in cards:
 		var affordable := _can_buy_card(card)
-		var visual_state := MARKET_AFFORDABLE if affordable else MARKET_UNAFFORDABLE
+		var visual_state := MARKET_NEUTRAL
+		if buying_active:
+			visual_state = MARKET_AFFORDABLE if affordable else MARKET_UNAFFORDABLE
 		var button := _create_card_button(card, visual_state)
 		button.disabled = not affordable
 		button.mouse_default_cursor_shape = (
@@ -1546,7 +1552,7 @@ func _create_card_button(
 		art_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		art_rect.texture = art_texture
 		art_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		art_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		art_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		art_rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		art_rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		if visual_state == MARKET_UNAFFORDABLE:
@@ -1556,7 +1562,7 @@ func _create_card_button(
 
 	var effect_slot := MarginContainer.new()
 	effect_slot.name = "EffectSlot"
-	effect_slot.custom_minimum_size = Vector2(0, 57)
+	effect_slot.custom_minimum_size = Vector2(0, 44)
 	effect_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	effect_slot.add_theme_constant_override("margin_left", CARD_RULE_SIDE_MARGIN)
 	effect_slot.add_theme_constant_override("margin_top", CARD_RULE_TOP_MARGIN)
@@ -1988,6 +1994,12 @@ func _get_card_palette(visual_state: String) -> Dictionary:
 				"border": COLOR_UNAVAILABLE,
 				"text": COLOR_PARCHMENT.darkened(0.06),
 				"muted": COLOR_PARCHMENT.darkened(0.18),
+			}
+		MARKET_NEUTRAL:
+			return {
+				"border": COLOR_BRASS.darkened(0.04),
+				"text": COLOR_PARCHMENT_LIGHT,
+				"muted": COLOR_PARCHMENT.lightened(0.02),
 			}
 		"kingdom_browser", "kingdom_detail":
 			return {

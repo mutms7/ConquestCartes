@@ -760,7 +760,7 @@ mouse_filter = 2
 layout_mode = 2
 mouse_filter = 2
 expand_mode = 3
-stretch_mode = 6
+stretch_mode = 5
 
 [node name="EffectLabel" type="RichTextLabel" parent="CardPreview/Margin/Layout"]
 custom_minimum_size = Vector2(0, 92)
