@@ -917,7 +917,7 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 		or not price_badge.has_node("CoinFace")
 		or not price_badge.has_node("InnerRing")
 		or not price_badge.has_node("CoinRivet")
-		or price_label.offset_left != 0
+		or price_label.offset_left != 1
 		or price_label.offset_top != 2
 	):
 		return false

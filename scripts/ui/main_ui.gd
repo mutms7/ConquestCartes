@@ -1722,9 +1722,9 @@ func _create_price_badge(cost: int) -> Control:
 		cost_label.add_theme_font_override("font", body_bold_font)
 	badge.add_child(cost_label)
 	cost_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	cost_label.offset_left = 0
+	cost_label.offset_left = 1
 	cost_label.offset_top = 2
-	cost_label.offset_right = 0
+	cost_label.offset_right = 1
 	cost_label.offset_bottom = 2
 	return badge
 
