@@ -12,6 +12,111 @@ func _initialize() -> void:
 	root.add_child(main_ui)
 	await process_frame
 
+	_check(_home_overlay().visible, "Startup should open on the home screen.")
+	_check(_home_art().texture != null, "Home screen should use uploaded card artwork.")
+	_check(
+		_home_set_label().text == GameState.HINTERLANDS_GROUP.to_upper(),
+		"Home screen should name the active Hinterlands card group."
+	)
+	_check(_home_continue_button().disabled, "Continue should be disabled before a game starts.")
+	_home_settings_button().pressed.emit()
+	await process_frame
+	_check(_home_settings_panel().visible, "Settings should open from the home menu.")
+	_check(_home_audio_toggle().button_pressed, "Audio should default to enabled.")
+	_home_motion_toggle().set_pressed_no_signal(false)
+	_home_motion_toggle().toggled.emit(false)
+	_check(not main_ui.motion_enabled, "Motion toggle should update the UI setting.")
+	_home_motion_toggle().set_pressed_no_signal(true)
+	_home_motion_toggle().toggled.emit(true)
+	_home_noise_slider().set_value_no_signal(0.24)
+	_home_noise_slider().value_changed.emit(0.24)
+	_check(
+		is_equal_approx(main_ui.home_noise_amount, 0.24)
+		and is_equal_approx(_home_noise_overlay().modulate.a, 0.24),
+		"Home noise slider should control the home noise overlay."
+	)
+	_check(
+		_home_noise_overlay().stretch_mode == TextureRect.STRETCH_TILE,
+		"Home noise should tile instead of stretching."
+	)
+	_table_noise_slider().set_value_no_signal(0.12)
+	_table_noise_slider().value_changed.emit(0.12)
+	_check(
+		is_equal_approx(main_ui.table_noise_amount, 0.12)
+		and is_equal_approx(_table_noise_overlay().modulate.a, 0.12),
+		"Table noise slider should control the in-game table noise overlay."
+	)
+	_check(
+		_table_noise_overlay().stretch_mode == TextureRect.STRETCH_TILE,
+		"Table noise should tile instead of stretching."
+	)
+	_action_speed_slider().set_value_no_signal(2.0)
+	_action_speed_slider().value_changed.emit(2.0)
+	_check(
+		is_equal_approx(main_ui.action_animation_speed, 2.0)
+		and is_equal_approx(main_ui._action_animation_duration(0.2), 0.1),
+		"Action speed slider should affect action animation durations."
+	)
+	_home_kingdoms_button().pressed.emit()
+	await process_frame
+	_check(
+		_home_kingdoms_panel().visible and not _home_settings_panel().visible,
+		"Kingdoms should open as its own home tab."
+	)
+	_check(
+		_kingdom_tabs().get_child_count() == GameState.KINGDOM_ORDER.size()
+		and _kingdom_card_grid().get_child_count() > 0
+		and _kingdom_detail_host().get_child_count() > 0,
+		"Kingdoms should open a tabbed card browser with a detail pane."
+	)
+	_check(_kingdom_toggle(GameState.BASE_KINGDOM).disabled, "Base Kingdom should stay required.")
+	_kingdom_card_button("silver_leaf").pressed.emit()
+	await process_frame
+	_check(
+		_kingdom_detail_card("silver_leaf") != null
+		and _kingdom_detail_toggle().disabled,
+		"Necessary economy cards should be viewable but not removable."
+	)
+	_kingdom_toggle(GameState.HINTERLANDS_GROUP).set_pressed_no_signal(false)
+	_kingdom_toggle(GameState.HINTERLANDS_GROUP).toggled.emit(false)
+	_check(
+		not main_ui.game_state.is_kingdom_enabled(GameState.HINTERLANDS_GROUP)
+		and not _market_candidates_include_kingdom(GameState.HINTERLANDS_GROUP),
+		"Turning off Hinterlands should remove that kingdom from the market pool."
+	)
+	_kingdom_toggle(GameState.HINTERLANDS_GROUP).set_pressed_no_signal(true)
+	_kingdom_toggle(GameState.HINTERLANDS_GROUP).toggled.emit(true)
+	_kingdom_tab(GameState.HINTERLANDS_GROUP).pressed.emit()
+	await process_frame
+	_check(
+		_kingdom_detail_card("briar_passage") != null
+		or _kingdom_detail_host().get_child_count() > 0,
+		"Hinterlands tab should show real card faces in the browser."
+	)
+	_kingdom_card_button("river_magistrate").set_pressed_no_signal(false)
+	_kingdom_card_button("river_magistrate").toggled.emit(false)
+	_check(
+		not main_ui.game_state.is_card_enabled_for_market("river_magistrate")
+		and not _market_candidates_include_card("river_magistrate"),
+		"Individual card toggles should remove one card from market draw."
+	)
+	_kingdom_card_button("river_magistrate").set_pressed_no_signal(true)
+	_kingdom_card_button("river_magistrate").toggled.emit(true)
+	_kingdom_toggle(GameState.BEGINNER_KINGDOM).set_pressed_no_signal(false)
+	_kingdom_toggle(GameState.BEGINNER_KINGDOM).toggled.emit(false)
+	_kingdom_toggle(GameState.HINTERLANDS_GROUP).set_pressed_no_signal(false)
+	_kingdom_toggle(GameState.HINTERLANDS_GROUP).toggled.emit(false)
+	_check(_home_new_game_button().disabled, "New Game should lock when filters cannot fill a market.")
+	_kingdom_toggle(GameState.BEGINNER_KINGDOM).set_pressed_no_signal(true)
+	_kingdom_toggle(GameState.BEGINNER_KINGDOM).toggled.emit(true)
+	_kingdom_toggle(GameState.HINTERLANDS_GROUP).set_pressed_no_signal(true)
+	_kingdom_toggle(GameState.HINTERLANDS_GROUP).toggled.emit(true)
+	_home_new_game_button().pressed.emit()
+	await process_frame
+	await process_frame
+	_check(not _home_overlay().visible, "New Game should leave the home screen.")
+	_check(main_ui.has_active_game, "Starting from the home menu should create an active game.")
+
 	_check(_hand_container().get_child_count() == 5, "Initial hand should render five cards.")
 	_check(
 		_all_market_buttons().size() == GameState.MARKET_SIZE,
@@ -151,8 +256,15 @@ func _initialize() -> void:
 		_check(_card_art(resource_button).texture != null, "Card faces should display card artwork.")
 		_check(
 			_card_effect(resource_button).get_parsed_text()
-			== main_ui.game_state.card_catalog["pebble_coin"].description,
-			"Card faces should show the complete data-driven rules description."
+			== _plain_card_rules_text(
+				main_ui.game_state.card_catalog["pebble_coin"].description
+			),
+			"Card faces should show the formatted rules description."
+		)
+		_check(
+			main_ui._get_card_rules_text("Gain 1 buy and 2 coins.")
+			== "[b]+1 buy[/b] and [b]+2 coins[/b].",
+			"Numeric gain text should render as bold shorthand."
 		)
 		_check(
 			_card_name(resource_button).get_theme_font_size("font_size") >= 15
@@ -170,6 +282,10 @@ func _initialize() -> void:
 				main_ui.game_state.card_catalog["pebble_coin"]
 			)),
 			"Card prices should appear in the upper-left coin badge."
+		)
+		_check(
+			_card_price(resource_button).get_theme_font("font") == main_ui.title_font,
+			"Card price numbers should use the fancy title font."
 		)
 		_check(
 			_card_text_layout_is_clear(resource_button),
@@ -196,7 +312,9 @@ func _initialize() -> void:
 		)
 		_check(
 			_preview_effect().get_parsed_text()
-			== main_ui.game_state.card_catalog["pebble_coin"].description,
+			== _plain_card_rules_text(
+				main_ui.game_state.card_catalog["pebble_coin"].description
+			),
 			"Hand previews should show the same complete rules description once."
 		)
 		_check(
@@ -222,6 +340,23 @@ func _initialize() -> void:
 		_check(_hud_value("CoinStat") == "1", "Coin HUD should update after playing a resource.")
 		_check(_hand_container().get_child_count() == 4, "Played card should leave the hand UI.")
 		_check(_play_area_container().get_child_count() == 1, "Played card should render in play area.")
+
+	var short_rules_card: CardDefinition = main_ui.game_state.card_catalog["candlecap_laboratory"]
+	var short_rules_button := main_ui._create_card_button(short_rules_card, "hand_playable")
+	root.add_child(short_rules_button)
+	await process_frame
+	_check(
+		_card_effect(short_rules_button).get_parsed_text()
+		== "+2 cards.\n+1 action.",
+		"Short multi-sentence rules text should split into one sentence per line."
+	)
+	short_rules_button.queue_free()
+
+	var long_rules := main_ui.game_state.card_catalog["grand_archive"].description
+	_check(
+		main_ui._get_card_rules_text(long_rules) == long_rules,
+		"Long rules text should remain a single paragraph."
+	)
 
 	var score_button := _find_card_button(_hand_container(), "homestead")
 	if score_button != null:
@@ -279,7 +414,8 @@ func _initialize() -> void:
 			"Market prices should appear in the upper-left coin badge."
 		)
 		_check(
-			_card_effect(market_button).get_parsed_text() == market_card.description,
+			_card_effect(market_button).get_parsed_text()
+			== _plain_card_rules_text(market_card.description),
 			"Market card faces should show their complete rules description."
 		)
 		_check(
@@ -303,7 +439,8 @@ func _initialize() -> void:
 			"Market preview should display the hovered card artwork."
 		)
 		_check(
-			_preview_effect().get_parsed_text() == market_card.description,
+			_preview_effect().get_parsed_text()
+			== _plain_card_rules_text(market_card.description),
 			"Market previews should show the exact data-driven rules description."
 		)
 		_check(
@@ -364,25 +501,36 @@ func _initialize() -> void:
 	var market_before_restart: Array[String] = main_ui.game_state.get_market_card_ids()
 	main_ui.game_state.player.coins = 8
 	main_ui.game_state.player.discard_pile.append(main_ui.game_state.card_catalog["silver_leaf"])
-	_new_game_button().pressed.emit()
+	main_ui._refresh_ui()
+	_home_button().pressed.emit()
+	await process_frame
+	_check(_home_overlay().visible, "Home button should return to the home screen.")
+	_check(not _home_continue_button().disabled, "Continue should unlock once a game exists.")
+	_home_continue_button().pressed.emit()
+	await process_frame
+	_check(not _home_overlay().visible, "Continue should resume the current game.")
+	_check(_hud_value("CoinStat") == "8", "Continue should preserve the current game state.")
+	_home_button().pressed.emit()
+	await process_frame
+	_home_new_game_button().pressed.emit()
 	await process_frame
 	await process_frame
-	_check(main_ui.last_ui_sound_name == "draw", "New Game should finish with draw feedback.")
+	_check(main_ui.last_ui_sound_name == "draw", "Home New Game should finish with draw feedback.")
 	var market_after_restart: Array[String] = main_ui.game_state.get_market_card_ids()
 	_check(
 		not _same_card_ids(market_before_restart, market_after_restart),
-		"New Game button should display a different market."
+		"Home New Game should display a different market."
 	)
-	_check(_hud_value("TurnStat") == "1 / 15", "New Game should reset the turn counter.")
-	_check(_hud_value("CoinStat") == "0", "New Game should reset coins.")
-	_check(main_ui.game_state.player.hand.size() == 5, "New Game should draw a fresh hand.")
+	_check(_hud_value("TurnStat") == "1 / 15", "Home New Game should reset the turn counter.")
+	_check(_hud_value("CoinStat") == "0", "Home New Game should reset coins.")
+	_check(main_ui.game_state.player.hand.size() == 5, "Home New Game should draw a fresh hand.")
 	_check(
 		main_ui.game_state.player.get_all_cards().size() == 10,
-		"New Game should restore the starting deck."
+		"Home New Game should restore the starting deck."
 	)
 	_check(
 		main_ui.game_state.player.discard_pile.is_empty(),
-		"New Game should clear the discard pile."
+		"Home New Game should clear the discard pile."
 	)
 
 	main_ui.game_state.player.clear_all()
@@ -469,6 +617,126 @@ func _market_panel() -> PanelContainer:
 	return main_ui.get_node("Margin/Layout/MarketPanel")
 
 
+func _home_overlay() -> Control:
+	return main_ui.get_node("HomeOverlay")
+
+
+func _home_art() -> TextureRect:
+	return main_ui.get_node("HomeOverlay/HomeArt")
+
+
+func _home_set_label() -> Label:
+	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/SetLabel")
+
+
+func _home_new_game_button() -> Button:
+	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/NewGameButton")
+
+
+func _home_continue_button() -> Button:
+	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/ContinueButton")
+
+
+func _home_settings_button() -> Button:
+	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/SettingsButton")
+
+
+func _home_kingdoms_button() -> Button:
+	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/KingdomsButton")
+
+
+func _home_settings_panel() -> VBoxContainer:
+	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/SettingsPanel")
+
+
+func _home_kingdoms_panel() -> PanelContainer:
+	return main_ui.get_node("HomeOverlay/KingdomsPanel")
+
+
+func _home_audio_toggle() -> CheckButton:
+	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/SettingsPanel/AudioToggle")
+
+
+func _home_motion_toggle() -> CheckButton:
+	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/SettingsPanel/MotionToggle")
+
+
+func _home_noise_slider() -> HSlider:
+	return main_ui.home_noise_slider
+
+
+func _table_noise_slider() -> HSlider:
+	return main_ui.table_noise_slider
+
+
+func _action_speed_slider() -> HSlider:
+	return main_ui.action_animation_speed_slider
+
+
+func _home_noise_overlay() -> TextureRect:
+	return main_ui.home_noise_overlay
+
+
+func _table_noise_overlay() -> TextureRect:
+	return main_ui.table_noise_overlay
+
+
+func _kingdom_tabs() -> VBoxContainer:
+	return main_ui.get_node("HomeOverlay/KingdomsPanel/Margin/Browser/KingdomTabs")
+
+
+func _kingdom_card_grid() -> GridContainer:
+	return main_ui.get_node("HomeOverlay/KingdomsPanel/Margin/Browser/CardsPane/CardScroll/CardGrid")
+
+
+func _kingdom_detail_host() -> VBoxContainer:
+	return main_ui.get_node("HomeOverlay/KingdomsPanel/Margin/Browser/DetailPane/Margin/DetailHost")
+
+
+func _kingdom_tab(kingdom: String) -> Button:
+	return main_ui.get_node(
+		"HomeOverlay/KingdomsPanel/Margin/Browser/KingdomTabs/Kingdom_%s/KingdomTab"
+		% main_ui._node_key(kingdom)
+	)
+
+
+func _kingdom_toggle(kingdom: String) -> CheckButton:
+	return main_ui.get_node(
+		"HomeOverlay/KingdomsPanel/Margin/Browser/KingdomTabs/Kingdom_%s/KingdomToggle"
+		% main_ui._node_key(kingdom)
+	)
+
+
+func _kingdom_card_button(card_id: String) -> Button:
+	return _home_kingdoms_panel().find_child("Card_%s" % card_id, true, false) as Button
+
+
+func _kingdom_detail_card(card_id: String) -> Button:
+	return _home_kingdoms_panel().find_child("DetailCard_%s" % card_id, true, false) as Button
+
+
+func _kingdom_detail_toggle() -> CheckButton:
+	return _home_kingdoms_panel().find_child("DetailCardToggle", true, false) as CheckButton
+
+
+func _plain_card_rules_text(description: String) -> String:
+	return main_ui._get_card_rules_text(description).replace("[b]", "").replace("[/b]", "")
+
+
+func _market_candidates_include_kingdom(kingdom: String) -> bool:
+	for card in main_ui.game_state.get_market_candidates():
+		if main_ui.game_state.get_card_kingdom(card) == kingdom:
+			return true
+	return false
+
+
+func _market_candidates_include_card(card_id: String) -> bool:
+	for card in main_ui.game_state.get_market_candidates():
+		if card.id == card_id:
+			return true
+	return false
+
+
 func _market_scroll() -> ScrollContainer:
 	return main_ui.get_node("Margin/Layout/MarketPanel/MarketMargin/MarketScroll")
 
@@ -553,8 +821,8 @@ func _end_turn_button() -> Button:
 	return main_ui.end_turn_button
 
 
-func _new_game_button() -> Button:
-	return main_ui.new_game_button
+func _home_button() -> Button:
+	return main_ui.home_button
 
 
 func _card_preview() -> PanelContainer:
@@ -614,7 +882,7 @@ func _card_name(button: Button) -> Label:
 
 
 func _card_effect(button: Button) -> RichTextLabel:
-	return button.get_node("CardContent/CardLayout/EffectSlot/EffectLabel")
+	return button.get_node("CardContent/CardLayout/EffectSlot/EffectCenter/EffectLabel")
 
 
 func _card_price(button: Button) -> Label:
@@ -626,9 +894,11 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 	var name_label := _card_name(button)
 	var art_frame := _card_art(button).get_parent() as Control
 	var effect_slot := button.get_node("CardContent/CardLayout/EffectSlot") as MarginContainer
+	var effect_center := button.get_node("CardContent/CardLayout/EffectSlot/EffectCenter") as VBoxContainer
 	var effect_label := _card_effect(button)
 	var meta_row := button.get_node("CardContent/CardLayout/MetaRow") as Control
 	var price_badge := button.get_node("PriceBadge") as Control
+	var price_label := _card_price(button)
 	var button_rect := button.get_global_rect()
 	var safe_rect := button_rect.grow(-4.0)
 	var regions: Array[Control] = [name_label, art_frame, effect_slot, effect_label, meta_row]
@@ -639,9 +909,16 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 		or content.get_theme_constant("margin_bottom") != 5
 		or name_label.custom_minimum_size.y < 30.0
 		or name_label.vertical_alignment != VERTICAL_ALIGNMENT_BOTTOM
-		or effect_slot.get_theme_constant("margin_left") != 5
-		or effect_slot.get_theme_constant("margin_top") != 5
-		or effect_slot.get_theme_constant("margin_right") != 5
+		or effect_slot.get_theme_constant("margin_left") != main_ui.CARD_RULE_SIDE_MARGIN
+		or effect_slot.get_theme_constant("margin_top") != main_ui.CARD_RULE_TOP_MARGIN
+		or effect_slot.get_theme_constant("margin_right") != main_ui.CARD_RULE_SIDE_MARGIN
+		or effect_slot.get_theme_constant("margin_bottom") != main_ui.CARD_RULE_BOTTOM_MARGIN
+		or effect_center.alignment != BoxContainer.ALIGNMENT_CENTER
+		or not price_badge.has_node("CoinFace")
+		or not price_badge.has_node("InnerRing")
+		or not price_badge.has_node("CoinRivet")
+		or price_label.offset_left != 0
+		or price_label.offset_top != 2
 	):
 		return false
 
@@ -655,9 +932,12 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 		and art_frame.get_global_rect().end.y + 5.0
 		<= effect_label.get_global_rect().position.y
 		and effect_label.get_global_rect().end.y <= meta_row.get_global_rect().position.y
-		and footer_gap >= 8.0
-		and footer_gap <= 12.0
-		and art_frame.get_global_rect().encloses(price_badge.get_global_rect())
+		and footer_gap >= 0.0
+		and footer_gap <= 8.0
+		and safe_rect.encloses(price_badge.get_global_rect())
+		and price_badge.get_global_rect().position.x < art_frame.get_global_rect().position.x
+		and price_badge.get_global_rect().end.y <= art_frame.get_global_rect().position.y
+		and not art_frame.get_global_rect().encloses(price_badge.get_global_rect())
 	)
 
 

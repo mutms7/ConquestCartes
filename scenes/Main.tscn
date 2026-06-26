@@ -353,14 +353,14 @@ horizontal_alignment = 1
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="NewGameButton" type="Button" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
+[node name="HomeButton" type="Button" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
 custom_minimum_size = Vector2(112, 44)
 layout_mode = 2
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.85098, 0.894118, 0.858824, 1)
 theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 14
-text = "NEW GAME"
+text = "HOME"
 
 [node name="EndTurnButton" type="Button" parent="Margin/Layout/HudPanel/HudMargin/Hud"]
 custom_minimum_size = Vector2(136, 44)

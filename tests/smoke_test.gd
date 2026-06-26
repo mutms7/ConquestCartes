@@ -15,11 +15,11 @@ const EXPECTED_ART_LINKED_NAMES := {
 	"wishing_garden": "Wishing Stone",
 	"starpath_seeker": "Starlit Wagon",
 	"master_weaver": "Weaver's Loom",
-	"roadside_reaver": "Trail Biscuit Cache",
-	"royal_clerk": "Royal Charter Decree",
-	"root_cellar": "Homestead Cellar",
-	"river_ward": "River Courier's Detour",
-	"quiet_chapel": "Quiet Archive Purge",
+	"roadside_reaver": "Trail Cache",
+	"royal_clerk": "Royal Decree",
+	"root_cellar": "Root Cellar",
+	"river_ward": "River Detour",
+	"quiet_chapel": "Archive Purge",
 	"council_hearth": "Scholar's Hall",
 	"harvest_feast": "Firefly Supper",
 	"lantern_festival": "Lantern Parade",
@@ -27,7 +27,7 @@ const EXPECTED_ART_LINKED_NAMES := {
 	"candlecap_laboratory": "Candlecap",
 	"grand_archive": "Quiet Archive",
 	"crossroads_market": "Orchard Map",
-	"town_militia": "Stone Wall Muster",
+	"town_militia": "Stone Muster",
 	"moonlit_mine": "Moonwell Token",
 	"mist_cloak": "Moss Thread",
 	"coin_broker": "Acorn Purse",
@@ -36,12 +36,40 @@ const EXPECTED_ART_LINKED_NAMES := {
 	"clockwork_sentry": "Tinker Wren",
 	"forge_hall": "Hearthsong",
 	"astral_spyglass": "Astral Vault",
-	"relic_seeker": "Gilded Reliquary",
-	"echoing_hall": "Hearthsong Refrain",
+	"relic_seeker": "Reliquary",
+	"echoing_hall": "Hearth Refrain",
 	"banner_vassal": "River Courier",
-	"timber_camp": "Moss Thread Camp",
-	"guild_workshop": "Loomwright's Workshop",
+	"timber_camp": "Moss Camp",
+	"guild_workshop": "Loom Workshop",
 }
+const HINTERLAND_CARD_IDS := [
+	"briar_passage",
+	"orchard_acre",
+	"firefly_gold",
+	"silverleaf_broker",
+	"river_magistrate",
+	"bellfoundry_village",
+	"orchard_surveyor",
+	"wishing_crossroads",
+	"tinkers_development",
+	"lantern_bargainer",
+	"starlit_causeway",
+	"hearthside_lodge",
+	"village_handyman",
+	"moonwell_rest",
+	"quiet_stratagem",
+	"acorn_spicebroker",
+	"mosswood_stable",
+	"candlecap_kettle",
+	"briar_hound",
+	"river_trail",
+	"moss_weaver",
+	"stonewall_raider",
+	"briar_hut",
+	"starlit_caravan",
+	"lantern_bazaar",
+	"tinker_wheelwright",
+]
 
 var failure_count := 0
 
@@ -77,6 +105,10 @@ func _test_card_catalog() -> void:
 	)
 	for card in game_state.card_catalog.values():
 		_check(not card.card_name.is_empty(), "Every card should have an original name.")
+		_check(
+			card.card_name.length() <= 15,
+			"%s should have a compact display name." % card.id
+		)
 		_check(not card.art_id.is_empty(), "%s should map to artwork." % card.card_name)
 		_check(
 			ResourceLoader.exists("res://assets/cards/%s.png" % card.art_id),
@@ -89,6 +121,21 @@ func _test_card_catalog() -> void:
 				game_state.card_catalog[card_id].card_name
 				== EXPECTED_ART_LINKED_NAMES[card_id],
 				"%s should retain an art-linked display name." % card_id
+			)
+	for card_id in HINTERLAND_CARD_IDS:
+		_check(game_state.card_catalog.has(card_id), "Hinterland card %s should exist." % card_id)
+		if game_state.card_catalog.has(card_id):
+			_check(
+				game_state.card_catalog[card_id].card_group == GameState.HINTERLANDS_GROUP,
+				"%s should belong to the named Hinterlands card group." % card_id
+			)
+	for card_id in GameState.REQUIRED_CARD_IDS:
+		_check(game_state.card_catalog.has(card_id), "Required card %s should exist." % card_id)
+		if game_state.card_catalog.has(card_id):
+			_check(
+				game_state.get_card_kingdom(game_state.card_catalog[card_id])
+				== GameState.BASE_KINGDOM,
+				"%s should belong to the required base kingdom." % card_id
 			)
 	for card_id in INACTIVE_CARD_IDS:
 		_check(
@@ -501,7 +548,7 @@ func _test_progressive_cards_and_costs() -> void:
 		game_state.card_catalog["pebble_coin"],
 	])
 	var actions_before := game_state.player.actions
-	_check(game_state.play_card(crossroads), "Wishing Crossroads should play.")
+	_check(game_state.play_card(crossroads), "Wish Crossroads should play.")
 	_check(game_state.player.hand.size() == 4, "Crossroads should draw per victory card.")
 	_check(
 		game_state.player.actions == actions_before - 1 + 3,
@@ -512,10 +559,10 @@ func _test_progressive_cards_and_costs() -> void:
 	var causeway: CardDefinition = game_state.card_catalog["starlit_causeway"]
 	game_state.player.hand.append(causeway)
 	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
-	_check(game_state.play_card(causeway), "Starlit Causeway should play.")
+	_check(game_state.play_card(causeway), "Star Causeway should play.")
 	_check(
 		game_state.get_effective_cost(game_state.card_catalog["amber_circlet"]) == 5,
-		"Starlit Causeway should reduce card costs for the turn."
+		"Star Causeway should reduce card costs for the turn."
 	)
 
 
@@ -532,12 +579,12 @@ func _test_gain_and_discard_triggers() -> void:
 	game_state.player.hand.append(broker)
 	_check(game_state._gain_from_supply(forge, "discard"), "A test card should be gained.")
 	game_state._process_resolution_queue()
-	_check(game_state.has_pending_choice(), "Silverleaf Broker should react to a gain.")
+	_check(game_state.has_pending_choice(), "Leaf Broker should react to a gain.")
 	_resolve_choice_by_ids(game_state, ["silverleaf_broker"])
 	_check(
 		game_state.player.discard_pile.has(game_state.card_catalog["silver_leaf"])
 		and not game_state.player.discard_pile.has(forge),
-		"Silverleaf Broker should exchange the gained card for a Silver Leaf."
+		"Leaf Broker should exchange the gained card for a Silver Leaf."
 	)
 
 	game_state = _empty_game()
@@ -589,13 +636,13 @@ func _test_gain_and_discard_triggers() -> void:
 			game_state.card_catalog["bellfoundry_village"],
 			"discard"
 		),
-		"Bellfoundry Village should be gainable."
+		"Bellfoundry should be gainable."
 	)
 	game_state._process_resolution_queue()
 	_resolve_choice_by_ids(game_state, ["guild_workshop"])
 	_check(
 		game_state.player.discard_pile.has(game_state.card_catalog["guild_workshop"]),
-		"Bellfoundry Village should gain a cheaper card."
+		"Bellfoundry should gain a cheaper card."
 	)
 
 	game_state = _empty_game()
@@ -604,23 +651,23 @@ func _test_gain_and_discard_triggers() -> void:
 	game_state.player.discard_pile.append(recovered_action)
 	_check(
 		game_state._gain_from_supply(game_state.card_catalog["hearthside_lodge"], "discard"),
-		"Hearthside Lodge should be gainable."
+		"Hearth Lodge should be gainable."
 	)
 	game_state._process_resolution_queue()
 	_resolve_choice_by_ids(game_state, ["forge_hall"])
 	_check(
 		game_state.player.draw_pile.has(recovered_action),
-		"Hearthside Lodge should shuffle selected actions into the deck."
+		"Hearth Lodge should shuffle selected actions into the deck."
 	)
 
 	game_state = _empty_game()
 	_set_test_market(game_state, ["starlit_caravan"])
 	_check(
 		game_state._gain_from_supply(game_state.card_catalog["starlit_caravan"], "discard"),
-		"Starlit Caravan should be gainable."
+		"Star Caravan should be gainable."
 	)
 	game_state._process_resolution_queue()
-	_check(game_state.player.coins == 2, "Starlit Caravan should grant coins when gained.")
+	_check(game_state.player.coins == 2, "Star Caravan should grant coins when gained.")
 	var caravan: CardDefinition = game_state.card_catalog["starlit_caravan"]
 	game_state._move_cards(
 		game_state.player.discard_pile,
@@ -629,7 +676,7 @@ func _test_gain_and_discard_triggers() -> void:
 		"trash"
 	)
 	game_state._process_resolution_queue()
-	_check(game_state.player.coins == 4, "Starlit Caravan should grant coins when trashed.")
+	_check(game_state.player.coins == 4, "Star Caravan should grant coins when trashed.")
 
 	game_state = _empty_game()
 	_set_test_market(game_state, ["lantern_bazaar"])
@@ -655,7 +702,7 @@ func _test_develop_modes_and_filtered_gains() -> void:
 	var development: CardDefinition = game_state.card_catalog["tinkers_development"]
 	var silver: CardDefinition = game_state.card_catalog["silver_leaf"]
 	game_state.player.hand.assign([development, silver])
-	_check(game_state.play_card(development), "Tinker's Development should play.")
+	_check(game_state.play_card(development), "Tinker Dev should play.")
 	_resolve_choice_by_ids(game_state, ["silver_leaf"])
 	_resolve_mode(game_state, "higher_first")
 	_resolve_choice_by_ids(game_state, ["town_militia"])
@@ -672,7 +719,7 @@ func _test_develop_modes_and_filtered_gains() -> void:
 		game_state.card_catalog["homestead"],
 		game_state.card_catalog["homestead"],
 	])
-	_check(game_state.play_card(spicebroker), "Acorn Spicebroker should play.")
+	_check(game_state.play_card(spicebroker), "Spicebroker should play.")
 	_resolve_choice_by_ids(game_state, ["pebble_coin"])
 	_resolve_mode(game_state, "cards")
 	_check(game_state.player.hand.size() == 2, "The card mode should draw two cards.")
@@ -693,7 +740,7 @@ func _test_develop_modes_and_filtered_gains() -> void:
 	var militia: CardDefinition = game_state.card_catalog["town_militia"]
 	game_state.player.hand.assign([wheelwright, militia])
 	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
-	_check(game_state.play_card(wheelwright), "Tinker Cartwright should play.")
+	_check(game_state.play_card(wheelwright), "Cartwright should play.")
 	_resolve_choice_by_ids(game_state, ["town_militia"])
 	_resolve_choice_by_ids(game_state, ["guild_workshop"])
 	_check(
@@ -719,17 +766,17 @@ func _test_cleanup_and_buy_watchers() -> void:
 	_set_test_market(game_state, ["river_magistrate", "guild_workshop"])
 	var bargainer: CardDefinition = game_state.card_catalog["lantern_bargainer"]
 	game_state.player.hand.append(bargainer)
-	_check(game_state.play_card(bargainer), "Lantern Bargainer should play.")
+	_check(game_state.play_card(bargainer), "Lantern Trade should play.")
 	game_state.player.coins = 10
 	game_state.player.buys = 1
 	_check(
 		game_state.buy_card(game_state.card_catalog["river_magistrate"]),
-		"A card should be bought while Lantern Bargainer is active."
+		"A card should be bought while Lantern Trade is active."
 	)
 	_resolve_choice_by_ids(game_state, ["guild_workshop"])
 	_check(
 		game_state.player.discard_pile.has(game_state.card_catalog["guild_workshop"]),
-		"Lantern Bargainer should gain a cheaper non-victory card after a buy."
+		"Lantern Trade should gain a cheaper non-victory card after a buy."
 	)
 
 	game_state = _empty_game()
@@ -737,12 +784,12 @@ func _test_cleanup_and_buy_watchers() -> void:
 	game_state.player.play_area.append(game_state.card_catalog["village_bell"])
 	_check(
 		game_state._gain_from_supply(game_state.card_catalog["stonewall_raider"], "discard"),
-		"Stonewall Raider should be gainable."
+		"Stone Raider should be gainable."
 	)
 	game_state._process_resolution_queue()
 	_check(
 		game_state.player.play_area.has(game_state.card_catalog["stonewall_raider"]),
-		"Stonewall Raider should play itself when an action is already in play."
+		"Stone Raider should play itself when an action is already in play."
 	)
 
 
@@ -806,6 +853,27 @@ func _test_random_market_setup() -> void:
 	_check(action_count == GameState.MARKET_ACTION_COUNT, "Market action count should match.")
 	_check(victory_count == GameState.MARKET_VICTORY_TOTAL, "Market victory count should match.")
 
+	game_state.set_kingdom_enabled(GameState.HINTERLANDS_GROUP, false)
+	_check(
+		not _market_candidates_include_kingdom(game_state, GameState.HINTERLANDS_GROUP),
+		"Disabled kingdoms should leave the random market pool."
+	)
+	game_state.set_kingdom_enabled(GameState.HINTERLANDS_GROUP, true)
+	game_state.set_card_enabled_for_market("river_magistrate", false)
+	_check(
+		not _market_candidates_include_card(game_state, "river_magistrate"),
+		"Disabled individual cards should leave the random market pool."
+	)
+	game_state.set_card_enabled_for_market("river_magistrate", true)
+	game_state.set_kingdom_enabled(GameState.BEGINNER_KINGDOM, false)
+	game_state.set_kingdom_enabled(GameState.HINTERLANDS_GROUP, false)
+	_check(
+		not game_state.has_enough_market_candidates(),
+		"Market setup should know when kingdom filters cannot fill the action row."
+	)
+	game_state.set_kingdom_enabled(GameState.BEGINNER_KINGDOM, true)
+	game_state.set_kingdom_enabled(GameState.HINTERLANDS_GROUP, true)
+
 	_check(game_state.setup_starting_game(), "A second game should set up.")
 	_check(
 		not _same_card_ids(first_market, game_state.get_market_card_ids()),
@@ -849,6 +917,20 @@ func _count_card_id(cards: Array[CardDefinition], card_id: String) -> int:
 		if card.id == card_id:
 			count += 1
 	return count
+
+
+func _market_candidates_include_kingdom(game_state: GameState, kingdom: String) -> bool:
+	for card in game_state.get_market_candidates():
+		if game_state.get_card_kingdom(card) == kingdom:
+			return true
+	return false
+
+
+func _market_candidates_include_card(game_state: GameState, card_id: String) -> bool:
+	for card in game_state.get_market_candidates():
+		if card.id == card_id:
+			return true
+	return false
 
 
 func _set_test_market(game_state: GameState, card_ids: Array[String]) -> void:

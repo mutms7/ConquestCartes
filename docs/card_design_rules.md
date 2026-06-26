@@ -28,7 +28,8 @@ process.
 
 Every special effect has a `kind`, optional parameters, and a short `label` for
 compact interaction contexts. Card faces and previews display the complete
-data-driven `description`. Add generalized effect kinds to the rules engine; do
+data-driven `description`, with fixed numeric gains and draws rendered as bold
+`+` shorthand in the UI. Add generalized effect kinds to the rules engine; do
 not branch on individual card IDs in UI code.
 
 Effects default to `trigger: "play"`. Reactive effects may instead use
@@ -114,7 +115,7 @@ bonus modes remain data-driven without card-specific UI.
 The original illustration name should remain the display name when a single card
 uses that artwork. If multiple rules cards share an `art_id`, keep one exact
 original name and name the variants after the same visible subject plus their
-role, such as `Hearthsong Refrain` or `Trail Biscuit Cache`.
+role, ideally in 15 characters or fewer, such as `Hearth Refrain` or `Trail Cache`.
 
 Do not give a card a name that contradicts its illustration merely to mirror the
 source role that inspired its mechanics. IDs may remain mechanically descriptive;

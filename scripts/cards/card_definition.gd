@@ -4,6 +4,7 @@ extends RefCounted
 var id: String = ""
 var card_name: String = ""
 var card_type: String = ""
+var card_group: String = ""
 var art_id: String = ""
 var cost: int = 0
 var description: String = ""
@@ -23,6 +24,7 @@ static func from_dict(data: Dictionary) -> CardDefinition:
 	card.id = str(data.get("id", ""))
 	card.card_name = str(data.get("name", "Unnamed Card"))
 	card.card_type = str(data.get("type", ""))
+	card.card_group = str(data.get("group", ""))
 	card.art_id = str(data.get("art_id", card.id))
 	card.cost = int(data.get("cost", 0))
 	card.description = str(data.get("description", ""))

@@ -5,6 +5,6 @@
   "installCommand": null,
   "outputDirectory": "web",
   "git": {
-    "deploymentEnabled": false
+	"deploymentEnabled": false
   }
 }

@@ -17,7 +17,12 @@ replenished by shuffling the discard pile.
 
 The market contains 14 cards: 2 resources, 10 actions, and 2 victory cards. The
 catalog contains 64 cards: 2 starters, 56 random-market candidates, and 6
-archived cards retained for testing, future sets, and art-linked reuse.
+archived cards retained for testing, future sets, and art-linked reuse. The
+26-card mechanics expansion is tagged as the `Hinterlands Tickets` group.
+The home menu includes a tabbed Kingdoms browser. Whole optional kingdoms or
+individual non-required cards can be disabled before a new game, removing those
+cards from the random market pool. The required `Base Kingdom` keeps starter,
+economy, and core victory cards available.
 
 The market is arranged as one nearly edge-to-edge field: two resource piles on
 the left, ten action piles in a two-by-five center grid, and two victory piles
@@ -29,8 +34,8 @@ continue from the bottom-right to the cheapest pile at the bottom-left.
 The hand occupies the lower center of the table. Compact docks at its sides hold
 turn/deck/discard controls on the left and coins/actions/buys controls on the
 right, leaving the top of the screen to the market artwork. Card faces display
-their complete data-driven rules description; hovering provides a larger art
-and reading view.
+their data-driven rules with bold `+1 buy`, `+2 coins`, and similar shorthand
+for numeric gains and draws; hovering provides a larger art and reading view.
 
 ## Solo Effect Resolution
 
@@ -54,5 +59,6 @@ The game ends after turn 15. Final score is the total victory points on cards in
 - Desktop, 1280x720, 2D interface
 - One local player
 - Random fourteen-card kingdom market with finite supply piles
+- Home menu with New Game, Continue, local Settings controls, and a Kingdoms card browser
 - Original medieval interface, painterly card art, and UI audio
 - No AI opponent, multiplayer, campaign, or save system

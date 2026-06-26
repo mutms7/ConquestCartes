@@ -16,6 +16,18 @@ const MARKET_VICTORY_TOTAL := 2
 const MARKET_HYBRID_VICTORY_MIN := 0
 const MARKET_HYBRID_VICTORY_MAX := 0
 const MARKET_SIZE := MARKET_RESOURCE_COUNT + MARKET_ACTION_COUNT + MARKET_VICTORY_TOTAL
+const BASE_KINGDOM := "Base Kingdom"
+const BEGINNER_KINGDOM := "First Harvest"
+const HINTERLANDS_GROUP := "Hinterlands Tickets"
+const KINGDOM_ORDER := [BASE_KINGDOM, BEGINNER_KINGDOM, HINTERLANDS_GROUP]
+const REQUIRED_CARD_IDS := [
+	"pebble_coin",
+	"silver_leaf",
+	"amber_circlet",
+	"homestead",
+	"briar_gate",
+	"royal_charter",
+]
 
 const ACTION_SUPPLY_COUNT := 10
 const RESOURCE_SUPPLY_COUNT := 12
@@ -30,6 +42,8 @@ var pending_choice: CardChoice
 var resolution_queue: Array[Dictionary] = []
 var next_choice_id: int = 1
 var cleanup_in_progress: bool = false
+var disabled_kingdoms: Dictionary = {}
+var disabled_market_card_ids: Dictionary = {}
 
 
 func load_cards(path: String) -> bool:
@@ -93,9 +107,76 @@ func get_market_candidates() -> Array[CardDefinition]:
 		if STARTING_CARD_COUNTS.has(card_id):
 			continue
 		var card: CardDefinition = card_catalog[card_id]
-		if card.market_enabled:
-			candidates.append(card)
+		if not card.market_enabled:
+			continue
+		if not is_kingdom_enabled(get_card_kingdom(card)):
+			continue
+		if not is_card_enabled_for_market(card.id):
+			continue
+		candidates.append(card)
 	return candidates
+
+
+func get_card_kingdom(card: CardDefinition) -> String:
+	if card == null:
+		return BEGINNER_KINGDOM
+	if REQUIRED_CARD_IDS.has(card.id):
+		return BASE_KINGDOM
+	if card.card_group == HINTERLANDS_GROUP:
+		return HINTERLANDS_GROUP
+	return BEGINNER_KINGDOM
+
+
+func get_cards_for_kingdom(kingdom: String) -> Array[CardDefinition]:
+	var cards: Array[CardDefinition] = []
+	for card in card_catalog.values():
+		if get_card_kingdom(card) == kingdom:
+			cards.append(card)
+	cards.sort_custom(_is_catalog_card_before)
+	return cards
+
+
+func is_required_card(card_id: String) -> bool:
+	return REQUIRED_CARD_IDS.has(card_id)
+
+
+func is_kingdom_enabled(kingdom: String) -> bool:
+	return kingdom == BASE_KINGDOM or not bool(disabled_kingdoms.get(kingdom, false))
+
+
+func set_kingdom_enabled(kingdom: String, enabled: bool) -> void:
+	if kingdom == BASE_KINGDOM:
+		return
+	if enabled:
+		disabled_kingdoms.erase(kingdom)
+	else:
+		disabled_kingdoms[kingdom] = true
+
+
+func is_card_enabled_for_market(card_id: String) -> bool:
+	return is_required_card(card_id) or not bool(disabled_market_card_ids.get(card_id, false))
+
+
+func set_card_enabled_for_market(card_id: String, enabled: bool) -> void:
+	if is_required_card(card_id):
+		return
+	if enabled:
+		disabled_market_card_ids.erase(card_id)
+	else:
+		disabled_market_card_ids[card_id] = true
+
+
+func has_enough_market_candidates() -> bool:
+	var pools := _categorize_candidates()
+	var hybrid_count := MARKET_HYBRID_VICTORY_MIN
+	hybrid_count = mini(hybrid_count, pools["hybrid_victory"].size())
+	var normal_victory_count := MARKET_VICTORY_TOTAL - hybrid_count
+	return (
+		pools["resource"].size() >= MARKET_RESOURCE_COUNT
+		and pools["action"].size() >= MARKET_ACTION_COUNT
+		and pools["normal_victory"].size() >= normal_victory_count
+		and pools["hybrid_victory"].size() >= hybrid_count
+	)
 
 
 func get_supply_count(card_id: String) -> int:
@@ -203,6 +284,14 @@ func _categorize_candidates() -> Dictionary:
 		if pools.has(category):
 			pools[category].append(card)
 	return pools
+
+
+func _is_catalog_card_before(first: CardDefinition, second: CardDefinition) -> bool:
+	if first.card_type != second.card_type:
+		return first.card_type.naturalnocasecmp_to(second.card_type) < 0
+	if first.cost != second.cost:
+		return first.cost < second.cost
+	return first.card_name.naturalnocasecmp_to(second.card_name) < 0
 
 
 func _swap_one_card(

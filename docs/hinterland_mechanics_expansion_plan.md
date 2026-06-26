@@ -1,7 +1,8 @@
 # Hinterland Mechanics Expansion Plan
 
-Add an original 26-card mechanics expansion inspired by the supplied reference
-list while preserving Conquest Cartes names, wording, artwork, and solo rules.
+Add an original 26-card mechanics expansion, grouped as **Hinterlands Tickets**,
+inspired by the supplied reference list while preserving Conquest Cartes names,
+wording, artwork, and solo rules.
 
 ## Explicit exclusions
 
@@ -15,29 +16,29 @@ Cache, Embassy, Ill-Gotten Gains, or Mandarin.
 | Tunnel | Briar Passage | `briar_gate` |
 | Farmland | Orchard Acre | `orchard_estate` |
 | Fool's Gold | Firefly Gold | `firefly_supper` |
-| Trader | Silverleaf Broker | `silver_leaf` |
-| Margrave | River Magistrate | `river_courier` |
-| Border Village | Bellfoundry Village | `village_bell` |
-| Cartographer | Orchard Surveyor | `orchard_map` |
-| Crossroads | Wishing Crossroads | `wishing_stone` |
-| Develop | Tinker's Development | `tinker_wren` |
-| Haggler | Lantern Bargainer | `lantern_parade` |
-| Highway | Starlit Causeway | `starlit_wagon` |
-| Inn | Hearthside Lodge | `hearthsong` |
-| Jack of All Trades | Village Handyman | `village_bell` |
+| Trader | Leaf Broker | `silver_leaf` |
+| Margrave | Magistrate | `river_courier` |
+| Border Village | Bellfoundry | `village_bell` |
+| Cartographer | Orchard Survey | `orchard_map` |
+| Crossroads | Wish Crossroads | `wishing_stone` |
+| Develop | Tinker Dev | `tinker_wren` |
+| Haggler | Lantern Trade | `lantern_parade` |
+| Highway | Star Causeway | `starlit_wagon` |
+| Inn | Hearth Lodge | `hearthsong` |
+| Jack of All Trades | Handyman | `village_bell` |
 | Oasis | Moonwell Rest | `moonwell_token` |
 | Scheme | Quiet Stratagem | `quiet_archive` |
-| Spice Merchant | Acorn Spicebroker | `acorn_purse` |
+| Spice Merchant | Spicebroker | `acorn_purse` |
 | Stables | Mosswood Stable | `moss_thread` |
-| Cauldron | Candlecap Kettle | `candlecap` |
+| Cauldron | Cap Kettle | `candlecap` |
 | Guard Dog | Briar Hound | `briar_gate` |
 | Trail | River Trail | `river_courier` |
 | Weaver | Moss Weaver | `weavers_loom` |
-| Berserker | Stonewall Raider | `stone_wall` |
+| Berserker | Stone Raider | `stone_wall` |
 | Witch's Hut | Briar Hut | `briar_gate` |
-| Nomads | Starlit Caravan | `starlit_wagon` |
+| Nomads | Star Caravan | `starlit_wagon` |
 | Souk | Lantern Bazaar | `lantern_parade` |
-| Wheelwright | Tinker Cartwright | `tinker_wren` |
+| Wheelwright | Cartwright | `tinker_wren` |
 
 ## Generalized systems
 

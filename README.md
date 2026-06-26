@@ -10,6 +10,7 @@ contents of your deck into victory points.
 
 - 64 data-driven cards with original names and painterly artwork
 - A 14-card kingdom market: 2 resources, 10 actions, and 2 victory cards
+- A named 26-card Hinterlands Tickets group within the card catalog
 - Six archived cards retained in the catalog but excluded from random markets
 - Seven Pebble Coins and three Homesteads in the starting deck
 - Five-card hands, reshuffling discard piles, actions, coins, and buys
@@ -25,9 +26,13 @@ contents of your deck into victory points.
 - Final scoring after turn 15
 - Handcrafted medieval tabletop UI using dark jewel-toned cards, bright brass,
   cool slate, and restrained heraldic ornament
+- Startup home screen with Sunspire artwork, New Game, Continue, Settings, and Kingdoms
+- Home settings for visual noise and action-animation speed
+- A tabbed Kingdoms browser with full card faces and market-pool toggles
+- Kingdom and individual-card toggles that filter the random market pool
 - An art-first market field with resources on the left, ten actions in the
   center, and victory cards on the right
-- Full rules descriptions directly on card faces, with large hover previews
+- Centered card rules with bold shorthand for numeric gains and large hover previews
 - Card previews, movement animation, audio feedback, and an end-game score plaque
 - Automated rules and UI smoke tests
 - Automated Web export and production deployment
@@ -112,7 +117,7 @@ See `assets/licenses/ASSET_SOURCES.md` for provenance details.
 ## Current Limitations
 
 - Single-player only; there is no opponent, multiplayer, or campaign.
-- No save system, settings menu, music, or accessibility menu.
+- No save system, music, or full accessibility menu.
 - Rival-only attack and reaction clauses are omitted in the solo ruleset.
 - The art library contains 29 finished illustrations. The 64-card catalog
   currently references 28 of them; related cards share paintings through the
