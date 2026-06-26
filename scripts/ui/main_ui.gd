@@ -13,8 +13,8 @@ const CARD_MOVE_SECONDS := 0.18
 const CARD_DRAW_SECONDS := 0.16
 const CLEANUP_SECONDS := 0.2
 const CARD_FACE_SIZE := Vector2(172, 214)
-const CARD_ART_HEIGHT := 96.0
-const PREVIEW_SIZE := Vector2(360, 448)
+const CARD_ART_HEIGHT := 90.0
+const PREVIEW_SIZE := Vector2(340, 480)
 const PREVIEW_EDGE_MARGIN := 24.0
 const SHORT_RULE_BREAK_LIMIT := 72
 const HOME_ART_PATH := "res://assets/cards/sunspire_monument.png"
@@ -196,6 +196,8 @@ var noise_texture: Texture2D
 @onready var preview_art: TextureRect = $CardPreview/Margin/Layout/ArtFrame/Art
 @onready var preview_effect_label: RichTextLabel = $CardPreview/Margin/Layout/EffectLabel
 
+var card_desaturate_material: ShaderMaterial
+
 
 func _ready() -> void:
 	_load_optional_assets()
@@ -320,14 +322,26 @@ func _build_bottom_docks() -> void:
 	home_button.custom_minimum_size = Vector2(0, 38)
 	end_turn_button.custom_minimum_size = Vector2(0, 42)
 
-	turn_stat.reparent(left_stats)
-	deck_stat.reparent(left_stats)
-	discard_stat.reparent(left_stats)
+	# Left dock: coins / actions / buys, home button, deck pinned to the bottom.
+	coin_stat.reparent(left_stats)
+	action_stat.reparent(left_stats)
+	buy_stat.reparent(left_stats)
 	home_button.reparent(left_stats)
-	coin_stat.reparent(right_stats)
-	action_stat.reparent(right_stats)
-	buy_stat.reparent(right_stats)
+	var left_spacer := Control.new()
+	left_spacer.name = "LeftDockSpacer"
+	left_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	left_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_stats.add_child(left_spacer)
+	deck_stat.reparent(left_stats)
+	# Right dock: turn, end turn button, discard pinned to the bottom.
+	turn_stat.reparent(right_stats)
 	end_turn_button.reparent(right_stats)
+	var right_spacer := Control.new()
+	right_spacer.name = "RightDockSpacer"
+	right_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	right_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_stats.add_child(right_spacer)
+	discard_stat.reparent(right_stats)
 	hand_count_label.get_parent().reparent(hand_column)
 	hand_panel.reparent(hand_column)
 	brand.queue_free()
@@ -1252,13 +1266,12 @@ func _refresh_market() -> void:
 	var action_cards: Array[CardDefinition] = []
 	var victory_cards: Array[CardDefinition] = []
 	for card in game_state.market:
-		match card.card_type:
-			"resource":
-				resource_cards.append(card)
-			"victory":
-				victory_cards.append(card)
-			_:
-				action_cards.append(card)
+		if GameState.MARKET_FIXED_RESOURCE_IDS.has(card.id):
+			resource_cards.append(card)
+		elif GameState.MARKET_FIXED_VICTORY_IDS.has(card.id):
+			victory_cards.append(card)
+		else:
+			action_cards.append(card)
 
 	_render_market_cards(
 		_sort_market_cards_descending(resource_cards),
@@ -1427,6 +1440,7 @@ func _create_card_button(
 	var palette := _get_card_palette(visual_state)
 	var card_surface := _get_card_surface_color(card.card_type)
 	var is_market_card := visual_state.begins_with("market_")
+	var outline_width := 6 if visual_state == MARKET_AFFORDABLE else 4
 	var button := Button.new()
 	button.custom_minimum_size = CARD_FACE_SIZE
 	if is_market_card:
@@ -1450,11 +1464,11 @@ func _create_card_button(
 		button.mouse_exited.connect(_on_card_mouse_exited.bind(button))
 	button.add_theme_stylebox_override(
 		"normal",
-		_make_card_style(card_surface, palette.border, 4)
+		_make_card_style(card_surface, palette.border, outline_width)
 	)
 	button.add_theme_stylebox_override(
 		"hover",
-		_make_card_style(card_surface.lightened(0.14), palette.border.lightened(0.2), 6)
+		_make_card_style(card_surface.lightened(0.14), palette.border.lightened(0.2), outline_width + 2)
 	)
 	button.add_theme_stylebox_override(
 		"pressed",
@@ -1518,14 +1532,15 @@ func _create_card_button(
 		art_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		art_frame.clip_contents = true
 		art_frame.custom_minimum_size = Vector2(0, CARD_ART_HEIGHT)
-		art_frame.add_theme_stylebox_override(
-			"panel",
-			_make_flat_card_style(
-				COLOR_WALNUT_DARK,
-				_get_card_type_accent(card.card_type),
-				3
-			)
+		var art_style := _make_flat_card_style(
+			COLOR_WALNUT_DARK,
+			_get_card_type_accent(card.card_type),
+			3
 		)
+		if is_market_card:
+			art_style.content_margin_left = 4
+			art_style.content_margin_right = 4
+		art_frame.add_theme_stylebox_override("panel", art_style)
 		var art_rect := TextureRect.new()
 		art_rect.name = "Art"
 		art_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1534,12 +1549,14 @@ func _create_card_button(
 		art_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 		art_rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		art_rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		if visual_state == MARKET_UNAFFORDABLE:
+			art_rect.material = _get_desaturate_material()
 		art_frame.add_child(art_rect)
 		layout.add_child(art_frame)
 
 	var effect_slot := MarginContainer.new()
 	effect_slot.name = "EffectSlot"
-	effect_slot.custom_minimum_size = Vector2(0, 51)
+	effect_slot.custom_minimum_size = Vector2(0, 57)
 	effect_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	effect_slot.add_theme_constant_override("margin_left", CARD_RULE_SIDE_MARGIN)
 	effect_slot.add_theme_constant_override("margin_top", CARD_RULE_TOP_MARGIN)
@@ -1643,6 +1660,9 @@ func _create_card_button(
 		meta_row.add_child(pile_label)
 
 	button.add_child(_create_price_badge(game_state.get_effective_cost(card)))
+
+	if visual_state == MARKET_UNAFFORDABLE:
+		button.modulate = Color(0.66, 0.64, 0.63)
 
 	return button
 
@@ -1939,6 +1959,16 @@ func _create_played_card_chip(card: CardDefinition) -> PanelContainer:
 	return chip
 
 
+func _get_desaturate_material() -> ShaderMaterial:
+	if card_desaturate_material != null:
+		return card_desaturate_material
+	var shader := Shader.new()
+	shader.code = "shader_type canvas_item;\nuniform float amount : hint_range(0.0, 1.0) = 0.82;\nvoid fragment() {\n\tvec4 tex = texture(TEXTURE, UV);\n\tfloat grey = dot(tex.rgb, vec3(0.299, 0.587, 0.114));\n\ttex.rgb = mix(tex.rgb, vec3(grey), amount);\n\tCOLOR = tex * COLOR;\n}"
+	card_desaturate_material = ShaderMaterial.new()
+	card_desaturate_material.shader = shader
+	return card_desaturate_material
+
+
 func _get_card_palette(visual_state: String) -> Dictionary:
 	match visual_state:
 		HAND_PLAYABLE:
@@ -1949,7 +1979,7 @@ func _get_card_palette(visual_state: String) -> Dictionary:
 			}
 		MARKET_AFFORDABLE:
 			return {
-				"border": COLOR_FOREST.lightened(0.16),
+				"border": Color("#ffd23f"),
 				"text": COLOR_PARCHMENT_LIGHT,
 				"muted": COLOR_PARCHMENT.lightened(0.02),
 			}

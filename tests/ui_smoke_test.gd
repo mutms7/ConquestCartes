@@ -135,10 +135,13 @@ func _initialize() -> void:
 		"The right market column should render two victory piles."
 	)
 	_check(
-		_container_has_type(_treasury_cards(), "resource")
-		and _container_has_type(_barracks_cards(), "action")
-		and _container_has_type(_estates_cards(), "victory"),
-		"Market cards should be routed to carpets by their data-driven card type."
+		_container_holds_only_ids(_treasury_cards(), GameState.MARKET_FIXED_RESOURCE_IDS)
+		and _container_holds_only_ids(_estates_cards(), GameState.MARKET_FIXED_VICTORY_IDS)
+		and _container_holds_no_ids(
+			_barracks_cards(),
+			GameState.MARKET_FIXED_RESOURCE_IDS + GameState.MARKET_FIXED_VICTORY_IDS
+		),
+		"Fixed resources and victories anchor the side carpets; all other cards fill the action grid."
 	)
 	_check(
 		_treasury_cards().columns == 1
@@ -764,6 +767,20 @@ func _all_market_buttons() -> Array[Button]:
 func _container_has_type(container: GridContainer, card_type: String) -> bool:
 	for child in container.get_children():
 		if child.get_meta("card_type", "") != card_type:
+			return false
+	return true
+
+
+func _container_holds_only_ids(container: GridContainer, ids: Array) -> bool:
+	for child in container.get_children():
+		if not ids.has(str(child.get_meta("card_id", ""))):
+			return false
+	return true
+
+
+func _container_holds_no_ids(container: GridContainer, ids: Array) -> bool:
+	for child in container.get_children():
+		if ids.has(str(child.get_meta("card_id", ""))):
 			return false
 	return true
 

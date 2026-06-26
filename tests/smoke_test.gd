@@ -842,16 +842,17 @@ func _test_random_market_setup() -> void:
 	var action_count := 0
 	var victory_count := 0
 	for card in game_state.market:
-		match card.card_type:
-			"resource":
-				resource_count += 1
-			"action":
-				action_count += 1
-			"victory":
-				victory_count += 1
+		if GameState.MARKET_FIXED_RESOURCE_IDS.has(card.id):
+			resource_count += 1
+		elif GameState.MARKET_FIXED_VICTORY_IDS.has(card.id):
+			victory_count += 1
+		else:
+			action_count += 1
 	_check(resource_count == GameState.MARKET_RESOURCE_COUNT, "Market resource count should match.")
 	_check(action_count == GameState.MARKET_ACTION_COUNT, "Market action count should match.")
 	_check(victory_count == GameState.MARKET_VICTORY_TOTAL, "Market victory count should match.")
+	for fixed_id in GameState.MARKET_FIXED_RESOURCE_IDS + GameState.MARKET_FIXED_VICTORY_IDS:
+		_check(first_market.has(fixed_id), "%s should always anchor the market." % fixed_id)
 
 	game_state.set_kingdom_enabled(GameState.HINTERLANDS_GROUP, false)
 	_check(

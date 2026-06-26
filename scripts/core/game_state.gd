@@ -16,6 +16,10 @@ const MARKET_VICTORY_TOTAL := 2
 const MARKET_HYBRID_VICTORY_MIN := 0
 const MARKET_HYBRID_VICTORY_MAX := 0
 const MARKET_SIZE := MARKET_RESOURCE_COUNT + MARKET_ACTION_COUNT + MARKET_VICTORY_TOTAL
+# The market's two resource slots and two victory slots are always these cards.
+# Every other treasure and victory card is folded into the action pool.
+const MARKET_FIXED_RESOURCE_IDS := ["silver_leaf", "amber_circlet"]
+const MARKET_FIXED_VICTORY_IDS := ["briar_gate", "royal_charter"]
 const BASE_KINGDOM := "Base Kingdom"
 const BEGINNER_KINGDOM := "First Harvest"
 const HINTERLANDS_GROUP := "Hinterlands Tickets"
@@ -265,11 +269,13 @@ func _initialize_supply_piles() -> void:
 
 
 func _card_category(card: CardDefinition) -> String:
-	if card.card_type == "victory":
+	if MARKET_FIXED_RESOURCE_IDS.has(card.id):
+		return "resource"
+	if MARKET_FIXED_VICTORY_IDS.has(card.id):
 		return "normal_victory"
-	if card.victory_points > 0:
-		return "hybrid_victory"
-	return card.card_type
+	# Every other card (actions plus all other treasures and victory cards)
+	# competes for the action slots.
+	return "action"
 
 
 func _categorize_candidates() -> Dictionary:

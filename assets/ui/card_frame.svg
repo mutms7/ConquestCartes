@@ -1,10 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="96" height="128" viewBox="0 0 96 128">
-  <rect x="2" y="2" width="92" height="124" rx="10" fill="none" stroke="#100c0d" stroke-width="4"/>
-  <rect x="5.5" y="5.5" width="85" height="117" rx="7" fill="none" stroke="#e0b45b" stroke-width="2.8"/>
-  <rect x="9" y="9" width="78" height="110" rx="5" fill="none" stroke="#fff0c9" stroke-opacity=".42" stroke-width="1.4"/>
-  <path d="M11 24V14h10M75 14h10v10M11 104v10h10M75 114h10v-10" fill="none" stroke="#fff0c9" stroke-opacity=".75" stroke-width="1.8"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="288" height="384" viewBox="0 0 96 128">
+  <rect x="3.5" y="3.5" width="89" height="121" rx="9" fill="none" stroke="#e0b45b" stroke-width="2.4"/>
+  <rect x="7" y="7" width="82" height="114" rx="6" fill="none" stroke="#fff0c9" stroke-opacity=".4" stroke-width="1.2"/>
+  <path d="M11 24V14h10M75 14h10v10M11 104v10h10M75 114h10v-10" fill="none" stroke="#fff0c9" stroke-opacity=".7" stroke-width="1.5"/>
   <g fill="#f0c56e">
-    <circle cx="14" cy="14" r="2.5"/><circle cx="82" cy="14" r="2.5"/>
-    <circle cx="14" cy="114" r="2.5"/><circle cx="82" cy="114" r="2.5"/>
+    <circle cx="14" cy="14" r="2.2"/><circle cx="82" cy="14" r="2.2"/>
+    <circle cx="14" cy="114" r="2.2"/><circle cx="82" cy="114" r="2.2"/>
   </g>
 </svg>
