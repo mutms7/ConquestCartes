@@ -22,7 +22,7 @@ const MARKET_FIXED_RESOURCE_IDS := ["silver_leaf", "amber_circlet"]
 const MARKET_FIXED_VICTORY_IDS := ["briar_gate", "royal_charter"]
 const BASE_KINGDOM := "Base Kingdom"
 const BEGINNER_KINGDOM := "First Harvest"
-const HINTERLANDS_GROUP := "Hinterlands Tickets"
+const HINTERLANDS_GROUP := "Hinterlands"
 const KINGDOM_ORDER := [BASE_KINGDOM, BEGINNER_KINGDOM, HINTERLANDS_GROUP]
 const REQUIRED_CARD_IDS := [
 	"pebble_coin",

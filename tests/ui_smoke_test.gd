@@ -23,6 +23,32 @@ func _initialize() -> void:
 	await process_frame
 	_check(_home_settings_panel().visible, "Settings should open from the home menu.")
 	_check(_home_audio_toggle().button_pressed, "Audio should default to enabled.")
+	_check(
+		main_ui.background_music_player != null
+		and main_ui.background_music_player.stream != null
+		and main_ui.background_music_player.playing
+		and is_equal_approx(
+			main_ui.background_music_player.volume_db,
+			main_ui.BACKGROUND_MUSIC_VOLUME_DB
+		),
+		"Background medieval music should load and start when audio is enabled."
+	)
+	_home_audio_toggle().set_pressed_no_signal(false)
+	_home_audio_toggle().toggled.emit(false)
+	_check(
+		not main_ui.audio_enabled
+		and main_ui.background_music_player != null
+		and not main_ui.background_music_player.playing,
+		"Audio toggle should stop the background music."
+	)
+	_home_audio_toggle().set_pressed_no_signal(true)
+	_home_audio_toggle().toggled.emit(true)
+	_check(
+		main_ui.audio_enabled
+		and main_ui.background_music_player != null
+		and main_ui.background_music_player.playing,
+		"Audio toggle should restart the background music."
+	)
 	_home_motion_toggle().set_pressed_no_signal(false)
 	_home_motion_toggle().toggled.emit(false)
 	_check(not main_ui.motion_enabled, "Motion toggle should update the UI setting.")
@@ -69,6 +95,27 @@ func _initialize() -> void:
 		and _kingdom_detail_host().get_child_count() > 0,
 		"Kingdoms should open a tabbed card browser with a detail pane."
 	)
+	_check(
+		is_equal_approx(_home_kingdoms_panel().anchor_left, 0.5)
+		and is_equal_approx(_home_kingdoms_panel().anchor_right, 0.5)
+		and _home_kingdoms_panel().offset_left == -450
+		and _home_kingdoms_panel().offset_right == 450,
+		"Kingdoms browser should be centered at a fixed width."
+	)
+	_kingdoms_close_button().pressed.emit()
+	await process_frame
+	_check(not _home_kingdoms_panel().visible, "Kingdoms close button should hide the browser.")
+	_home_kingdoms_button().pressed.emit()
+	await process_frame
+	var kingdom_browser_size := _home_kingdoms_panel().size
+	var escape_event := InputEventAction.new()
+	escape_event.action = "ui_cancel"
+	escape_event.pressed = true
+	main_ui._unhandled_input(escape_event)
+	await process_frame
+	_check(not _home_kingdoms_panel().visible, "Escape should hide the Kingdoms browser.")
+	_home_kingdoms_button().pressed.emit()
+	await process_frame
 	_check(_kingdom_toggle(GameState.BASE_KINGDOM).disabled, "Base Kingdom should stay required.")
 	_kingdom_card_button("silver_leaf").pressed.emit()
 	await process_frame
@@ -88,6 +135,10 @@ func _initialize() -> void:
 	_kingdom_toggle(GameState.HINTERLANDS_GROUP).toggled.emit(true)
 	_kingdom_tab(GameState.HINTERLANDS_GROUP).pressed.emit()
 	await process_frame
+	_check(
+		_home_kingdoms_panel().size == kingdom_browser_size,
+		"Switching kingdom tabs should not resize the browser."
+	)
 	_check(
 		_kingdom_detail_card("briar_passage") != null
 		or _kingdom_detail_host().get_child_count() > 0,
@@ -168,6 +219,14 @@ func _initialize() -> void:
 		and _market_container().find_child("Subtitle", true, false) == null,
 		"The art-first market should not reserve space for section titles."
 	)
+	_check(
+		is_equal_approx(_play_area_panel().custom_minimum_size.y, main_ui.PLAY_AREA_PANEL_HEIGHT)
+		and is_equal_approx(
+			_play_area_container().custom_minimum_size.y,
+			main_ui.PLAY_AREA_CONTENT_HEIGHT
+		),
+		"Play area should reserve a fixed band height."
+	)
 	_check(_play_area_container().get_child_count() == 1, "Empty play area should show its hint.")
 	_check(main_ui.title_font != null, "Imported title font should load.")
 	_check(main_ui.body_font != null, "Imported body font should load.")
@@ -176,7 +235,7 @@ func _initialize() -> void:
 	_check(_hud_icon("CoinStat").texture != null, "Coin HUD icon should load.")
 	_check(_hud_icon("ActionStat").texture != null, "Action HUD icon should load.")
 	_check(_hud_icon("BuyStat").texture != null, "Buy HUD icon should load.")
-	_check(main_ui.ui_sound_players.size() == 8, "All configured UI sounds should load.")
+	_check(main_ui.ui_sound_players.size() == 7, "All configured UI sounds should load.")
 	_check(
 		not main_ui.has_node("Margin/Layout/StatusPanel"),
 		"The obsolete persistent status panel should not exist."
@@ -301,10 +360,14 @@ func _initialize() -> void:
 			),
 			"Hand artwork should use the shared card art height."
 		)
+		var sound_before_hover: String = main_ui.last_ui_sound_name
 		resource_button.mouse_entered.emit()
 		await create_timer(0.2).timeout
 		_check(_card_preview().visible, "Hovering a hand card should show its preview.")
-		_check(main_ui.last_ui_sound_name == "hover", "Card hover should trigger its UI sound.")
+		_check(
+			main_ui.last_ui_sound_name == sound_before_hover,
+			"Card hover should not play a UI sound."
+		)
 		_check(
 			_preview_name_label().text == "Pebble Coin",
 			"Hand preview should show the hovered card name."
@@ -336,6 +399,7 @@ func _initialize() -> void:
 		resource_button.mouse_exited.emit()
 		await process_frame
 		_check(not _card_preview().visible, "Leaving a hand card should hide its preview.")
+		var play_area_size_before_play := _play_area_panel().size
 		resource_button.pressed.emit()
 		await process_frame
 		_check(main_ui.last_ui_sound_name == "play_card", "Playing a card should trigger its sound.")
@@ -343,6 +407,10 @@ func _initialize() -> void:
 		_check(_hud_value("CoinStat") == "1", "Coin HUD should update after playing a resource.")
 		_check(_hand_container().get_child_count() == 4, "Played card should leave the hand UI.")
 		_check(_play_area_container().get_child_count() == 1, "Played card should render in play area.")
+		_check(
+			_play_area_panel().size == play_area_size_before_play,
+			"Playing a card should not resize the play area or move the UI."
+		)
 
 	var short_rules_card: CardDefinition = main_ui.game_state.card_catalog["candlecap_laboratory"]
 	var short_rules_button: Button = main_ui._create_card_button(short_rules_card, "hand_playable")
@@ -551,7 +619,14 @@ func _initialize() -> void:
 		_check(_choice_options().get_child_count() == 2, "Choice overlay should list eligible cards.")
 		_check(_end_turn_button().disabled, "End Turn should lock while a choice is pending.")
 		for option in _choice_options().get_children():
-			(option as Button).pressed.emit()
+			var option_button := option as Button
+			_check(
+				option_button.custom_minimum_size == main_ui.CARD_FACE_SIZE
+				and option_button.size_flags_horizontal == Control.SIZE_SHRINK_CENTER
+				and option_button.size_flags_vertical == Control.SIZE_SHRINK_CENTER,
+				"Choice cards should keep fixed face dimensions instead of stretching."
+			)
+			option_button.pressed.emit()
 		_check(not _choice_confirm_button().disabled, "Valid selection should enable confirmation.")
 		_choice_confirm_button().pressed.emit()
 		await process_frame
@@ -580,6 +655,15 @@ func _initialize() -> void:
 	await process_frame
 	_check(not _end_game_overlay().visible, "Play Again should close the final score overlay.")
 	_check(_hud_value("TurnStat") == "1 / 15", "Play Again should start a fresh game.")
+	main_ui._show_final_score(11)
+	await process_frame
+	_end_game_home_button().pressed.emit()
+	await process_frame
+	_check(_home_overlay().visible, "End-game Home should return to the home screen.")
+	_check(
+		not main_ui.has_active_game and _home_continue_button().disabled,
+		"End-game Home should leave no completed game available to continue."
+	)
 	_check(
 		_active_ui_uses_original_assets(),
 		"Active UI code should use original assets and no Kenney fantasy-border paths."
@@ -618,6 +702,10 @@ func _market_container() -> HBoxContainer:
 
 func _market_panel() -> PanelContainer:
 	return main_ui.get_node("Margin/Layout/MarketPanel")
+
+
+func _play_area_panel() -> PanelContainer:
+	return main_ui.get_node("Margin/Layout/PlayAreaPanel")
 
 
 func _home_overlay() -> Control:
@@ -684,28 +772,32 @@ func _table_noise_overlay() -> TextureRect:
 	return main_ui.table_noise_overlay
 
 
+func _kingdoms_close_button() -> Button:
+	return main_ui.get_node("HomeOverlay/KingdomsPanel/Margin/Layout/Header/CloseButton")
+
+
 func _kingdom_tabs() -> VBoxContainer:
-	return main_ui.get_node("HomeOverlay/KingdomsPanel/Margin/Browser/KingdomTabs")
+	return main_ui.get_node("HomeOverlay/KingdomsPanel/Margin/Layout/Browser/KingdomTabs")
 
 
 func _kingdom_card_grid() -> GridContainer:
-	return main_ui.get_node("HomeOverlay/KingdomsPanel/Margin/Browser/CardsPane/CardScroll/CardGrid")
+	return main_ui.get_node("HomeOverlay/KingdomsPanel/Margin/Layout/Browser/CardsPane/CardScroll/CardGrid")
 
 
 func _kingdom_detail_host() -> VBoxContainer:
-	return main_ui.get_node("HomeOverlay/KingdomsPanel/Margin/Browser/DetailPane/Margin/DetailHost")
+	return main_ui.get_node("HomeOverlay/KingdomsPanel/Margin/Layout/Browser/DetailPane/Margin/DetailHost")
 
 
 func _kingdom_tab(kingdom: String) -> Button:
 	return main_ui.get_node(
-		"HomeOverlay/KingdomsPanel/Margin/Browser/KingdomTabs/Kingdom_%s/KingdomTab"
+		"HomeOverlay/KingdomsPanel/Margin/Layout/Browser/KingdomTabs/Kingdom_%s/KingdomTab"
 		% main_ui._node_key(kingdom)
 	)
 
 
 func _kingdom_toggle(kingdom: String) -> CheckButton:
 	return main_ui.get_node(
-		"HomeOverlay/KingdomsPanel/Margin/Browser/KingdomTabs/Kingdom_%s/KingdomToggle"
+		"HomeOverlay/KingdomsPanel/Margin/Layout/Browser/KingdomTabs/Kingdom_%s/KingdomToggle"
 		% main_ui._node_key(kingdom)
 	)
 
@@ -862,6 +954,12 @@ func _play_again_button() -> Button:
 	)
 
 
+func _end_game_home_button() -> Button:
+	return main_ui.get_node(
+		"EndGameOverlay/Center/Panel/Margin/Layout/HomeButton"
+	)
+
+
 func _preview_name_label() -> Label:
 	return main_ui.get_node("CardPreview/Margin/Layout/NameLabel")
 
@@ -1013,6 +1111,8 @@ func _active_ui_uses_original_assets() -> bool:
 func _cleanup_main_ui() -> void:
 	for player in main_ui.ui_sound_players.values():
 		(player as AudioStreamPlayer).stop()
+	if main_ui.background_music_player != null:
+		main_ui.background_music_player.stop()
 	main_ui.free()
 	main_ui = null
 

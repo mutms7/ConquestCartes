@@ -1,6 +1,6 @@
 # Hinterland Mechanics Expansion Plan
 
-Add an original 26-card mechanics expansion, grouped as **Hinterlands Tickets**,
+Add an original 26-card mechanics expansion, grouped as **Hinterlands**,
 inspired by the supplied reference list while preserving Conquest Cartes names,
 wording, artwork, and solo rules.
 

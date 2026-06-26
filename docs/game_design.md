@@ -18,7 +18,7 @@ replenished by shuffling the discard pile.
 The market contains 14 cards: 2 resources, 10 actions, and 2 victory cards. The
 catalog contains 64 cards: 2 starters, 56 random-market candidates, and 6
 archived cards retained for testing, future sets, and art-linked reuse. The
-26-card mechanics expansion is tagged as the `Hinterlands Tickets` group.
+26-card mechanics expansion is tagged as the `Hinterlands` group.
 The home menu includes a tabbed Kingdoms browser. Whole optional kingdoms or
 individual non-required cards can be disabled before a new game, removing those
 cards from the random market pool. The required `Base Kingdom` keeps starter,

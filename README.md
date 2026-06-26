@@ -10,7 +10,7 @@ contents of your deck into victory points.
 
 - 64 data-driven cards with original names and painterly artwork
 - A 14-card kingdom market: 2 resources, 10 actions, and 2 victory cards
-- A named 26-card Hinterlands Tickets group within the card catalog
+- A named 26-card Hinterlands group within the card catalog
 - Six archived cards retained in the catalog but excluded from random markets
 - Seven Pebble Coins and three Homesteads in the starting deck
 - Five-card hands, reshuffling discard piles, actions, coins, and buys
@@ -33,7 +33,8 @@ contents of your deck into victory points.
 - An art-first market field with resources on the left, ten actions in the
   center, and victory cards on the right
 - Centered card rules with bold shorthand for numeric gains and large hover previews
-- Card previews, movement animation, audio feedback, and an end-game score plaque
+- Card previews, movement animation, quiet UI audio, layered medieval background music,
+  and an end-game score plaque
 - Automated rules and UI smoke tests
 - Automated Web export and production deployment
 

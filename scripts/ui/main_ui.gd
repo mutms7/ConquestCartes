@@ -14,6 +14,8 @@ const CARD_MOVE_SECONDS := 0.18
 const CARD_DRAW_SECONDS := 0.16
 const CLEANUP_SECONDS := 0.2
 const CARD_FACE_SIZE := Vector2(172, 214)
+const PLAY_AREA_PANEL_HEIGHT := 48.0
+const PLAY_AREA_CONTENT_HEIGHT := 36.0
 const CARD_ART_HEIGHT := 104.0
 const PREVIEW_SIZE := Vector2(340, 480)
 const PREVIEW_EDGE_MARGIN := 24.0
@@ -58,27 +60,25 @@ const UI_ASSET_PATHS := {
 	"preview": "res://assets/ui/preview_frame.svg",
 	"endgame": "res://assets/ui/endgame_frame.svg",
 }
-const ICON_BASE_PATH := (
-	"res://assets/imported/kenney_board-game-icons/PNG/Default (64px)/"
-)
 const ICON_PATHS := {
-	"coin": ICON_BASE_PATH + "dollar.png",
-	"action": ICON_BASE_PATH + "hand.png",
-	"buy": ICON_BASE_PATH + "pouch.png",
-	"deck": ICON_BASE_PATH + "cards_stack.png",
-	"discard": ICON_BASE_PATH + "cards_return.png",
-	"victory": ICON_BASE_PATH + "award.png",
+	"coin": "res://assets/icons/ui/coin.png",
+	"action": "res://assets/icons/ui/action.png",
+	"buy": "res://assets/icons/ui/buy.png",
+	"deck": "res://assets/icons/ui/deck.png",
+	"discard": "res://assets/icons/ui/discard.png",
+	"victory": "res://assets/icons/ui/victory.png",
 }
 const SOUND_PATHS := {
-	"button_click": "res://assets/audio/kenney_ui-audio/Audio/click3.ogg",
-	"hover": "res://assets/audio/kenney_ui-audio/Audio/rollover2.ogg",
-	"play_card": "res://assets/audio/kenney_interface-sounds/Audio/drop_001.ogg",
-	"buy_card": "res://assets/audio/kenney_interface-sounds/Audio/confirmation_001.ogg",
-	"end_turn": "res://assets/audio/kenney_interface-sounds/Audio/switch_003.ogg",
-	"draw": "res://assets/audio/kenney_interface-sounds/Audio/open_002.ogg",
-	"discard": "res://assets/audio/kenney_interface-sounds/Audio/close_002.ogg",
-	"game_end": "res://assets/audio/kenney_interface-sounds/Audio/confirmation_004.ogg",
+	"button_click": "res://assets/audio/ui/button_click.ogg",
+	"play_card": "res://assets/audio/ui/play_card.ogg",
+	"buy_card": "res://assets/audio/ui/buy_card.ogg",
+	"end_turn": "res://assets/audio/ui/end_turn.ogg",
+	"draw": "res://assets/audio/ui/draw.ogg",
+	"discard": "res://assets/audio/ui/discard.ogg",
+	"game_end": "res://assets/audio/ui/game_end.ogg",
 }
+const BACKGROUND_MUSIC_PATH := "res://assets/audio/sunspire_court_loop.wav"
+const BACKGROUND_MUSIC_VOLUME_DB := -10.0
 
 var game_state := GameState.new()
 var turn_manager := TurnManager.new()
@@ -88,6 +88,7 @@ var body_bold_font: Font
 var ui_textures: Dictionary = {}
 var icon_textures: Dictionary = {}
 var ui_sound_players: Dictionary = {}
+var background_music_player: AudioStreamPlayer
 var last_ui_sound_name: String = ""
 var last_animation_event: String = ""
 var card_art_cache: Dictionary = {}
@@ -190,6 +191,9 @@ var noise_texture: Texture2D
 @onready var play_again_button: Button = (
 	$EndGameOverlay/Center/Panel/Margin/Layout/PlayAgainButton
 )
+@onready var end_game_home_button: Button = (
+	$EndGameOverlay/Center/Panel/Margin/Layout/HomeButton
+)
 @onready var card_preview: PanelContainer = $CardPreview
 @onready var preview_name_label: Label = $CardPreview/Margin/Layout/NameLabel
 @onready var preview_meta_label: Label = $CardPreview/Margin/Layout/MetaLabel
@@ -209,6 +213,7 @@ func _ready() -> void:
 	home_button.pressed.connect(_on_home_pressed)
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
 	play_again_button.pressed.connect(_on_play_again_pressed)
+	end_game_home_button.pressed.connect(_on_end_game_home_pressed)
 	choice_skip_button.pressed.connect(_on_choice_skipped)
 	choice_confirm_button.pressed.connect(_on_choice_confirmed)
 	home_button.mouse_entered.connect(_on_hud_button_hovered.bind(home_button))
@@ -217,6 +222,12 @@ func _ready() -> void:
 	end_turn_button.mouse_exited.connect(_on_hud_button_unhovered.bind(end_turn_button))
 	play_again_button.mouse_entered.connect(_on_hud_button_hovered.bind(play_again_button))
 	play_again_button.mouse_exited.connect(_on_hud_button_unhovered.bind(play_again_button))
+	end_game_home_button.mouse_entered.connect(
+		_on_hud_button_hovered.bind(end_game_home_button)
+	)
+	end_game_home_button.mouse_exited.connect(
+		_on_hud_button_unhovered.bind(end_game_home_button)
+	)
 	choice_skip_button.mouse_entered.connect(_on_hud_button_hovered.bind(choice_skip_button))
 	choice_skip_button.mouse_exited.connect(_on_hud_button_unhovered.bind(choice_skip_button))
 	choice_confirm_button.mouse_entered.connect(
@@ -240,6 +251,7 @@ func _ready() -> void:
 
 	_refresh_kingdom_tab()
 	_show_home_screen(false)
+	_refresh_background_music()
 
 
 func _start_new_game(_is_restart: bool) -> void:
@@ -289,6 +301,19 @@ func _load_optional_assets() -> void:
 		player.volume_db = -9.0
 		add_child(player)
 		ui_sound_players[sound_name] = player
+
+	if ResourceLoader.exists(BACKGROUND_MUSIC_PATH):
+		var music_stream := load(BACKGROUND_MUSIC_PATH) as AudioStream
+		if music_stream != null:
+			if music_stream is AudioStreamWAV:
+				var wav_stream := music_stream as AudioStreamWAV
+				wav_stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+			background_music_player = AudioStreamPlayer.new()
+			background_music_player.name = "BackgroundMusic"
+			background_music_player.stream = music_stream
+			background_music_player.volume_db = BACKGROUND_MUSIC_VOLUME_DB
+			add_child(background_music_player)
+			_refresh_background_music()
 
 
 func _build_bottom_docks() -> void:
@@ -357,6 +382,17 @@ func _build_bottom_docks() -> void:
 	hud_row.move_child(right_ledger, 2)
 	var main_layout := hud_panel.get_parent() as VBoxContainer
 	main_layout.move_child(hud_panel, main_layout.get_child_count() - 1)
+	_lock_play_area_height()
+
+
+func _lock_play_area_height() -> void:
+	play_area_panel.custom_minimum_size = Vector2(0, PLAY_AREA_PANEL_HEIGHT)
+	play_area_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var play_area_scroll := play_area_container.get_parent() as ScrollContainer
+	if play_area_scroll != null:
+		play_area_scroll.custom_minimum_size = Vector2(0, PLAY_AREA_CONTENT_HEIGHT)
+		play_area_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	play_area_container.custom_minimum_size = Vector2(0, PLAY_AREA_CONTENT_HEIGHT)
 
 
 func _create_hud_ledger(ledger_name: String) -> Dictionary:
@@ -571,33 +607,73 @@ func _build_kingdom_browser() -> void:
 		_make_panel_style(Color(0.055, 0.07, 0.068, 0.92), COLOR_BRASS.darkened(0.08), 2)
 	)
 	home_overlay.add_child(home_kingdoms_panel)
-	home_kingdoms_panel.anchor_left = 0.36
-	home_kingdoms_panel.anchor_top = 0.08
-	home_kingdoms_panel.anchor_right = 0.965
-	home_kingdoms_panel.anchor_bottom = 0.92
-	home_kingdoms_panel.offset_left = 0
-	home_kingdoms_panel.offset_top = 0
-	home_kingdoms_panel.offset_right = 0
-	home_kingdoms_panel.offset_bottom = 0
+	home_kingdoms_panel.anchor_left = 0.5
+	home_kingdoms_panel.anchor_top = 0.5
+	home_kingdoms_panel.anchor_right = 0.5
+	home_kingdoms_panel.anchor_bottom = 0.5
+	home_kingdoms_panel.offset_left = -450
+	home_kingdoms_panel.offset_top = -304
+	home_kingdoms_panel.offset_right = 450
+	home_kingdoms_panel.offset_bottom = 304
 
 	var browser_margin := MarginContainer.new()
 	browser_margin.name = "Margin"
 	browser_margin.add_theme_constant_override("margin_left", 12)
-	browser_margin.add_theme_constant_override("margin_top", 12)
+	browser_margin.add_theme_constant_override("margin_top", 10)
 	browser_margin.add_theme_constant_override("margin_right", 12)
 	browser_margin.add_theme_constant_override("margin_bottom", 12)
 	home_kingdoms_panel.add_child(browser_margin)
+
+	var outer_layout := VBoxContainer.new()
+	outer_layout.name = "Layout"
+	outer_layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	outer_layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer_layout.add_theme_constant_override("separation", 8)
+	browser_margin.add_child(outer_layout)
+
+	var header := HBoxContainer.new()
+	header.name = "Header"
+	header.custom_minimum_size = Vector2(0, 32)
+	header.add_theme_constant_override("separation", 8)
+	outer_layout.add_child(header)
+
+	var heading := Label.new()
+	heading.name = "Title"
+	heading.text = "KINGDOMS"
+	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	heading.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	heading.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	heading.add_theme_font_size_override("font_size", 18)
+	if title_font != null:
+		heading.add_theme_font_override("font", title_font)
+	header.add_child(heading)
+
+	var close_button := Button.new()
+	close_button.name = "CloseButton"
+	close_button.text = "X"
+	close_button.custom_minimum_size = Vector2(34, 30)
+	close_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	close_button.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	close_button.add_theme_color_override("font_hover_color", Color.WHITE)
+	close_button.add_theme_font_size_override("font_size", 14)
+	if body_bold_font != null:
+		close_button.add_theme_font_override("font", body_bold_font)
+	if ui_textures.has("button"):
+		_apply_button_asset_styles(close_button, ui_textures["button"])
+	close_button.pressed.connect(_on_kingdoms_close_pressed)
+	header.add_child(close_button)
 
 	var browser := HBoxContainer.new()
 	browser.name = "Browser"
 	browser.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	browser.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	browser.add_theme_constant_override("separation", 12)
-	browser_margin.add_child(browser)
+	outer_layout.add_child(browser)
 
 	home_kingdom_tab_list = VBoxContainer.new()
 	home_kingdom_tab_list.name = "KingdomTabs"
-	home_kingdom_tab_list.custom_minimum_size = Vector2(150, 0)
+	home_kingdom_tab_list.custom_minimum_size = Vector2(154, 0)
+	home_kingdom_tab_list.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	home_kingdom_tab_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	home_kingdom_tab_list.add_theme_constant_override("separation", 8)
 	browser.add_child(home_kingdom_tab_list)
@@ -631,7 +707,7 @@ func _build_kingdom_browser() -> void:
 	card_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	card_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
 	cards_pane.add_child(card_scroll)
 
 	home_kingdom_card_grid = GridContainer.new()
@@ -837,6 +913,7 @@ func _create_kingdom_tab_section(kingdom: String) -> VBoxContainer:
 	tab_button.toggle_mode = true
 	tab_button.button_pressed = kingdom == selected_home_kingdom
 	tab_button.custom_minimum_size = Vector2(0, 42)
+	tab_button.clip_text = true
 	tab_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	tab_button.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
 	tab_button.add_theme_color_override("font_pressed_color", COLOR_BRASS.lightened(0.25))
@@ -1151,6 +1228,7 @@ func _apply_original_ui_assets() -> void:
 	if ui_textures.has("button_primary"):
 		_apply_button_asset_styles(end_turn_button, ui_textures["button_primary"])
 		_apply_button_asset_styles(play_again_button, ui_textures["button_primary"])
+		_apply_button_asset_styles(end_game_home_button, ui_textures["button_primary"])
 
 
 func _apply_scene_colors() -> void:
@@ -1410,6 +1488,7 @@ func _refresh_play_area() -> void:
 
 	if played_cards.is_empty():
 		var empty_label := Label.new()
+		empty_label.custom_minimum_size = Vector2(0, PLAY_AREA_CONTENT_HEIGHT)
 		empty_label.text = "Played cards appear here and move to discard when you end the turn."
 		empty_label.add_theme_color_override("font_color", COLOR_PARCHMENT.darkened(0.28))
 		empty_label.add_theme_font_size_override("font_size", 13)
@@ -1446,7 +1525,7 @@ func _create_card_button(
 	var palette := _get_card_palette(visual_state)
 	var card_surface := _get_card_surface_color(card.card_type)
 	var is_market_card := visual_state.begins_with("market_")
-	var outline_width := 6 if visual_state == MARKET_AFFORDABLE else 4
+	var outline_width := 4
 	var button := Button.new()
 	button.custom_minimum_size = CARD_FACE_SIZE
 	if is_market_card:
@@ -1474,19 +1553,19 @@ func _create_card_button(
 	)
 	button.add_theme_stylebox_override(
 		"hover",
-		_make_card_style(card_surface.lightened(0.14), palette.border.lightened(0.2), outline_width + 2)
+		_make_card_style(card_surface.lightened(0.14), palette.border.lightened(0.2), outline_width)
 	)
 	button.add_theme_stylebox_override(
 		"pressed",
-		_make_card_style(card_surface.darkened(0.06), palette.border.lightened(0.08), 5)
+		_make_card_style(card_surface.darkened(0.06), palette.border.lightened(0.08), outline_width)
 	)
 	button.add_theme_stylebox_override(
 		"focus",
-		_make_card_style(Color.TRANSPARENT, COLOR_BRASS.lightened(0.3), 6)
+		_make_card_style(Color.TRANSPARENT, COLOR_BRASS.lightened(0.3), outline_width)
 	)
 	button.add_theme_stylebox_override(
 		"disabled",
-		_make_card_style(card_surface.darkened(0.16), palette.border, 4)
+		_make_card_style(card_surface.darkened(0.16), palette.border, outline_width)
 	)
 
 	if ui_textures.has("card"):
@@ -1822,7 +1901,6 @@ func _on_card_mouse_entered(
 	button: Button,
 	visual_state: String
 ) -> void:
-	_play_ui_sound("hover")
 	_animate_card_scale(button, CARD_HOVER_SCALE)
 	button.z_index = 10
 	_show_card_preview(card, button, visual_state)
@@ -1835,7 +1913,6 @@ func _on_card_mouse_exited(button: Button) -> void:
 
 
 func _on_hud_button_hovered(button: Button) -> void:
-	_play_ui_sound("hover")
 	_animate_control_scale(button, Vector2(1.035, 1.035), HOVER_ANIMATION_SECONDS)
 
 
@@ -1948,7 +2025,7 @@ func _hide_card_preview() -> void:
 
 func _create_played_card_chip(card: CardDefinition) -> PanelContainer:
 	var chip := PanelContainer.new()
-	chip.custom_minimum_size = Vector2(150, 36)
+	chip.custom_minimum_size = Vector2(150, PLAY_AREA_CONTENT_HEIGHT)
 	chip.set_meta("card_id", card.id)
 	chip.add_theme_stylebox_override(
 		"panel",
@@ -2306,6 +2383,16 @@ func _play_ui_sound(sound_name: String) -> void:
 	player.play()
 
 
+func _refresh_background_music() -> void:
+	if background_music_player == null:
+		return
+	if audio_enabled:
+		if not background_music_player.playing:
+			background_music_player.play()
+	else:
+		background_music_player.stop()
+
+
 func _clear_container(container: Container) -> void:
 	for child in container.get_children():
 		container.remove_child(child)
@@ -2332,6 +2419,9 @@ func _on_choice_requested(choice: CardChoice) -> void:
 			else HAND_PLAYABLE
 		)
 		var button := _create_card_button(card, visual_state)
+		button.custom_minimum_size = CARD_FACE_SIZE
+		button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		button.set_meta("choice_token", token)
 		button.set_meta("choice_selected", false)
 		button.disabled = false
@@ -2519,8 +2609,25 @@ func _on_home_kingdoms_pressed() -> void:
 	_show_home_tab("kingdoms")
 
 
+func _on_kingdoms_close_pressed() -> void:
+	_play_ui_sound("button_click")
+	_close_kingdom_browser()
+
+
+func _close_kingdom_browser() -> void:
+	if home_kingdoms_panel != null:
+		home_kingdoms_panel.hide()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") and home_kingdoms_panel != null and home_kingdoms_panel.visible:
+		_close_kingdom_browser()
+		get_viewport().set_input_as_handled()
+
+
 func _on_home_audio_toggled(enabled: bool) -> void:
 	audio_enabled = enabled
+	_refresh_background_music()
 	_play_ui_sound("button_click")
 
 
@@ -2578,6 +2685,13 @@ func _on_kingdom_card_toggled(enabled: bool, card_id: String) -> void:
 func _on_play_again_pressed() -> void:
 	_play_ui_sound("button_click")
 	_start_new_game(true)
+
+
+func _on_end_game_home_pressed() -> void:
+	_play_ui_sound("button_click")
+	has_active_game = false
+	_hide_end_game_overlay()
+	_show_home_screen(true)
 
 
 func _show_final_score(score: int) -> void:
