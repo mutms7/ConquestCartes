@@ -710,11 +710,11 @@ text = "PLAY AGAIN"
 
 [node name="CardPreview" type="PanelContainer" parent="."]
 visible = false
-custom_minimum_size = Vector2(360, 500)
+custom_minimum_size = Vector2(360, 448)
 offset_left = 24.0
 offset_top = 78.0
 offset_right = 384.0
-offset_bottom = 578.0
+offset_bottom = 526.0
 mouse_filter = 2
 z_index = 100
 
@@ -732,11 +732,11 @@ mouse_filter = 2
 theme_override_constants/separation = 8
 
 [node name="NameLabel" type="Label" parent="CardPreview/Margin/Layout"]
-custom_minimum_size = Vector2(0, 48)
+custom_minimum_size = Vector2(0, 54)
 layout_mode = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.968627, 0.960784, 0.929412, 1)
-theme_override_font_sizes/font_size = 27
+theme_override_font_sizes/font_size = 30
 text = "Card Name"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -752,7 +752,7 @@ horizontal_alignment = 1
 
 [node name="ArtFrame" type="PanelContainer" parent="CardPreview/Margin/Layout"]
 clip_contents = true
-custom_minimum_size = Vector2(0, 210)
+custom_minimum_size = Vector2(0, 200)
 layout_mode = 2
 mouse_filter = 2
 
@@ -763,7 +763,7 @@ expand_mode = 3
 stretch_mode = 6
 
 [node name="EffectLabel" type="RichTextLabel" parent="CardPreview/Margin/Layout"]
-custom_minimum_size = Vector2(0, 112)
+custom_minimum_size = Vector2(0, 110)
 layout_mode = 2
 mouse_filter = 2
 theme_override_colors/default_color = Color(0.917647, 0.929412, 0.898039, 1)
