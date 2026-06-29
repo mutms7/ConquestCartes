@@ -580,10 +580,8 @@ func _initialize() -> void:
 		_end_turn_button().custom_minimum_size.x >= 168.0,
 		"End Turn should reserve a stable width for cooldown text."
 	)
-	main_ui.turn_manager.tick(GameState.DEFAULT_END_TURN_COOLDOWN_SECONDS)
-	await process_frame
-	_check(main_ui.last_ui_sound_name == "draw", "End turn should finish with draw feedback.")
-	_check(main_ui.last_animation_event == "draw", "End turn should animate the new hand.")
+	_check(main_ui.last_ui_sound_name == "draw", "End turn should immediately finish with draw feedback.")
+	_check(main_ui.last_animation_event == "draw", "End turn should immediately animate the new hand.")
 	_check(_hand_container().get_child_count() == 5, "End turn should render a new five-card hand.")
 	_check(_hud_value("CoinStat") == "0", "Coin HUD should reset at end of turn.")
 	_check(_hud_value("ActionStat") == "1", "Action HUD should reset at end of turn.")
@@ -591,6 +589,49 @@ func _initialize() -> void:
 	_check(
 		main_ui.game_state.player.play_area.is_empty(),
 		"Play area state should be empty after cleanup."
+	)
+	var local_cooldown_resource_button := _find_card_button(_hand_container(), "pebble_coin")
+	_check(
+		local_cooldown_resource_button != null,
+		"Local cooldown hand should include a playable Pebble Coin."
+	)
+	if local_cooldown_resource_button != null:
+		_check(
+			not local_cooldown_resource_button.disabled,
+			"Local hand cards should remain visually playable during End Turn cooldown."
+		)
+		var local_play_area_before: int = main_ui.game_state.player.play_area.size()
+		_click_control(local_cooldown_resource_button)
+		await process_frame
+		_check(
+			main_ui.game_state.player.play_area.size() == local_play_area_before + 1,
+			"A real local click should play a hand card during End Turn cooldown."
+		)
+		main_ui.game_state.player.coins = 99
+		main_ui.game_state.player.buys = 1
+		main_ui._refresh_ui()
+		var local_cooldown_market_button: Button = null
+		for button in _all_market_buttons():
+			if not button.disabled:
+				local_cooldown_market_button = button
+				break
+		_check(
+			local_cooldown_market_button != null,
+			"Local market cards should remain buyable during End Turn cooldown."
+		)
+		if local_cooldown_market_button != null:
+			var local_discard_before_buy: int = main_ui.game_state.player.discard_pile.size()
+			_click_control(local_cooldown_market_button)
+			await process_frame
+			_check(
+				main_ui.game_state.player.discard_pile.size() == local_discard_before_buy + 1,
+				"A real local click should buy from the market during End Turn cooldown."
+			)
+	main_ui.turn_manager.tick(GameState.DEFAULT_END_TURN_COOLDOWN_SECONDS)
+	await process_frame
+	_check(
+		not main_ui.turn_manager.is_cooling_down(),
+		"Cooldown expiry should only re-enable End Turn after local cooldown actions."
 	)
 
 	var market_before_restart: Array[String] = main_ui.game_state.get_market_card_ids()
@@ -705,9 +746,10 @@ func _initialize() -> void:
 		"Network End Turn should keep the local host view on Player 1."
 	)
 	_check(
-		main_ui.game_state.players[0].ending_turn
-		and not main_ui.game_state.players[1].ending_turn,
-		"Network End Turn should start only Player 1's cooldown."
+		main_ui.game_state.players[0].cooldown_remaining > 0.0
+		and not main_ui.game_state.players[0].ending_turn
+		and main_ui.game_state.players[1].cooldown_remaining <= 0.0,
+		"Network End Turn should start only Player 1's button cooldown."
 	)
 	var cooldown_resource_button := _find_card_button(_hand_container(), "pebble_coin")
 	_check(cooldown_resource_button != null, "Cooldown hand should include a playable Pebble Coin.")
@@ -1191,6 +1233,23 @@ func _find_card_button(container: Container, card_id: String) -> Button:
 			if nested != null:
 				return nested
 	return null
+
+
+func _click_control(control: Control) -> void:
+	var center := control.get_global_rect().get_center()
+	var motion := InputEventMouseMotion.new()
+	motion.position = center
+	root.push_input(motion, true)
+	var press := InputEventMouseButton.new()
+	press.position = center
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	root.push_input(press, true)
+	var release := InputEventMouseButton.new()
+	release.position = center
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	root.push_input(release, true)
 
 
 func _same_card_ids(first: Array[String], second: Array[String]) -> bool:

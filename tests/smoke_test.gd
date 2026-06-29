@@ -313,6 +313,7 @@ func _test_turn_cooldown() -> void:
 	turn_manager.start_first_turn()
 	turn_manager.end_turn()
 	_check(turn_manager.is_cooling_down(), "End turn should start a cooldown.")
+	_check(not turn_manager.ending_turn, "End turn cleanup should finish before button cooldown expires.")
 	_check(game_state.player.hand.size() == 5, "End turn should immediately draw the next hand.")
 	var cooldown_before_second_end := turn_manager.cooldown_remaining
 	turn_manager.end_turn()

@@ -41,7 +41,7 @@ func start_first_turn() -> void:
 
 
 func end_turn() -> void:
-	if game_over or game_state.has_pending_choice() or ending_turn:
+	if game_over or game_state.has_pending_choice() or is_cooling_down():
 		return
 
 	cooldown_duration = game_state.get_end_turn_cooldown_seconds()
@@ -57,33 +57,32 @@ func end_turn() -> void:
 
 
 func tick(delta: float) -> void:
-	if game_over or not ending_turn:
+	if game_over or cooldown_remaining <= 0.0:
 		return
-	if cooldown_remaining > 0.0:
-		cooldown_remaining = maxf(0.0, cooldown_remaining - delta)
-	if cooldown_remaining > 0.0:
-		return
-	ending_turn = false
-	cooldown_duration = 0.0
+	cooldown_remaining = maxf(0.0, cooldown_remaining - delta)
+	if cooldown_remaining <= 0.0:
+		cooldown_duration = 0.0
 
 
 func is_cooling_down() -> bool:
-	return ending_turn and cooldown_remaining > 0.0
+	return cooldown_remaining > 0.0
 
 
 func _on_end_turn_cooldown_reduced(amount: float) -> void:
-	if not ending_turn or cooldown_remaining <= 0.0:
+	if cooldown_remaining <= 0.0:
 		return
 	cooldown_remaining = maxf(0.0, cooldown_remaining - maxf(0.0, amount))
+	if cooldown_remaining <= 0.0:
+		cooldown_duration = 0.0
 
 
 func _on_cleanup_completed() -> void:
 	if not ending_turn:
 		return
+	ending_turn = false
 	game_state.reset_turn_resources()
 
 	if game_state.is_game_end_condition_met():
-		ending_turn = false
 		cooldown_remaining = 0.0
 		cooldown_duration = 0.0
 		game_over = true

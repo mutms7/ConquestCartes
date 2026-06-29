@@ -287,11 +287,13 @@ func _process(delta: float) -> void:
 	if network_enabled:
 		if network_is_host:
 			_tick_network_cooldowns(delta)
-		elif game_state.player.ending_turn and game_state.player.cooldown_remaining > 0.0:
+		elif game_state.player.cooldown_remaining > 0.0:
 			game_state.player.cooldown_remaining = maxf(
 				0.0,
 				game_state.player.cooldown_remaining - delta
 			)
+			if game_state.player.cooldown_remaining <= 0.0:
+				game_state.player.cooldown_duration = 0.0
 		_sync_turn_manager_to_local_player()
 	else:
 		turn_manager.tick(delta)
@@ -522,9 +524,11 @@ func _on_network_end_turn_cooldown_reduced(amount: float) -> void:
 	if not network_enabled:
 		return
 	var game_player := game_state.player
-	if not game_player.ending_turn or game_player.cooldown_remaining <= 0.0:
+	if game_player.cooldown_remaining <= 0.0:
 		return
 	game_player.cooldown_remaining = maxf(0.0, game_player.cooldown_remaining - maxf(0.0, amount))
+	if game_player.cooldown_remaining <= 0.0:
+		game_player.cooldown_duration = 0.0
 	_sync_turn_manager_to_local_player()
 
 
@@ -533,7 +537,7 @@ func _start_network_player_cooldown(player_index: int) -> void:
 		return
 	_set_authoritative_player(player_index)
 	var game_player := game_state.player
-	if game_player.pending_choice != null or game_player.ending_turn:
+	if game_player.pending_choice != null or game_player.cooldown_remaining > 0.0:
 		_restore_local_network_view()
 		return
 	game_player.cooldown_duration = game_state.get_end_turn_cooldown_seconds()
@@ -553,11 +557,10 @@ func _tick_network_cooldowns(delta: float) -> void:
 	var changed := false
 	for player_index in range(game_state.players.size()):
 		var game_player := game_state.players[player_index]
-		if not game_player.ending_turn:
+		if game_player.cooldown_remaining <= 0.0:
 			continue
-		if game_player.cooldown_remaining > 0.0:
-			game_player.cooldown_remaining = maxf(0.0, game_player.cooldown_remaining - delta)
-			changed = true
+		game_player.cooldown_remaining = maxf(0.0, game_player.cooldown_remaining - delta)
+		changed = true
 		if game_player.cooldown_remaining > 0.0:
 			continue
 		game_player.ending_turn = false
@@ -586,9 +589,9 @@ func _finish_network_player_turn(player_index: int) -> void:
 func _complete_network_player_cleanup(player_index: int) -> void:
 	_set_authoritative_player(player_index)
 	var game_player := game_state.player
+	game_player.ending_turn = false
 	game_state.reset_turn_resources()
 	if game_state.is_game_end_condition_met():
-		game_player.ending_turn = false
 		game_player.cooldown_remaining = 0.0
 		game_player.cooldown_duration = 0.0
 		turn_manager.game_over = true
@@ -2007,7 +2010,7 @@ func _refresh_player_status() -> void:
 			var status := "ready"
 			if other.pending_choice != null:
 				status = "choosing"
-			elif other.ending_turn:
+			elif other.cooldown_remaining > 0.0:
 				status = "%.1fs" % other.cooldown_remaining
 			lines.append("P%d: %s" % [index + 1, status])
 	player_status_label.text = "\n".join(lines)
@@ -2021,7 +2024,7 @@ func _refresh_end_turn_button() -> void:
 		end_turn_button.disabled = true
 		end_turn_button.modulate = Color.WHITE
 		return
-	if turn_manager.ending_turn:
+	if turn_manager.is_cooling_down():
 		end_turn_button.text = "COOLDOWN %.1fs" % turn_manager.cooldown_remaining
 		end_turn_button.disabled = true
 		end_turn_button.modulate = Color(0.72, 0.74, 0.78, 1.0)
