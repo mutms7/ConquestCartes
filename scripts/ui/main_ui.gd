@@ -3344,10 +3344,12 @@ func _on_end_turn_pressed() -> void:
 	if network_enabled and network_is_host:
 		_start_network_player_cooldown(local_player_index)
 		_refresh_ui()
+		call_deferred("_refresh_ui")
 		_broadcast_network_snapshot()
 		return
 	turn_manager.end_turn()
 	_refresh_ui()
+	call_deferred("_refresh_ui")
 
 
 func _on_turn_completed(game_is_over: bool) -> void:
