@@ -169,6 +169,10 @@ func start_all_players() -> void:
 
 
 func get_end_turn_cooldown_seconds() -> float:
+	# The end-turn cooldown is a multiplayer-only pacing mechanic. Singleplayer
+	# games have no timeout, so ending a turn is instant.
+	if not multiplayer_enabled:
+		return 0.0
 	return maxf(
 		0.5,
 		DEFAULT_END_TURN_COOLDOWN_SECONDS - player.end_turn_cooldown_reduction

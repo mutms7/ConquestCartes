@@ -572,13 +572,17 @@ func _initialize() -> void:
 	_click_control(_end_turn_button())
 	await process_frame
 	_check(
-		main_ui.turn_manager.is_cooling_down()
-		and _end_turn_button().text.begins_with("COOLDOWN"),
-		"End Turn should become a visible cooldown timer."
+		not main_ui.turn_manager.is_cooling_down()
+		and _end_turn_button().text == "END TURN",
+		"Singleplayer End Turn should not start a cooldown timer."
+	)
+	_check(
+		not _end_turn_button().disabled,
+		"Singleplayer End Turn should stay enabled with no timeout."
 	)
 	_check(
 		_end_turn_button().custom_minimum_size.x >= 168.0,
-		"End Turn should reserve a stable width for cooldown text."
+		"End Turn should reserve a stable button width."
 	)
 	_check(_hand_container().get_child_count() == 5, "End turn should render a new five-card hand.")
 	_check(_hud_value("CoinStat") == "0", "Coin HUD should reset at end of turn.")
@@ -590,49 +594,43 @@ func _initialize() -> void:
 	)
 	_check(main_ui.last_ui_sound_name == "draw", "End turn should finish with draw feedback.")
 	_check(main_ui.last_animation_event == "draw", "End turn should animate the new hand.")
-	var local_cooldown_resource_button := _find_card_button(_hand_container(), "pebble_coin")
+	var solo_resource_button := _find_card_button(_hand_container(), "pebble_coin")
 	_check(
-		local_cooldown_resource_button != null,
-		"Local cooldown hand should include a playable Pebble Coin."
+		solo_resource_button != null,
+		"Fresh singleplayer hand should include a playable Pebble Coin."
 	)
-	if local_cooldown_resource_button != null:
+	if solo_resource_button != null:
 		_check(
-			not local_cooldown_resource_button.disabled,
-			"Local hand cards should remain visually playable during End Turn cooldown."
+			not solo_resource_button.disabled,
+			"Fresh singleplayer hand cards should be playable."
 		)
-		var local_play_area_before: int = main_ui.game_state.player.play_area.size()
-		_click_control(local_cooldown_resource_button)
+		var solo_play_area_before: int = main_ui.game_state.player.play_area.size()
+		_click_control(solo_resource_button)
 		await process_frame
 		_check(
-			main_ui.game_state.player.play_area.size() == local_play_area_before + 1,
-			"A real local click should play a hand card during End Turn cooldown."
+			main_ui.game_state.player.play_area.size() == solo_play_area_before + 1,
+			"A real click should play a hand card on a fresh singleplayer turn."
 		)
 		main_ui.game_state.player.coins = 99
 		main_ui.game_state.player.buys = 1
 		main_ui._refresh_ui()
-		var local_cooldown_market_button: Button = null
+		var solo_market_button: Button = null
 		for button in _all_market_buttons():
 			if not button.disabled:
-				local_cooldown_market_button = button
+				solo_market_button = button
 				break
 		_check(
-			local_cooldown_market_button != null,
-			"Local market cards should remain buyable during End Turn cooldown."
+			solo_market_button != null,
+			"Singleplayer market cards should be buyable."
 		)
-		if local_cooldown_market_button != null:
-			var local_discard_before_buy: int = main_ui.game_state.player.discard_pile.size()
-			_click_control(local_cooldown_market_button)
+		if solo_market_button != null:
+			var solo_discard_before_buy: int = main_ui.game_state.player.discard_pile.size()
+			_click_control(solo_market_button)
 			await process_frame
 			_check(
-				main_ui.game_state.player.discard_pile.size() == local_discard_before_buy + 1,
-				"A real local click should buy from the market during End Turn cooldown."
+				main_ui.game_state.player.discard_pile.size() == solo_discard_before_buy + 1,
+				"A real click should buy from the market on a fresh singleplayer turn."
 			)
-	main_ui.turn_manager.tick(GameState.DEFAULT_END_TURN_COOLDOWN_SECONDS)
-	await process_frame
-	_check(
-		not main_ui.turn_manager.is_cooling_down(),
-		"Cooldown expiry should only re-enable End Turn after local cooldown actions."
-	)
 
 	main_ui._start_new_game(true)
 	await process_frame
@@ -640,28 +638,26 @@ func _initialize() -> void:
 	_click_control(_end_turn_button())
 	await process_frame
 	_check(
-		main_ui.turn_manager.is_cooling_down(),
-		"Fresh local End Turn mouse click should start only the button cooldown."
+		not main_ui.turn_manager.is_cooling_down(),
+		"A fresh singleplayer End Turn click should not start any cooldown."
 	)
-	local_cooldown_resource_button = _find_card_button(_hand_container(), "pebble_coin")
+	solo_resource_button = _find_card_button(_hand_container(), "pebble_coin")
 	_check(
-		local_cooldown_resource_button != null,
-		"Fresh local cooldown hand should include a playable Pebble Coin."
+		solo_resource_button != null,
+		"Fresh singleplayer hand should include a playable Pebble Coin."
 	)
-	if local_cooldown_resource_button != null:
+	if solo_resource_button != null:
 		_check(
-			not local_cooldown_resource_button.disabled,
-			"Fresh local hand cards should remain visually playable during cooldown."
+			not solo_resource_button.disabled,
+			"Fresh singleplayer hand cards should be playable."
 		)
 		var fresh_play_area_before: int = main_ui.game_state.player.play_area.size()
-		_click_control(local_cooldown_resource_button)
+		_click_control(solo_resource_button)
 		await process_frame
 		_check(
 			main_ui.game_state.player.play_area.size() == fresh_play_area_before + 1,
-			"Fresh local real clicks should play cards before cooldown expires."
+			"Fresh singleplayer clicks should play cards immediately."
 		)
-	main_ui.turn_manager.tick(GameState.DEFAULT_END_TURN_COOLDOWN_SECONDS)
-	await process_frame
 
 	var market_before_restart: Array[String] = main_ui.game_state.get_market_card_ids()
 	main_ui.game_state.player.coins = 8

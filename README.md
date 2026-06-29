@@ -21,7 +21,8 @@ contents of your deck into victory points.
 - Temporary cost reductions, progressive resources, and event-driven bonuses
 - Direct-IP 2-player lobby tables with shared supplies and attacks that hit rivals
 - 0-cost Briar Hex curses worth -1 VP
-- Parallel 5-second end-turn cooldowns that still allow card play while they count down
+- Parallel 5-second end-turn cooldowns in online lobbies that still allow card play
+  while they count down (singleplayer has no end-turn timeout)
 - Finite supply piles with visible counts and sold-out handling
 - Art-linked names that preserve the identity of the original illustration library
 - High-contrast type surfaces: golden umber resources, midnight-blue actions,
@@ -50,8 +51,9 @@ contents of your deck into victory points.
 4. Purchased cards enter the discard pile and reduce that supply pile.
 5. End the turn to immediately discard your hand and played cards, reset turn
    resources, and draw five cards for your next turn.
-6. End Turn then waits through a 5-second cooldown, but you can still play cards
-   and buy from the market while it counts down.
+6. In singleplayer, End Turn is instant with no cooldown. In online lobbies, End
+   Turn then waits through a 5-second cooldown, but you can still play cards and
+   buy from the market while it counts down.
 7. The game ends when three supply piles are empty or the 6 VP pile empties.
 8. Every victory point in your deck, hand, discard pile, and play area
    contributes to the final score.

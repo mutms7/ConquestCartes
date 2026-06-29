@@ -305,14 +305,35 @@ func _test_supply_piles() -> void:
 
 
 func _test_turn_cooldown() -> void:
+	# Singleplayer has no end-turn timeout: ending a turn draws the next hand
+	# immediately and never blocks the End Turn button.
+	var solo_state := _create_game_state()
+	if solo_state == null:
+		return
+	var solo_manager := TurnManager.new()
+	solo_manager.configure(solo_state)
+	solo_manager.start_first_turn()
+	solo_manager.end_turn()
+	_check(
+		is_equal_approx(solo_state.get_end_turn_cooldown_seconds(), 0.0),
+		"Singleplayer end-turn cooldown should be zero."
+	)
+	_check(not solo_manager.is_cooling_down(), "Singleplayer end turn should not start a cooldown.")
+	_check(
+		solo_state.player.hand.size() == 5,
+		"Singleplayer end turn should immediately draw the next hand."
+	)
+
+	# Multiplayer keeps the parallel end-turn cooldown so online turns stay paced.
 	var game_state := _create_game_state()
 	if game_state == null:
 		return
+	game_state.multiplayer_enabled = true
 	var turn_manager := TurnManager.new()
 	turn_manager.configure(game_state)
 	turn_manager.start_first_turn()
 	turn_manager.end_turn()
-	_check(turn_manager.is_cooling_down(), "End turn should start a cooldown.")
+	_check(turn_manager.is_cooling_down(), "Multiplayer end turn should start a cooldown.")
 	_check(not turn_manager.ending_turn, "End turn cleanup should finish before button cooldown expires.")
 	_check(game_state.player.hand.size() == 5, "End turn should immediately draw the next hand.")
 	var cooldown_before_second_end := turn_manager.cooldown_remaining
@@ -343,6 +364,7 @@ func _test_turn_cooldown() -> void:
 	_check(not turn_manager.is_cooling_down(), "Cooldown expiry should re-enable End Turn.")
 
 	game_state = _empty_game()
+	game_state.multiplayer_enabled = true
 	turn_manager = TurnManager.new()
 	turn_manager.configure(game_state)
 	var bell: CardDefinition = game_state.card_catalog["sunspire_bell"]
@@ -351,10 +373,11 @@ func _test_turn_cooldown() -> void:
 	_check(game_state.play_card(bell), "Sunspire Bell should play.")
 	_check(
 		is_equal_approx(game_state.get_end_turn_cooldown_seconds(), 4.5),
-		"Sunspire Bell should reduce the end-turn cooldown by 0.5 seconds."
+		"Sunspire Bell should reduce the multiplayer end-turn cooldown by 0.5 seconds."
 	)
 
 	game_state = _empty_game()
+	game_state.multiplayer_enabled = true
 	turn_manager = TurnManager.new()
 	turn_manager.configure(game_state)
 	bell = game_state.card_catalog["sunspire_bell"]
