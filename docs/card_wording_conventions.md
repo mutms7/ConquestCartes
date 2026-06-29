@@ -16,6 +16,8 @@ sentences, and rules wording must remain original.
 - Put standard outputs first in this order: cards, actions, buys, coins.
 - Put conditional or zone-changing instructions after standard outputs.
 - Put `Attack:` clauses after standard outputs and before event-triggered text.
+- Use `Reduce your end-turn cooldown by N seconds this turn` for cooldown
+  modifiers.
 - Put `When you gain`, `When you discard`, `When you trash`, and cleanup
   instructions after the card's play effect.
 - Follow the actual resolution order used by `special_effects`.

@@ -117,6 +117,8 @@ var pending_cleanup_ghosts: Array[Control] = []
 var home_overlay: Control
 var home_new_game_button: Button
 var home_continue_button: Button
+var home_create_lobby_button: Button
+var home_lobby_status_label: Label
 var home_settings_panel: VBoxContainer
 var home_kingdoms_panel: PanelContainer
 var home_kingdom_tab_list: VBoxContainer
@@ -126,6 +128,7 @@ var home_kingdom_card_grid: GridContainer
 var home_kingdom_detail_host: VBoxContainer
 var selected_home_kingdom := GameState.BASE_KINGDOM
 var selected_home_kingdom_card_id := ""
+var active_lobby_player_count := 1
 var home_noise_overlay: TextureRect
 var table_noise_overlay: TextureRect
 var home_noise_slider: HSlider
@@ -191,6 +194,9 @@ var noise_texture: Texture2D
 @onready var final_victory_icon: TextureRect = (
 	$EndGameOverlay/Center/Panel/Margin/Layout/ScoreRow/VictoryIcon
 )
+@onready var final_summary_label: Label = (
+	$EndGameOverlay/Center/Panel/Margin/Layout/SummaryLabel
+)
 @onready var play_again_button: Button = (
 	$EndGameOverlay/Center/Panel/Margin/Layout/PlayAgainButton
 )
@@ -241,8 +247,10 @@ func _ready() -> void:
 	)
 	game_state.choice_requested.connect(_on_choice_requested)
 	game_state.choice_resolved.connect(_on_choice_resolved)
+	game_state.active_player_changed.connect(_on_active_player_changed)
 	turn_manager.configure(game_state)
 	turn_manager.turn_completed.connect(_on_turn_completed)
+	turn_manager.turn_cleanup_started.connect(_on_turn_cleanup_started)
 
 	if not game_state.load_cards(CARD_DATA_PATH):
 		push_error("Could not load card data from %s." % CARD_DATA_PATH)
@@ -257,6 +265,11 @@ func _ready() -> void:
 	_refresh_background_music()
 
 
+func _process(delta: float) -> void:
+	turn_manager.tick(delta)
+	_refresh_end_turn_button()
+
+
 func _start_new_game(_is_restart: bool) -> void:
 	if game_state.card_catalog.is_empty() or not game_state.has_enough_market_candidates():
 		_refresh_home_controls()
@@ -265,13 +278,35 @@ func _start_new_game(_is_restart: bool) -> void:
 	_hide_end_game_overlay()
 	_hide_choice_overlay()
 	_clear_animation_layer()
-	if not game_state.setup_starting_game():
+	active_lobby_player_count = 1
+	if not game_state.setup_starting_game(active_lobby_player_count):
 		push_error("Could not prepare a new game.")
 		has_active_game = false
 		end_turn_button.disabled = true
 		_show_home_screen(false)
 		return
 
+	has_active_game = true
+	turn_manager.start_first_turn()
+	_refresh_ui()
+	call_deferred("_animate_draw_cards", game_state.player.hand.size())
+
+
+func _start_lobby_game(player_count: int = 2) -> void:
+	if game_state.card_catalog.is_empty() or not game_state.has_enough_market_candidates():
+		_refresh_home_controls()
+		return
+	_hide_home_screen()
+	_hide_end_game_overlay()
+	_hide_choice_overlay()
+	_clear_animation_layer()
+	active_lobby_player_count = maxi(2, player_count)
+	if not game_state.setup_starting_game(active_lobby_player_count):
+		push_error("Could not prepare a multiplayer lobby.")
+		has_active_game = false
+		end_turn_button.disabled = true
+		_show_home_screen(false)
+		return
 	has_active_game = true
 	turn_manager.start_first_turn()
 	_refresh_ui()
@@ -529,6 +564,11 @@ func _build_home_screen() -> void:
 	home_continue_button.pressed.connect(_on_home_continue_pressed)
 	button_stack.add_child(home_continue_button)
 
+	home_create_lobby_button = _create_home_menu_button("CREATE LOBBY")
+	home_create_lobby_button.name = "CreateLobbyButton"
+	home_create_lobby_button.pressed.connect(_on_home_create_lobby_pressed)
+	button_stack.add_child(home_create_lobby_button)
+
 	var settings_button := _create_home_menu_button("SETTINGS")
 	settings_button.name = "SettingsButton"
 	settings_button.pressed.connect(_on_home_settings_pressed)
@@ -538,6 +578,16 @@ func _build_home_screen() -> void:
 	kingdoms_button.name = "KingdomsButton"
 	kingdoms_button.pressed.connect(_on_home_kingdoms_pressed)
 	button_stack.add_child(kingdoms_button)
+
+	home_lobby_status_label = Label.new()
+	home_lobby_status_label.name = "LobbyStatus"
+	home_lobby_status_label.text = "Create Lobby starts a 2-player table."
+	home_lobby_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	home_lobby_status_label.add_theme_color_override("font_color", COLOR_PARCHMENT.darkened(0.08))
+	home_lobby_status_label.add_theme_font_size_override("font_size", 12)
+	if body_font != null:
+		home_lobby_status_label.add_theme_font_override("font", body_font)
+	button_stack.add_child(home_lobby_status_label)
 
 	home_settings_panel = VBoxContainer.new()
 	home_settings_panel.name = "SettingsPanel"
@@ -849,13 +899,23 @@ func _hide_home_screen() -> void:
 
 
 func _refresh_home_controls() -> void:
+	var can_start := (
+		not game_state.card_catalog.is_empty()
+		and game_state.has_enough_market_candidates()
+	)
 	if home_new_game_button != null:
-		home_new_game_button.disabled = (
-			game_state.card_catalog.is_empty()
-			or not game_state.has_enough_market_candidates()
-		)
+		home_new_game_button.disabled = not can_start
 	if home_continue_button != null:
 		home_continue_button.disabled = not has_active_game
+	if home_create_lobby_button != null:
+		home_create_lobby_button.disabled = not can_start
+	if home_lobby_status_label != null:
+		home_lobby_status_label.text = (
+			"Active lobby: %d players share this market."
+			% game_state.get_player_count()
+			if game_state.multiplayer_enabled
+			else "Create Lobby starts a 2-player table."
+		)
 	if home_audio_toggle != null:
 		home_audio_toggle.set_pressed_no_signal(audio_enabled)
 	if home_motion_toggle != null:
@@ -1307,7 +1367,11 @@ func _apply_button_asset_styles(button: Button, texture: Texture2D) -> void:
 func _refresh_ui() -> void:
 	_hide_card_preview()
 	var player := game_state.player
-	turn_label.text = "%d / %d" % [turn_manager.turn_number, turn_manager.maximum_turns]
+	turn_label.text = (
+		"%s  T%d" % [game_state.get_active_player_name(), player.turn_number]
+		if game_state.multiplayer_enabled
+		else "Turn %d" % player.turn_number
+	)
 	deck_label.text = str(player.draw_pile.size())
 	discard_label.text = str(player.discard_pile.size())
 	coin_label.text = str(player.coins)
@@ -1317,12 +1381,30 @@ func _refresh_ui() -> void:
 		player.hand.size(),
 		"" if player.hand.size() == 1 else "s",
 	]
-	end_turn_button.disabled = turn_manager.game_over or game_state.has_pending_choice()
+	_refresh_end_turn_button()
 	home_button.disabled = false
 
 	_refresh_hand()
 	_refresh_market()
 	_refresh_play_area()
+
+
+func _refresh_end_turn_button() -> void:
+	if end_turn_button == null:
+		return
+	if turn_manager.game_over:
+		end_turn_button.text = "GAME OVER"
+		end_turn_button.disabled = true
+		end_turn_button.modulate = Color.WHITE
+		return
+	if turn_manager.ending_turn:
+		end_turn_button.text = "COOLDOWN %.1fs" % turn_manager.cooldown_remaining
+		end_turn_button.disabled = true
+		end_turn_button.modulate = Color(0.72, 0.74, 0.78, 1.0)
+		return
+	end_turn_button.text = "END TURN"
+	end_turn_button.disabled = game_state.has_pending_choice()
+	end_turn_button.modulate = Color.WHITE
 
 
 func _refresh_hand() -> void:
@@ -2585,7 +2667,6 @@ func _on_market_card_pressed(card: CardDefinition) -> void:
 func _on_end_turn_pressed() -> void:
 	if game_state.has_pending_choice():
 		return
-	pending_cleanup_ghosts = _capture_cleanup_cards()
 	_play_ui_sound("end_turn")
 	turn_manager.end_turn()
 	_refresh_ui()
@@ -2597,8 +2678,16 @@ func _on_turn_completed(game_is_over: bool) -> void:
 	pending_cleanup_ghosts.clear()
 	if game_is_over:
 		_show_final_score(turn_manager.final_score)
-	else:
+	elif not game_state.multiplayer_enabled:
 		call_deferred("_animate_draw_cards", game_state.player.hand.size())
+
+
+func _on_turn_cleanup_started() -> void:
+	pending_cleanup_ghosts = _capture_cleanup_cards()
+
+
+func _on_active_player_changed(_player_index: int) -> void:
+	_refresh_ui()
 
 
 func _on_home_pressed() -> void:
@@ -2616,6 +2705,11 @@ func _on_home_continue_pressed() -> void:
 		return
 	_play_ui_sound("button_click")
 	_hide_home_screen()
+
+
+func _on_home_create_lobby_pressed() -> void:
+	_play_ui_sound("button_click")
+	_start_lobby_game(2)
 
 
 func _on_home_settings_pressed() -> void:
@@ -2735,6 +2829,13 @@ func _show_final_score(score: int) -> void:
 	last_animation_event = "game_end"
 	_play_ui_sound("game_end")
 	final_score_label.text = str(score)
+	if game_state.multiplayer_enabled and not turn_manager.final_scores.is_empty():
+		var parts: Array[String] = []
+		for index in range(turn_manager.final_scores.size()):
+			parts.append("P%d %d VP" % [index + 1, turn_manager.final_scores[index]])
+		final_summary_label.text = "Scores: %s." % ", ".join(parts)
+	else:
+		final_summary_label.text = "Supply end reached. Every card in your collection was counted."
 	end_game_overlay.modulate.a = 0.0
 	end_game_panel.scale = Vector2(0.9, 0.9)
 	end_game_panel.pivot_offset = end_game_panel.size * 0.5

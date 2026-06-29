@@ -1,7 +1,7 @@
 # ConquestCartes
 
-An original single-player fantasy deck-builder built with Godot 4.7. Build a compact
-engine over 15 turns, buy cards from a rotating merchant market, and turn the final
+An original fantasy deck-builder built with Godot 4.7. Build a compact
+engine, buy cards from a rotating merchant market, and turn the final
 contents of your deck into victory points.
 
 **Play online:** https://conquest-cartes.vercel.app/
@@ -19,15 +19,18 @@ contents of your deck into victory points.
   replaying, inspecting, and ordering cards
 - Gain, buy, discard, trash, and cleanup triggers for reactive cards
 - Temporary cost reductions, progressive resources, and event-driven bonuses
-- Solo attack effects and 0-cost Briar Hex curses worth -1 VP
+- Multiplayer lobby tables with shared supplies and attacks that hit rivals
+- 0-cost Briar Hex curses worth -1 VP
+- A 5-second end-turn cooldown that still allows card play while it counts down
 - Finite supply piles with visible counts and sold-out handling
 - Art-linked names that preserve the identity of the original illustration library
 - High-contrast type surfaces: golden umber resources, midnight-blue actions,
   deep plum victory cards, and violet-black curses
-- Final scoring after turn 15
+- Final scoring when three supply piles empty or the 6 VP pile empties
 - Handcrafted medieval tabletop UI using dark jewel-toned cards, bright brass,
   cool slate, and restrained heraldic ornament
-- Startup home screen with Sunspire artwork, New Game, Continue, Settings, and Kingdoms
+- Startup home screen with Sunspire artwork, New Game, Create Lobby, Continue,
+  Settings, and Kingdoms
 - Home settings for visual noise and action-animation speed
 - A tabbed Kingdoms browser with full card faces and market-pool toggles
 - Kingdom and individual-card toggles that filter the random market pool
@@ -45,10 +48,13 @@ contents of your deck into victory points.
 2. Spend actions to play action cards for cards, actions, coins, or buys.
 3. Spend one buy and enough coins to purchase a card from the shared market.
 4. Purchased cards enter the discard pile and reduce that supply pile.
-5. End the turn to discard your hand and played cards, reset turn resources, and
-   draw five cards.
-6. After turn 15, every victory point in your deck, hand, discard pile, and play
-   area contributes to the final score.
+5. End the turn to start a 5-second cooldown; you can still play cards while it
+   counts down.
+6. When the cooldown ends, discard your hand and played cards, reset turn
+   resources, and draw five cards.
+7. The game ends when three supply piles are empty or the 6 VP pile empties.
+8. Every victory point in your deck, hand, discard pile, and play area
+   contributes to the final score.
 
 Card surface color identifies its type. Slate-trimmed hand cards are playable,
 forest-trimmed market cards are affordable, and muted trim marks cards that are
@@ -118,12 +124,13 @@ See `assets/licenses/ASSET_SOURCES.md` for provenance details.
 
 ## Current Limitations
 
-- Single-player only; there is no opponent, multiplayer, or campaign.
-- No save system, music, or full accessibility menu.
+- Create Lobby currently runs an in-engine 2-player table; internet relay and
+  matchmaking are not included yet.
+- No save system, internet matchmaking, or full accessibility menu.
 - Rival-only reaction clauses are omitted in the solo ruleset.
 - The art library contains 29 finished illustrations. The 63-card catalog
-  currently references 28 of them; related cards share paintings through the
-  data-driven `art_id` field, while Sunspire Monument remains reserve art.
+  currently references 29 of them; related cards share paintings through the
+  data-driven `art_id` field.
 - The game is balanced as a compact prototype rather than a finished commercial
   release.
 

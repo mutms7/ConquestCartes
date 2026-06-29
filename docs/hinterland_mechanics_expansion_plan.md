@@ -29,7 +29,7 @@ Cache, Embassy, Ill-Gotten Gains, or Mandarin.
 | Oasis | Moonwell Rest | `moonwell_token` |
 | Scheme | Quiet Stratagem | `quiet_archive` |
 | Spice Merchant | Spicebroker | `acorn_purse` |
-| Stables | Mosswood Stable | `moss_thread` |
+| Stables | Mosswood Stable | `starlit_wagon` |
 | Cauldron | Cap Kettle | `candlecap` |
 | Guard Dog | Briar Hound | `briar_gate` |
 | Trail | River Trail | `river_courier` |

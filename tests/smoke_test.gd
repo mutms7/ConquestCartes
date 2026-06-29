@@ -9,7 +9,6 @@ const INACTIVE_CARD_IDS := [
 	"harvest_feast",
 	"astral_spyglass",
 	"relic_seeker",
-	"timber_camp",
 	"briar_hex",
 ]
 const EXPECTED_ART_LINKED_NAMES := {
@@ -38,7 +37,6 @@ const EXPECTED_ART_LINKED_NAMES := {
 	"relic_seeker": "Reliquary",
 	"echoing_hall": "Hearth Refrain",
 	"banner_vassal": "River Courier",
-	"timber_camp": "Moss Camp",
 	"guild_workshop": "Loom Workshop",
 }
 const HINTERLAND_CARD_IDS := [
@@ -80,6 +78,8 @@ func _initialize() -> void:
 	_test_draw_across_shuffle_boundary()
 	_test_scoring()
 	_test_supply_piles()
+	_test_turn_cooldown()
+	_test_multiplayer_lobby_attacks()
 	_test_special_effects()
 	_test_hinterland_expansion()
 	_test_every_playable_card_resolves()
@@ -233,10 +233,11 @@ func _test_full_game_loop() -> void:
 	_check(game_state.player.discard_pile.has(purchased_card), "Bought card should enter discard.")
 	_check(_owned_card_count(game_state) == 11, "Buying should add exactly one owned card.")
 
-	while not turn_manager.game_over:
-		turn_manager.end_turn()
+	for index in range(3):
+		game_state.set_supply_count(game_state.market[index].id, 0)
+	_finish_turn(turn_manager)
 
-	_check(turn_manager.turn_number == 15, "Game should end on turn 15.")
+	_check(turn_manager.game_over, "Game should end when three supply piles are empty.")
 	_check(
 		turn_manager.final_score >= 3 + purchased_card.victory_points,
 		"Final score should include all fixed and variable victory values."
@@ -301,6 +302,89 @@ func _test_supply_piles() -> void:
 	game_state.player.coins = 99
 	_check(not game_state.buy_card(card), "An empty supply pile should not be purchasable.")
 	_check(game_state.get_empty_supply_pile_count() == 1, "Empty supply piles should be counted.")
+
+
+func _test_turn_cooldown() -> void:
+	var game_state := _create_game_state()
+	if game_state == null:
+		return
+	var turn_manager := TurnManager.new()
+	turn_manager.configure(game_state)
+	turn_manager.start_first_turn()
+	var playable_resource: CardDefinition = null
+	for card in game_state.player.hand:
+		if card.card_type == "resource":
+			playable_resource = card
+			break
+	_check(playable_resource != null, "Cooldown test should have a resource to play.")
+	turn_manager.end_turn()
+	_check(turn_manager.is_cooling_down(), "End turn should start a cooldown.")
+	if playable_resource != null:
+		_check(
+			game_state.play_card(playable_resource),
+			"Cards should remain playable while end-turn cooldown is running."
+		)
+	turn_manager.tick(GameState.DEFAULT_END_TURN_COOLDOWN_SECONDS)
+	_check(game_state.player.hand.size() == 5, "Cooldown expiry should clean up and draw.")
+
+	game_state = _empty_game()
+	turn_manager = TurnManager.new()
+	turn_manager.configure(game_state)
+	var bell: CardDefinition = game_state.card_catalog["sunspire_bell"]
+	game_state.player.hand.append(bell)
+	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	_check(game_state.play_card(bell), "Sunspire Bell should play.")
+	_check(
+		is_equal_approx(game_state.get_end_turn_cooldown_seconds(), 4.5),
+		"Sunspire Bell should reduce the end-turn cooldown by 0.5 seconds."
+	)
+
+	game_state = _empty_game()
+	turn_manager = TurnManager.new()
+	turn_manager.configure(game_state)
+	bell = game_state.card_catalog["sunspire_bell"]
+	game_state.player.hand.append(bell)
+	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	turn_manager.end_turn()
+	var cooldown_before := turn_manager.cooldown_remaining
+	_check(game_state.play_card(bell), "Sunspire Bell should play during cooldown.")
+	_check(
+		is_equal_approx(turn_manager.cooldown_remaining, cooldown_before - 0.5),
+		"Sunspire Bell should shorten an active cooldown by 0.5 seconds."
+	)
+
+
+func _test_multiplayer_lobby_attacks() -> void:
+	var game_state := GameState.new()
+	_check(game_state.load_cards(CARD_DATA_PATH), "Card data should load for multiplayer.")
+	_check(game_state.setup_starting_game(2), "A two-player lobby should set up.")
+	_check(game_state.get_player_count() == 2, "The lobby should contain two players.")
+	game_state.start_all_players()
+	var attacker := game_state.players[0]
+	var defender := game_state.players[1]
+	game_state.set_active_player_index(0)
+	attacker.hand.clear()
+	attacker.hand.append(game_state.card_catalog["briar_witch"])
+	defender.discard_pile.clear()
+	_check(game_state.play_card(game_state.card_catalog["briar_witch"]), "Attack card should play.")
+	_check(
+		defender.discard_pile.has(game_state.card_catalog["briar_hex"]),
+		"Multiplayer attacks should gain curses for rival players."
+	)
+	_check(
+		not attacker.discard_pile.has(game_state.card_catalog["briar_hex"]),
+		"Multiplayer attacks should not hit the attacker."
+	)
+
+	var turn_manager := TurnManager.new()
+	turn_manager.configure(game_state)
+	turn_manager.start_first_turn()
+	var first_player_name := game_state.get_active_player_name()
+	_finish_turn(turn_manager)
+	_check(
+		game_state.get_active_player_name() != first_player_name,
+		"After cooldown cleanup, active play should pass to the next lobby player."
+	)
 
 
 func _test_special_effects() -> void:
@@ -1040,6 +1124,11 @@ func _resolve_mode(game_state: GameState, mode_id: String) -> void:
 			_check(game_state.resolve_choice([token]), "Mode %s should resolve." % mode_id)
 			return
 	_check(false, "Mode %s should be available." % mode_id)
+
+
+func _finish_turn(turn_manager: TurnManager) -> void:
+	turn_manager.end_turn()
+	turn_manager.tick(GameState.DEFAULT_END_TURN_COOLDOWN_SECONDS)
 
 
 func _first_choice_card_id(game_state: GameState) -> String:

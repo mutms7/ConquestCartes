@@ -4,6 +4,8 @@ extends RefCounted
 signal choice_requested(choice: CardChoice)
 signal choice_resolved(choice_id: int)
 signal cleanup_completed
+signal active_player_changed(player_index: int)
+signal end_turn_cooldown_reduced(amount: float)
 
 const STARTING_CARD_COUNTS := {
 	"pebble_coin": 7,
@@ -39,8 +41,14 @@ const RESOURCE_SUPPLY_COUNT := 12
 const VICTORY_SUPPLY_COUNT := 8
 const CURSE_SUPPLY_COUNT := 10
 const CURSE_CARD_ID := "briar_hex"
+const SIX_VP_CARD_ID := "royal_charter"
+const SUPPLY_EMPTY_END_COUNT := 3
+const DEFAULT_END_TURN_COOLDOWN_SECONDS := 5.0
 
 var player := PlayerState.new()
+var players: Array[PlayerState] = []
+var active_player_index: int = 0
+var multiplayer_enabled: bool = false
 var card_catalog: Dictionary = {}
 var market: Array[CardDefinition] = []
 var supply_piles: Dictionary = {}
@@ -76,25 +84,103 @@ func load_cards(path: String) -> bool:
 	return not card_catalog.is_empty()
 
 
-func setup_starting_game() -> bool:
+func setup_starting_game(player_count: int = 1) -> bool:
 	var previous_market_ids := get_market_card_ids()
-	player.clear_all()
+	_create_players(maxi(1, player_count))
 	turn_flags.clear()
 	resolution_queue.clear()
 	pending_choice = null
 	cleanup_in_progress = false
+	active_player_index = 0
+	_set_active_player(0, false)
 	print("[Game] Game start")
 
-	for card_id in STARTING_CARD_COUNTS:
-		if not card_catalog.has(card_id):
-			push_error("Missing starting card definition: %s" % card_id)
-			return false
-		for _copy_index in range(STARTING_CARD_COUNTS[card_id]):
-			player.draw_pile.append(card_catalog[card_id])
+	for game_player in players:
+		for card_id in STARTING_CARD_COUNTS:
+			if not card_catalog.has(card_id):
+				push_error("Missing starting card definition: %s" % card_id)
+				return false
+			for _copy_index in range(STARTING_CARD_COUNTS[card_id]):
+				game_player.draw_pile.append(card_catalog[card_id])
+		game_player.draw_pile.shuffle()
+		print(
+			"[Game] Shuffle starting deck for %s (%d cards)"
+			% [game_player.player_name, game_player.draw_pile.size()]
+		)
 
-	player.draw_pile.shuffle()
-	print("[Game] Shuffle starting deck (%d cards)" % player.draw_pile.size())
 	return _setup_random_market(previous_market_ids)
+
+
+func _create_players(player_count: int) -> void:
+	players.clear()
+	for index in range(player_count):
+		var game_player := PlayerState.new()
+		game_player.player_name = "Player %d" % (index + 1)
+		game_player.clear_all()
+		players.append(game_player)
+	multiplayer_enabled = player_count > 1
+	player = players[0]
+
+
+func set_active_player_index(player_index: int) -> void:
+	_set_active_player(player_index, true)
+
+
+func advance_active_player() -> void:
+	if players.size() <= 1:
+		_set_active_player(0, false)
+		return
+	_set_active_player((active_player_index + 1) % players.size(), true)
+
+
+func _set_active_player(player_index: int, emit_signal: bool) -> void:
+	if players.is_empty():
+		players.append(player)
+	player.pending_choice = pending_choice
+	player.resolution_queue = resolution_queue
+	player.cleanup_in_progress = cleanup_in_progress
+	active_player_index = clampi(player_index, 0, players.size() - 1)
+	player = players[active_player_index]
+	turn_flags = player.turn_flags
+	pending_choice = player.pending_choice
+	resolution_queue = player.resolution_queue
+	cleanup_in_progress = player.cleanup_in_progress
+	if emit_signal:
+		active_player_changed.emit(active_player_index)
+
+
+func get_active_player_name() -> String:
+	return player.player_name
+
+
+func get_player_count() -> int:
+	return players.size()
+
+
+func start_all_players() -> void:
+	var starting_index := active_player_index
+	for index in range(players.size()):
+		var game_player := players[index]
+		game_player.reset_turn_resources()
+		if game_player.hand.is_empty():
+			_set_active_player(index, false)
+			draw_cards(5)
+	_set_active_player(starting_index, false)
+
+
+func get_end_turn_cooldown_seconds() -> float:
+	return maxf(
+		0.5,
+		DEFAULT_END_TURN_COOLDOWN_SECONDS - player.end_turn_cooldown_reduction
+	)
+
+
+func reduce_end_turn_cooldown(amount: float) -> void:
+	var reduction := maxf(0.0, amount)
+	if reduction <= 0.0:
+		return
+	player.end_turn_cooldown_reduction += reduction
+	end_turn_cooldown_reduced.emit(reduction)
 
 
 func has_pending_choice() -> bool:
@@ -197,10 +283,17 @@ func set_supply_count(card_id: String, amount: int) -> void:
 
 func get_empty_supply_pile_count() -> int:
 	var empty_count := 0
-	for card in market:
-		if get_supply_count(card.id) <= 0:
+	for card_id in supply_piles:
+		if int(supply_piles[card_id]) <= 0:
 			empty_count += 1
 	return empty_count
+
+
+func is_game_end_condition_met() -> bool:
+	return (
+		get_empty_supply_pile_count() >= SUPPLY_EMPTY_END_COUNT
+		or get_supply_count(SIX_VP_CARD_ID) <= 0
+	)
 
 
 func get_gain_candidates(max_cost: int, card_type: String = "") -> Array[CardDefinition]:
@@ -269,6 +362,8 @@ func _initialize_supply_piles() -> void:
 				supply_piles[card.id] = RESOURCE_SUPPLY_COUNT
 			_:
 				supply_piles[card.id] = ACTION_SUPPLY_COUNT
+	if card_catalog.has(CURSE_CARD_ID):
+		supply_piles[CURSE_CARD_ID] = CURSE_SUPPLY_COUNT
 
 
 func _card_category(card: CardDefinition) -> String:
@@ -662,6 +757,8 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				int(turn_flags.get("cost_reduction", 0))
 				+ int(effect.get("amount", 1))
 			)
+		"reduce_end_turn_cooldown":
+			reduce_end_turn_cooldown(float(effect.get("amount", 0.5)))
 		"discard_filtered":
 			var discard_candidates := _filter_hand_cards(effect)
 			var discard_amount := mini(int(effect.get("amount", 1)), discard_candidates.size())
@@ -853,6 +950,7 @@ func resolve_choice(tokens: Array[String]) -> bool:
 	var choice := pending_choice
 	var selected := choice.get_selected_entries(tokens)
 	pending_choice = null
+	player.pending_choice = null
 	_apply_choice_resolution(choice, selected)
 	choice_resolved.emit(choice.id)
 	_process_resolution_queue()
@@ -1153,6 +1251,7 @@ func _request_choice(choice: CardChoice) -> void:
 	if choice.candidates.is_empty():
 		return
 	pending_choice = choice
+	player.pending_choice = choice
 	choice_requested.emit(choice)
 
 
@@ -1396,14 +1495,21 @@ func _get_zone(zone_name: String) -> Array[CardDefinition]:
 
 
 func _take_top_card() -> CardDefinition:
-	if player.draw_pile.is_empty() and not player.discard_pile.is_empty():
-		player.draw_pile.append_array(player.discard_pile)
-		player.discard_pile.clear()
-		player.draw_pile.shuffle()
-		print("[Game] Shuffle discard into draw pile (%d cards)" % player.draw_pile.size())
-	if player.draw_pile.is_empty():
+	return _take_top_card_for_player(player)
+
+
+func _take_top_card_for_player(target: PlayerState) -> CardDefinition:
+	if target.draw_pile.is_empty() and not target.discard_pile.is_empty():
+		target.draw_pile.append_array(target.discard_pile)
+		target.discard_pile.clear()
+		target.draw_pile.shuffle()
+		print(
+			"[Game] Shuffle discard into %s draw pile (%d cards)"
+			% [target.player_name, target.draw_pile.size()]
+		)
+	if target.draw_pile.is_empty():
 		return null
-	return player.draw_pile.pop_back()
+	return target.draw_pile.pop_back()
 
 
 func _reveal_resources_to_hand(amount: int) -> void:
@@ -1636,44 +1742,139 @@ func _begin_survey_top(amount: int) -> void:
 	)
 
 
+func _get_attack_targets() -> Array[PlayerState]:
+	if players.size() <= 1:
+		return [player]
+	var targets: Array[PlayerState] = []
+	for index in range(players.size()):
+		if index == active_player_index:
+			continue
+		targets.append(players[index])
+	return targets
+
+
+func _gain_card_by_id_for_player(
+	card_id: String,
+	destination: String,
+	target: PlayerState
+) -> void:
+	if target == player:
+		_gain_card_by_id(card_id, destination)
+		return
+	if not card_catalog.has(card_id):
+		return
+	var card: CardDefinition = card_catalog[card_id]
+	if not supply_piles.has(card_id):
+		supply_piles[card_id] = _default_supply_count(card)
+	if get_supply_count(card_id) <= 0:
+		return
+	supply_piles[card_id] = get_supply_count(card_id) - 1
+	match destination:
+		"hand":
+			target.hand.append(card)
+		"deck":
+			target.draw_pile.append(card)
+		_:
+			target.discard_pile.append(card)
+
+
+func _discard_down_for_player(target: PlayerState, target_size: int) -> void:
+	var discard_count := maxi(0, target.hand.size() - target_size)
+	for _index in range(discard_count):
+		var card := target.hand.pop_back()
+		if card != null:
+			target.discard_pile.append(card)
+
+
+func _topdeck_victory_for_player(target: PlayerState) -> void:
+	for card in target.hand:
+		if card.card_type != "victory":
+			continue
+		target.hand.erase(card)
+		target.draw_pile.append(card)
+		return
+
+
+func _trash_revealed_resource_for_player(
+	target: PlayerState,
+	amount: int,
+	exclude_card_id: String
+) -> void:
+	var revealed: Array[CardDefinition] = []
+	var trashed_resource: CardDefinition = null
+	for _index in range(amount):
+		var card := _take_top_card_for_player(target)
+		if card == null:
+			continue
+		if (
+			trashed_resource == null
+			and card.card_type == "resource"
+			and card.id != exclude_card_id
+		):
+			trashed_resource = card
+			target.trash_pile.append(card)
+		else:
+			revealed.append(card)
+	target.discard_pile.append_array(revealed)
+
+
 func _resolve_attack(effect: Dictionary, _source_card: CardDefinition) -> void:
+	var targets := _get_attack_targets()
 	match str(effect.get("mode", "gain_curse")):
 		"gain_curse":
-			for _index in range(int(effect.get("amount", 1))):
-				_gain_card_by_id(
-					str(effect.get("card_id", CURSE_CARD_ID)),
-					str(effect.get("destination", "discard"))
-				)
+			for target in targets:
+				for _index in range(int(effect.get("amount", 1))):
+					_gain_card_by_id_for_player(
+						str(effect.get("card_id", CURSE_CARD_ID)),
+						str(effect.get("destination", "discard")),
+						target
+					)
 		"discard_down":
 			var target_size := int(effect.get("target_hand_size", 3))
-			var discard_count := maxi(0, player.hand.size() - target_size)
-			_request_zone_choice(
-				player.hand,
-				"Choose %d card%s to discard for the attack."
-				% [discard_count, "" if discard_count == 1 else "s"],
-				discard_count,
-				discard_count,
-				"discard_hand",
-				"DISCARD"
-			)
+			for target in targets:
+				if target == player:
+					var discard_count := maxi(0, player.hand.size() - target_size)
+					_request_zone_choice(
+						player.hand,
+						"Choose %d card%s to discard for the attack."
+						% [discard_count, "" if discard_count == 1 else "s"],
+						discard_count,
+						discard_count,
+						"discard_hand",
+						"DISCARD"
+					)
+				else:
+					_discard_down_for_player(target, target_size)
 		"topdeck_victory":
-			var victory_cards: Array[CardDefinition] = []
-			for card in player.hand:
-				if card.card_type == "victory":
-					victory_cards.append(card)
-			_request_zone_choice(
-				victory_cards,
-				"Choose a victory card from your hand to put on top of your deck.",
-				mini(1, victory_cards.size()),
-				mini(1, victory_cards.size()),
-				"topdeck_hand",
-				"PUT ON DECK"
-			)
+			for target in targets:
+				if target == player:
+					var victory_cards: Array[CardDefinition] = []
+					for card in player.hand:
+						if card.card_type == "victory":
+							victory_cards.append(card)
+					_request_zone_choice(
+						victory_cards,
+						"Choose a victory card from your hand to put on top of your deck.",
+						mini(1, victory_cards.size()),
+						mini(1, victory_cards.size()),
+						"topdeck_hand",
+						"PUT ON DECK"
+					)
+				else:
+					_topdeck_victory_for_player(target)
 		"trash_revealed_resource":
-			_begin_attack_reveal_resource(
-				int(effect.get("amount", 2)),
-				str(effect.get("exclude_card_id", ""))
-			)
+			for target in targets:
+				if target == player:
+					_begin_attack_reveal_resource(
+						int(effect.get("amount", 2)),
+						str(effect.get("exclude_card_id", ""))
+					)
+				else:
+					_trash_revealed_resource_for_player(
+						target,
+						int(effect.get("amount", 2)),
+						str(effect.get("exclude_card_id", ""))
+					)
 		_:
 			push_warning("Unknown attack mode: %s" % str(effect.get("mode", "")))
 
@@ -1873,6 +2074,7 @@ func begin_cleanup() -> void:
 	if cleanup_in_progress:
 		return
 	cleanup_in_progress = true
+	player.cleanup_in_progress = true
 	var topdeck_count := int(turn_flags.get("cleanup_topdeck_actions", 0))
 	var actions_in_play: Array[CardDefinition] = []
 	for card in player.play_area:
@@ -1903,11 +2105,13 @@ func _finish_cleanup() -> void:
 	player.play_area.clear()
 	resolution_queue.clear()
 	pending_choice = null
+	player.pending_choice = null
 	print(
 		"[Game] Cleanup: discarded %d hand and %d played cards (discard: %d)"
 		% [hand_count, play_count, player.discard_pile.size()]
 	)
 	cleanup_in_progress = false
+	player.cleanup_in_progress = false
 	cleanup_completed.emit()
 
 
@@ -1916,20 +2120,32 @@ func discard_hand_and_play_area() -> void:
 
 
 func calculate_score() -> int:
+	return _calculate_score_for_player(player)
+
+
+func calculate_all_scores() -> Array[int]:
+	var scores: Array[int] = []
+	for game_player in players:
+		scores.append(_calculate_score_for_player(game_player))
+	return scores
+
+
+func _calculate_score_for_player(scored_player: PlayerState) -> int:
 	var score := 0
-	var owned_cards := player.get_all_cards()
+	var owned_cards := scored_player.get_all_cards()
 	for card in owned_cards:
 		score += card.victory_points
 		if card.score_per_cards > 0:
 			score += owned_cards.size() / card.score_per_cards
 	print(
-		"[Game] Scoring: %d victory points (draw: %d, hand: %d, play: %d, discard: %d)"
+		"[Game] Scoring %s: %d victory points (draw: %d, hand: %d, play: %d, discard: %d)"
 		% [
+			scored_player.player_name,
 			score,
-			player.draw_pile.size(),
-			player.hand.size(),
-			player.play_area.size(),
-			player.discard_pile.size(),
+			scored_player.draw_pile.size(),
+			scored_player.hand.size(),
+			scored_player.play_area.size(),
+			scored_player.discard_pile.size(),
 		]
 	)
 	return score

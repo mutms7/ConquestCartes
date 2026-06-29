@@ -19,6 +19,7 @@ func _initialize() -> void:
 		"Home screen should name the active Hinterlands card group."
 	)
 	_check(_home_continue_button().disabled, "Continue should be disabled before a game starts.")
+	_check(not _home_create_lobby_button().disabled, "Create Lobby should be available at startup.")
 	_home_settings_button().pressed.emit()
 	await process_frame
 	_check(_home_settings_panel().visible, "Settings should open from the home menu.")
@@ -568,6 +569,12 @@ func _initialize() -> void:
 
 	_end_turn_button().pressed.emit()
 	await process_frame
+	_check(
+		main_ui.turn_manager.is_cooling_down()
+		and _end_turn_button().text.begins_with("COOLDOWN"),
+		"End Turn should become a visible cooldown timer."
+	)
+	main_ui.turn_manager.tick(GameState.DEFAULT_END_TURN_COOLDOWN_SECONDS)
 	await process_frame
 	_check(main_ui.last_ui_sound_name == "draw", "End turn should finish with draw feedback.")
 	_check(main_ui.last_animation_event == "draw", "End turn should animate the new hand.")
@@ -603,7 +610,7 @@ func _initialize() -> void:
 		not _same_card_ids(market_before_restart, market_after_restart),
 		"Home New Game should display a different market."
 	)
-	_check(_hud_value("TurnStat") == "1 / 15", "Home New Game should reset the turn counter.")
+	_check(_hud_value("TurnStat") == "Turn 1", "Home New Game should reset the turn counter.")
 	_check(_hud_value("CoinStat") == "0", "Home New Game should reset coins.")
 	_check(main_ui.game_state.player.hand.size() == 5, "Home New Game should draw a fresh hand.")
 	_check(
@@ -650,8 +657,10 @@ func _initialize() -> void:
 	main_ui._start_new_game(true)
 	await process_frame
 	await process_frame
-	main_ui.turn_manager.turn_number = 15
+	for index in range(3):
+		main_ui.game_state.set_supply_count(main_ui.game_state.market[index].id, 0)
 	_end_turn_button().pressed.emit()
+	main_ui.turn_manager.tick(GameState.DEFAULT_END_TURN_COOLDOWN_SECONDS)
 	await process_frame
 	_check(_end_game_overlay().visible, "Final scoring should show an intentional overlay.")
 	_check(
@@ -665,7 +674,7 @@ func _initialize() -> void:
 	await process_frame
 	await process_frame
 	_check(not _end_game_overlay().visible, "Play Again should close the final score overlay.")
-	_check(_hud_value("TurnStat") == "1 / 15", "Play Again should start a fresh game.")
+	_check(_hud_value("TurnStat") == "Turn 1", "Play Again should start a fresh game.")
 	main_ui._show_final_score(11)
 	await process_frame
 	_end_game_home_button().pressed.emit()
@@ -674,6 +683,13 @@ func _initialize() -> void:
 	_check(
 		not main_ui.has_active_game and _home_continue_button().disabled,
 		"End-game Home should leave no completed game available to continue."
+	)
+	_home_create_lobby_button().pressed.emit()
+	await process_frame
+	_check(
+		main_ui.game_state.multiplayer_enabled
+		and main_ui.game_state.get_player_count() == 2,
+		"Create Lobby should start a two-player table."
 	)
 	_check(
 		_active_ui_uses_original_assets(),
@@ -737,6 +753,10 @@ func _home_new_game_button() -> Button:
 
 func _home_continue_button() -> Button:
 	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/ContinueButton")
+
+
+func _home_create_lobby_button() -> Button:
+	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/CreateLobbyButton")
 
 
 func _home_settings_button() -> Button:

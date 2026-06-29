@@ -65,6 +65,7 @@ Supported kinds:
 - `develop`
 - `register_buy_bonus`
 - `reduce_costs`
+- `reduce_end_turn_cooldown`
 - `discard_filtered`
 - `trash_filtered`
 - `topdeck_action_at_cleanup`
@@ -86,7 +87,11 @@ Supported kinds:
 - `attack`
 - `register_gain_attack`
 
-`attack` resolves the configured solo attack mode. Supported modes are
+`reduce_end_turn_cooldown` lowers the active player's current end-turn cooldown
+by the configured float amount, such as `0.5`.
+
+`attack` resolves the configured attack mode against rival players in a lobby,
+or against the active player in solo fallback. Supported modes are
 `gain_curse`, `discard_down`, `topdeck_victory`, and
 `trash_revealed_resource`. `register_gain_attack` stores an attack for the turn
 and resolves it whenever a gained card matches the configured filter, such as

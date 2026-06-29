@@ -491,17 +491,6 @@
     ]
   },
   {
-    "id": "timber_camp",
-    "name": "Moss Camp",
-    "type": "action",
-    "art_id": "moss_thread",
-    "cost": 3,
-    "description": "Gain 1 buy and 2 coins.",
-    "gain_buys": 1,
-    "gain_coins": 2,
-    "market_enabled": false
-  },
-  {
     "id": "guild_workshop",
     "name": "Loom Workshop",
     "type": "action",
@@ -854,7 +843,7 @@
     "name": "Mosswood Stable",
     "type": "action",
     "group": "Hinterlands",
-    "art_id": "moss_thread",
+    "art_id": "starlit_wagon",
     "cost": 5,
     "description": "You may discard a resource. If you do, draw 3 cards and gain 1 action.",
     "special_effects": [
@@ -1084,6 +1073,23 @@
       {
         "kind": "discard_for_action_gain",
         "label": "Discard for Action"
+      }
+    ]
+  },
+  {
+    "id": "sunspire_bell",
+    "name": "Sunspire Bell",
+    "type": "action",
+    "art_id": "sunspire_monument",
+    "cost": 6,
+    "description": "Draw 1 card. Gain 1 action. Reduce your end-turn cooldown by 0.5 seconds this turn.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "reduce_end_turn_cooldown",
+        "amount": 0.5,
+        "label": "Cooldown -0.5"
       }
     ]
   }
