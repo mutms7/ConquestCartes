@@ -28,6 +28,7 @@ const CARD_RULE_TOP_MARGIN := 1
 const CARD_RULE_BOTTOM_MARGIN := 7
 const NETWORK_PORT := 27041
 const NETWORK_DEFAULT_ADDRESS := "127.0.0.1"
+const NETWORK_MAX_PLAYERS := 4
 
 const COLOR_PARCHMENT := Color("#ead8ad")
 const COLOR_PARCHMENT_LIGHT := Color("#fff1ca")
@@ -125,6 +126,7 @@ var home_create_lobby_button: Button
 var home_join_lobby_button: Button
 var home_lobby_address_input: LineEdit
 var home_lobby_status_label: Label
+var player_status_label: Label
 var home_settings_panel: VBoxContainer
 var home_kingdoms_panel: PanelContainer
 var home_kingdom_tab_list: VBoxContainer
@@ -346,7 +348,7 @@ func _host_network_lobby() -> void:
 		return
 	_disconnect_network()
 	var peer := ENetMultiplayerPeer.new()
-	var error := peer.create_server(NETWORK_PORT, 1)
+	var error := peer.create_server(NETWORK_PORT, NETWORK_MAX_PLAYERS - 1)
 	if error != OK:
 		_set_lobby_status("Could not host lobby on port %d." % NETWORK_PORT)
 		return
@@ -355,8 +357,8 @@ func _host_network_lobby() -> void:
 	network_is_host = true
 	local_player_index = 0
 	network_peer_to_player = {1: 0}
-	_start_lobby_game(2)
-	_set_lobby_status("Hosting on port %d. Give Player 2 your IP address." % NETWORK_PORT)
+	_start_lobby_game(NETWORK_MAX_PLAYERS)
+	_set_lobby_status("Hosting on port %d. Give players your IP address." % NETWORK_PORT)
 	_broadcast_network_snapshot()
 
 
@@ -447,8 +449,13 @@ func _sync_turn_manager_to_local_player() -> void:
 func _on_network_peer_connected(peer_id: int) -> void:
 	if not network_is_host:
 		return
-	network_peer_to_player[peer_id] = 1
-	_set_lobby_status("Player 2 connected.")
+	var player_index := _next_open_network_player_index()
+	if player_index == -1:
+		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
+		return
+	network_peer_to_player[peer_id] = player_index
+	rpc_id(peer_id, "_rpc_set_local_player_index", player_index)
+	_set_lobby_status("%s connected." % game_state.players[player_index].player_name)
 	_broadcast_network_snapshot()
 
 
@@ -461,8 +468,20 @@ func _on_network_peer_disconnected(peer_id: int) -> void:
 func _on_network_connected_to_server() -> void:
 	network_enabled = true
 	network_is_host = false
-	local_player_index = 1
 	_set_lobby_status("Connected. Waiting for lobby state...")
+
+
+func _next_open_network_player_index() -> int:
+	for player_index in range(1, NETWORK_MAX_PLAYERS):
+		if not network_peer_to_player.values().has(player_index):
+			return player_index
+	return -1
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_set_local_player_index(player_index: int) -> void:
+	local_player_index = clampi(player_index, 0, NETWORK_MAX_PLAYERS - 1)
+	_set_lobby_status("Connected as Player %d." % (local_player_index + 1))
 
 
 func _on_network_connection_failed() -> void:
@@ -504,6 +523,7 @@ func _start_network_player_cooldown(player_index: int) -> void:
 		"[Game] End turn %d for %s in %.1f seconds"
 		% [game_player.turn_number, game_player.player_name, game_player.cooldown_duration]
 	)
+	_finish_network_player_turn(player_index)
 	_restore_local_network_view()
 
 
@@ -520,9 +540,8 @@ func _tick_network_cooldowns(delta: float) -> void:
 			changed = true
 		if game_player.cooldown_remaining > 0.0:
 			continue
-		if game_player.pending_choice != null or game_player.cleanup_in_progress:
-			continue
-		_finish_network_player_turn(player_index)
+		game_player.ending_turn = false
+		game_player.cooldown_duration = 0.0
 		changed = true
 	if changed:
 		_restore_local_network_view()
@@ -535,7 +554,10 @@ func _finish_network_player_turn(player_index: int) -> void:
 	if not game_player.ending_turn:
 		return
 	pending_cleanup_ghosts = _capture_cleanup_cards() if player_index == local_player_index else []
+	var previous_turn_manager_ending := turn_manager.ending_turn
+	turn_manager.ending_turn = false
 	game_state.begin_cleanup()
+	turn_manager.ending_turn = previous_turn_manager_ending
 	if game_player.pending_choice != null or game_player.cleanup_in_progress:
 		return
 	_complete_network_player_cleanup(player_index)
@@ -544,11 +566,11 @@ func _finish_network_player_turn(player_index: int) -> void:
 func _complete_network_player_cleanup(player_index: int) -> void:
 	_set_authoritative_player(player_index)
 	var game_player := game_state.player
-	game_player.ending_turn = false
-	game_player.cooldown_remaining = 0.0
-	game_player.cooldown_duration = 0.0
 	game_state.reset_turn_resources()
 	if game_state.is_game_end_condition_met():
+		game_player.ending_turn = false
+		game_player.cooldown_remaining = 0.0
+		game_player.cooldown_duration = 0.0
 		turn_manager.game_over = true
 		turn_manager.final_scores = game_state.calculate_all_scores()
 		turn_manager.final_score = (
@@ -808,7 +830,11 @@ func _rpc_request_choice(raw_tokens: Array) -> void:
 	var tokens: Array[String] = []
 	for token in raw_tokens:
 		tokens.append(str(token))
+	var previous_turn_manager_ending := turn_manager.ending_turn
+	if game_state.player.ending_turn:
+		turn_manager.ending_turn = false
 	if game_state.resolve_choice(tokens):
+		turn_manager.ending_turn = previous_turn_manager_ending
 		if (
 			game_state.player.ending_turn
 			and game_state.player.pending_choice == null
@@ -818,6 +844,7 @@ func _rpc_request_choice(raw_tokens: Array) -> void:
 		_restore_local_network_view()
 		_broadcast_network_snapshot()
 	else:
+		turn_manager.ending_turn = previous_turn_manager_ending
 		_restore_local_network_view()
 
 
@@ -907,6 +934,15 @@ func _build_bottom_docks() -> void:
 	action_stat.reparent(left_stats)
 	buy_stat.reparent(left_stats)
 	home_button.reparent(left_stats)
+	player_status_label = Label.new()
+	player_status_label.name = "PlayerStatus"
+	player_status_label.custom_minimum_size = Vector2(0, 82)
+	player_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	player_status_label.add_theme_font_size_override("font_size", 12)
+	player_status_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	if body_font != null:
+		player_status_label.add_theme_font_override("font", body_font)
+	left_stats.add_child(player_status_label)
 	var left_spacer := Control.new()
 	left_spacer.name = "LeftDockSpacer"
 	left_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1447,7 +1483,7 @@ func _refresh_home_controls() -> void:
 	if home_lobby_status_label != null:
 		if network_enabled and network_is_host:
 			home_lobby_status_label.text = (
-				"Hosting on port %d. Give Player 2 your IP address."
+				"Hosting on port %d. Give players your IP address."
 				% NETWORK_PORT
 			)
 		elif network_enabled:
@@ -1458,7 +1494,7 @@ func _refresh_home_controls() -> void:
 				% game_state.get_player_count()
 			)
 		else:
-			home_lobby_status_label.text = "Host or join a direct-IP 2-player table."
+			home_lobby_status_label.text = "Host or join a direct-IP table for up to 4 players."
 	if home_audio_toggle != null:
 		home_audio_toggle.set_pressed_no_signal(audio_enabled)
 	if home_motion_toggle != null:
@@ -1925,11 +1961,36 @@ func _refresh_ui() -> void:
 		"" if player.hand.size() == 1 else "s",
 	]
 	_refresh_end_turn_button()
+	_refresh_player_status()
 	home_button.disabled = false
 
 	_refresh_hand()
 	_refresh_market()
 	_refresh_play_area()
+
+
+func _refresh_player_status() -> void:
+	if player_status_label == null:
+		return
+	var lines: Array[String] = []
+	var you_index := (
+		clampi(local_player_index, 0, game_state.players.size() - 1)
+		if network_enabled and not game_state.players.is_empty()
+		else game_state.active_player_index
+	)
+	lines.append("You: Player %d" % (you_index + 1))
+	if game_state.players.size() > 1:
+		for index in range(game_state.players.size()):
+			if index == you_index:
+				continue
+			var other: PlayerState = game_state.players[index]
+			var status := "ready"
+			if other.pending_choice != null:
+				status = "choosing"
+			elif other.ending_turn:
+				status = "%.1fs" % other.cooldown_remaining
+			lines.append("P%d: %s" % [index + 1, status])
+	player_status_label.text = "\n".join(lines)
 
 
 func _refresh_end_turn_button() -> void:
@@ -3156,8 +3217,21 @@ func _submit_choice(tokens: Array[String]) -> void:
 		rpc_id(1, "_rpc_request_choice", tokens)
 		return
 	var hand_before := game_state.player.hand.size()
+	var previous_turn_manager_ending := turn_manager.ending_turn
+	if network_enabled and game_state.player.ending_turn:
+		turn_manager.ending_turn = false
 	if not game_state.resolve_choice(tokens):
+		turn_manager.ending_turn = previous_turn_manager_ending
 		return
+	turn_manager.ending_turn = previous_turn_manager_ending
+	if (
+		network_enabled
+		and network_is_host
+		and game_state.player.ending_turn
+		and game_state.player.pending_choice == null
+		and not game_state.player.cleanup_in_progress
+	):
+		_complete_network_player_cleanup(local_player_index)
 	_refresh_ui()
 	if network_enabled and network_is_host:
 		_broadcast_network_snapshot()

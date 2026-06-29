@@ -694,8 +694,8 @@ func _initialize() -> void:
 	await process_frame
 	_check(
 		main_ui.game_state.multiplayer_enabled
-		and main_ui.game_state.get_player_count() == 2,
-		"Create Lobby should start a two-player table."
+		and main_ui.game_state.get_player_count() == 4,
+		"Create Lobby should start a four-player table."
 	)
 	_end_turn_button().pressed.emit()
 	await process_frame
@@ -708,6 +708,14 @@ func _initialize() -> void:
 		main_ui.game_state.players[0].ending_turn
 		and not main_ui.game_state.players[1].ending_turn,
 		"Network End Turn should start only Player 1's cooldown."
+	)
+	_check(
+		main_ui.player_status_label != null
+		and main_ui.player_status_label.text.contains("You: Player 1")
+		and main_ui.player_status_label.text.contains("P2: ready")
+		and main_ui.player_status_label.text.contains("P3: ready")
+		and main_ui.player_status_label.text.contains("P4: ready"),
+		"Player status should show the local player and all other lobby slots."
 	)
 	_check(
 		_active_ui_uses_original_assets(),

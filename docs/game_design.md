@@ -3,20 +3,20 @@
 ## Concept
 
 A cozy tabletop fantasy deck-building game for one local player or a direct-IP
-two-player lobby. The prototype focuses on a short, readable play loop rather
-than campaign or relay matchmaking systems.
+lobby for up to four players. The prototype focuses on a short, readable play
+loop rather than campaign or relay matchmaking systems.
 
 ## Turn Loop
 
 The player begins with seven Pebble Coin cards and three Homestead cards, shuffles, and draws five cards. Resource cards generate coins. Action cards can draw cards or grant actions, buys, and coins. One action and one buy are available at the start of each turn.
 
 Cards purchased from the shared market enter the discard pile and remove one card
-from that finite supply pile. Ending a turn starts a 5-second cooldown; the
-player can still play cards while it counts down. When the cooldown finishes,
-the hand and play area are discarded, turn resources reset, and a new five-card
-hand is drawn. Empty draw piles are replenished by shuffling the discard pile.
-In multiplayer, each player has an independent cooldown and cleanup timer, so
-players can act in parallel against the shared supply.
+from that finite supply pile. Ending a turn immediately discards the hand and
+play area, resets turn resources, and draws a new five-card hand. End Turn then
+waits through a 5-second cooldown, but the player can still play cards and buy
+from the market while it counts down. Empty draw piles are replenished by
+shuffling the discard pile. In multiplayer, each player has an independent End
+Turn cooldown, so players can act in parallel against the shared supply.
 
 The market contains 14 cards: 2 resources, 10 actions, and 2 victory cards. The
 catalog contains 63 cards: 2 starters, 55 random-market candidates, and 6
@@ -67,7 +67,7 @@ pile, hand, play area, and discard pile.
 ## Prototype Scope
 
 - Desktop, 1280x720, 2D interface
-- One local player or a direct-IP two-player lobby
+- One local player or a direct-IP lobby for up to four players
 - Random fourteen-card kingdom market with finite supply piles
 - Home menu with New Game, Create Lobby, Continue, local Settings controls, and a Kingdoms card browser
 - Original medieval interface, painterly card art, and UI audio

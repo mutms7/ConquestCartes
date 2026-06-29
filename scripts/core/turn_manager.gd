@@ -52,6 +52,8 @@ func end_turn() -> void:
 		% [turn_number, game_state.get_active_player_name(), cooldown_duration]
 	)
 	turn_cooldown_started.emit(cooldown_duration)
+	turn_cleanup_started.emit()
+	game_state.begin_cleanup()
 
 
 func tick(delta: float) -> void:
@@ -61,10 +63,8 @@ func tick(delta: float) -> void:
 		cooldown_remaining = maxf(0.0, cooldown_remaining - delta)
 	if cooldown_remaining > 0.0:
 		return
-	if game_state.has_pending_choice() or game_state.cleanup_in_progress:
-		return
-	turn_cleanup_started.emit()
-	game_state.begin_cleanup()
+	ending_turn = false
+	cooldown_duration = 0.0
 
 
 func is_cooling_down() -> bool:
@@ -80,12 +80,12 @@ func _on_end_turn_cooldown_reduced(amount: float) -> void:
 func _on_cleanup_completed() -> void:
 	if not ending_turn:
 		return
-	ending_turn = false
-	cooldown_remaining = 0.0
-	cooldown_duration = 0.0
 	game_state.reset_turn_resources()
 
 	if game_state.is_game_end_condition_met():
+		ending_turn = false
+		cooldown_remaining = 0.0
+		cooldown_duration = 0.0
 		game_over = true
 		final_scores = game_state.calculate_all_scores()
 		final_score = final_scores[game_state.active_player_index] if not final_scores.is_empty() else 0
@@ -95,7 +95,6 @@ func _on_cleanup_completed() -> void:
 
 	game_state.player.turn_number += 1
 	game_state.draw_cards(5)
-	game_state.advance_active_player()
 	turn_number = game_state.player.turn_number
 	print("[Game] Start turn %d for %s" % [turn_number, game_state.get_active_player_name()])
 	turn_completed.emit(false)

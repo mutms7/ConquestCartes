@@ -311,20 +311,21 @@ func _test_turn_cooldown() -> void:
 	var turn_manager := TurnManager.new()
 	turn_manager.configure(game_state)
 	turn_manager.start_first_turn()
-	var playable_resource: CardDefinition = null
-	for card in game_state.player.hand:
-		if card.card_type == "resource":
-			playable_resource = card
-			break
-	_check(playable_resource != null, "Cooldown test should have a resource to play.")
 	turn_manager.end_turn()
 	_check(turn_manager.is_cooling_down(), "End turn should start a cooldown.")
+	_check(game_state.player.hand.size() == 5, "End turn should immediately draw the next hand.")
 	var cooldown_before_second_end := turn_manager.cooldown_remaining
 	turn_manager.end_turn()
 	_check(
 		is_equal_approx(turn_manager.cooldown_remaining, cooldown_before_second_end),
 		"End Turn should be the only action blocked during cooldown."
 	)
+	var playable_resource: CardDefinition = null
+	for card in game_state.player.hand:
+		if card.card_type == "resource":
+			playable_resource = card
+			break
+	_check(playable_resource != null, "Cooldown test should have a resource to play.")
 	if playable_resource != null:
 		_check(
 			game_state.play_card(playable_resource),
@@ -338,7 +339,7 @@ func _test_turn_cooldown() -> void:
 		"Buying should remain available while end-turn cooldown is running."
 	)
 	turn_manager.tick(GameState.DEFAULT_END_TURN_COOLDOWN_SECONDS)
-	_check(game_state.player.hand.size() == 5, "Cooldown expiry should clean up and draw.")
+	_check(not turn_manager.is_cooling_down(), "Cooldown expiry should re-enable End Turn.")
 
 	game_state = _empty_game()
 	turn_manager = TurnManager.new()
@@ -356,8 +357,8 @@ func _test_turn_cooldown() -> void:
 	turn_manager = TurnManager.new()
 	turn_manager.configure(game_state)
 	bell = game_state.card_catalog["sunspire_bell"]
-	game_state.player.hand.append(bell)
 	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	game_state.player.draw_pile.append(bell)
 	turn_manager.end_turn()
 	var cooldown_before := turn_manager.cooldown_remaining
 	_check(game_state.play_card(bell), "Sunspire Bell should play during cooldown.")
@@ -395,8 +396,8 @@ func _test_multiplayer_lobby_attacks() -> void:
 	var first_player_name := game_state.get_active_player_name()
 	_finish_turn(turn_manager)
 	_check(
-		game_state.get_active_player_name() != first_player_name,
-		"After cooldown cleanup, active play should pass to the next lobby player."
+		game_state.get_active_player_name() == first_player_name,
+		"End Turn should keep the local player view active for parallel play."
 	)
 
 

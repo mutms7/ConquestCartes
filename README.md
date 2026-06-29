@@ -48,10 +48,10 @@ contents of your deck into victory points.
 2. Spend actions to play action cards for cards, actions, coins, or buys.
 3. Spend one buy and enough coins to purchase a card from the shared market.
 4. Purchased cards enter the discard pile and reduce that supply pile.
-5. End the turn to start a 5-second cooldown; you can still play cards while it
-   counts down.
-6. When the cooldown ends, discard your hand and played cards, reset turn
-   resources, and draw five cards.
+5. End the turn to immediately discard your hand and played cards, reset turn
+   resources, and draw five cards for your next turn.
+6. End Turn then waits through a 5-second cooldown, but you can still play cards
+   and buy from the market while it counts down.
 7. The game ends when three supply piles are empty or the 6 VP pile empties.
 8. Every victory point in your deck, hand, discard pile, and play area
    contributes to the final score.
@@ -63,12 +63,12 @@ currently unavailable.
 ## Multiplayer
 
 `CREATE LOBBY` hosts a direct-IP desktop lobby on port `27041`. The host is
-Player 1. Player 2 enters the host's IP address in the home-screen address field
-and presses `JOIN LOBBY`. The host owns the authoritative game state and
-broadcasts every play, buy, choice, personal cooldown, cleanup, attack, and
-score update to the client. Players act in parallel; pressing End Turn only
-starts that player's own cooldown and does not hand control of the table to the
-other player.
+Player 1. Up to three joined players enter the host's IP address in the
+home-screen address field and press `JOIN LOBBY`. The host owns the
+authoritative game state and broadcasts every play, buy, choice, personal
+cooldown, cleanup, attack, and score update to clients. Players act in parallel;
+pressing End Turn immediately prepares that player's next hand and only starts
+that player's own End Turn cooldown.
 
 For internet play outside the same LAN, the host must allow inbound traffic on
 port `27041` or use a VPN/tunnel such as Tailscale, ZeroTier, or another private
