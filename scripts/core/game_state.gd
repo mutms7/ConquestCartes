@@ -1781,7 +1781,7 @@ func _gain_card_by_id_for_player(
 func _discard_down_for_player(target: PlayerState, target_size: int) -> void:
 	var discard_count := maxi(0, target.hand.size() - target_size)
 	for _index in range(discard_count):
-		var card := target.hand.pop_back()
+		var card: CardDefinition = target.hand.pop_back() as CardDefinition
 		if card != null:
 			target.discard_pile.append(card)
 
