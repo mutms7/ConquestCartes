@@ -361,6 +361,7 @@ func _host_network_lobby() -> void:
 	network_peer_to_player = {1: 0}
 	_start_lobby_game(NETWORK_MAX_PLAYERS)
 	_set_lobby_status("Hosting on port %d. Give players your IP address." % NETWORK_PORT)
+	_queue_network_ui_refresh()
 	_broadcast_network_snapshot()
 
 
@@ -386,6 +387,7 @@ func _join_network_lobby() -> void:
 	has_active_game = false
 	_set_lobby_status("Connecting to %s:%d..." % [address, NETWORK_PORT])
 	_refresh_home_controls()
+	_queue_network_ui_refresh()
 
 
 func _disconnect_network() -> void:
@@ -405,6 +407,11 @@ func _set_lobby_status(message: String) -> void:
 
 func _is_network_client() -> bool:
 	return network_enabled and not network_is_host
+
+
+func _queue_network_ui_refresh() -> void:
+	if network_enabled:
+		call_deferred("_refresh_ui")
 
 
 func _can_control_active_player() -> bool:
@@ -504,6 +511,7 @@ func _rpc_set_local_player_index(player_index: int) -> void:
 		_restore_local_network_view()
 		_sync_choice_overlay_from_network()
 		_refresh_ui()
+		_queue_network_ui_refresh()
 
 
 func _on_network_connection_failed() -> void:
@@ -761,6 +769,7 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 	_hide_home_screen()
 	_sync_choice_overlay_from_network()
 	_refresh_ui()
+	_queue_network_ui_refresh()
 	if turn_manager.game_over and not end_game_overlay.visible:
 		_show_final_score(turn_manager.final_score)
 
@@ -3344,12 +3353,11 @@ func _on_end_turn_pressed() -> void:
 	if network_enabled and network_is_host:
 		_start_network_player_cooldown(local_player_index)
 		_refresh_ui()
-		call_deferred("_refresh_ui")
+		_queue_network_ui_refresh()
 		_broadcast_network_snapshot()
 		return
 	turn_manager.end_turn()
 	_refresh_ui()
-	call_deferred("_refresh_ui")
 
 
 func _on_turn_completed(game_is_over: bool) -> void:

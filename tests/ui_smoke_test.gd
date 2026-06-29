@@ -767,7 +767,7 @@ func _initialize() -> void:
 		and main_ui.game_state.get_player_count() == 4,
 		"Create Lobby should start a four-player table."
 	)
-	_end_turn_button().pressed.emit()
+	_click_control(_end_turn_button())
 	await process_frame
 	_check(
 		main_ui.game_state.active_player_index == 0
