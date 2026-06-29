@@ -574,6 +574,10 @@ func _initialize() -> void:
 		and _end_turn_button().text.begins_with("COOLDOWN"),
 		"End Turn should become a visible cooldown timer."
 	)
+	_check(
+		_end_turn_button().custom_minimum_size.x >= 168.0,
+		"End Turn should reserve a stable width for cooldown text."
+	)
 	main_ui.turn_manager.tick(GameState.DEFAULT_END_TURN_COOLDOWN_SECONDS)
 	await process_frame
 	_check(main_ui.last_ui_sound_name == "draw", "End turn should finish with draw feedback.")

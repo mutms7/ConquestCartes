@@ -319,11 +319,24 @@ func _test_turn_cooldown() -> void:
 	_check(playable_resource != null, "Cooldown test should have a resource to play.")
 	turn_manager.end_turn()
 	_check(turn_manager.is_cooling_down(), "End turn should start a cooldown.")
+	var cooldown_before_second_end := turn_manager.cooldown_remaining
+	turn_manager.end_turn()
+	_check(
+		is_equal_approx(turn_manager.cooldown_remaining, cooldown_before_second_end),
+		"End Turn should be the only action blocked during cooldown."
+	)
 	if playable_resource != null:
 		_check(
 			game_state.play_card(playable_resource),
 			"Cards should remain playable while end-turn cooldown is running."
 		)
+	var buy_target := game_state.market[0]
+	game_state.player.coins = 99
+	game_state.player.buys = 1
+	_check(
+		game_state.buy_card(buy_target),
+		"Buying should remain available while end-turn cooldown is running."
+	)
 	turn_manager.tick(GameState.DEFAULT_END_TURN_COOLDOWN_SECONDS)
 	_check(game_state.player.hand.size() == 5, "Cooldown expiry should clean up and draw.")
 

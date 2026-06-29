@@ -17,6 +17,8 @@ const CARD_FACE_SIZE := Vector2(172, 214)
 const PLAY_AREA_PANEL_HEIGHT := 48.0
 const PLAY_AREA_CONTENT_HEIGHT := 36.0
 const CARD_ART_HEIGHT := 104.0
+const HUD_LEDGER_WIDTH := 184.0
+const END_TURN_BUTTON_WIDTH := 168.0
 const PREVIEW_SIZE := Vector2(340, 480)
 const PREVIEW_EDGE_MARGIN := 24.0
 const SHORT_RULE_BREAK_LIMIT := 72
@@ -384,7 +386,8 @@ func _build_bottom_docks() -> void:
 		stat.custom_minimum_size = Vector2(0, 38)
 		stat.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	home_button.custom_minimum_size = Vector2(0, 38)
-	end_turn_button.custom_minimum_size = Vector2(0, 42)
+	end_turn_button.custom_minimum_size = Vector2(END_TURN_BUTTON_WIDTH, 42)
+	end_turn_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 
 	# Left dock: coins / actions / buys, home button, deck pinned to the bottom.
 	coin_stat.reparent(left_stats)
@@ -436,7 +439,7 @@ func _lock_play_area_height() -> void:
 func _create_hud_ledger(ledger_name: String) -> Dictionary:
 	var panel := PanelContainer.new()
 	panel.name = ledger_name
-	panel.custom_minimum_size = Vector2(148, 0)
+	panel.custom_minimum_size = Vector2(HUD_LEDGER_WIDTH, 0)
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var margin := MarginContainer.new()
