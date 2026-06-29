@@ -3,7 +3,7 @@
 Ready-to-paste prompts for the existing illustration library under
 `assets/cards/`. Card definitions select these images through `art_id`, and their
 player-facing names retain the subject identity of the assigned painting. The
-64-card rules catalog can temporarily reuse the 29 finished paintings. It
+63-card rules catalog can temporarily reuse the 29 finished paintings. It
 currently references 28 unique paintings, with Sunspire Monument held in reserve.
 The goal
 is a warm, painterly storybook look with a consistent style across the whole set.

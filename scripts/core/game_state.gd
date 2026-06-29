@@ -31,11 +31,14 @@ const REQUIRED_CARD_IDS := [
 	"homestead",
 	"briar_gate",
 	"royal_charter",
+	"briar_hex",
 ]
 
 const ACTION_SUPPLY_COUNT := 10
 const RESOURCE_SUPPLY_COUNT := 12
 const VICTORY_SUPPLY_COUNT := 8
+const CURSE_SUPPLY_COUNT := 10
+const CURSE_CARD_ID := "briar_hex"
 
 var player := PlayerState.new()
 var card_catalog: Dictionary = {}
@@ -662,6 +665,13 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 		"discard_filtered":
 			var discard_candidates := _filter_hand_cards(effect)
 			var discard_amount := mini(int(effect.get("amount", 1)), discard_candidates.size())
+			var discard_context := {}
+			if effect.has("attack"):
+				discard_context["attack"] = effect["attack"]
+				discard_context["attack_if_discarded_type"] = str(
+					effect.get("attack_if_discarded_type", "")
+				)
+				discard_context["source_card"] = source_card
 			_request_zone_choice(
 				discard_candidates,
 				str(effect.get("prompt", "Choose cards from your hand to discard.")),
@@ -669,7 +679,8 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				discard_amount,
 				"discard_hand",
 				"DISCARD",
-				"SKIP"
+				"SKIP",
+				discard_context
 			)
 		"trash_filtered":
 			var trash_candidates := _filter_hand_cards(effect)
@@ -814,6 +825,10 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				"SHUFFLE IN",
 				"LEAVE THEM"
 			)
+		"attack":
+			_resolve_attack(effect, source_card)
+		"register_gain_attack":
+			_register_gain_attack(effect, source_card)
 		"upgrade_exact_nonself":
 			_request_zone_choice(
 				player.hand,
@@ -860,6 +875,7 @@ func _apply_choice_resolution(
 			draw_cards(cards.size())
 		"discard_hand":
 			_move_cards(player.hand, player.discard_pile, cards, "discard")
+			_resolve_choice_attack(choice, cards)
 		"trash_hand":
 			_move_cards(player.hand, player.trash_pile, cards, "trash")
 		"topdeck_discard":
@@ -1107,6 +1123,8 @@ func _apply_choice_resolution(
 		"cleanup_topdeck":
 			_move_cards(player.play_area, player.draw_pile, cards)
 			_finish_cleanup()
+		"attack_trash_resource":
+			_finish_attack_reveal_resource(choice.context.get("revealed", []), cards)
 
 
 func _new_choice(
@@ -1420,6 +1438,8 @@ func _default_supply_count(card: CardDefinition) -> int:
 			return VICTORY_SUPPLY_COUNT
 		"resource":
 			return RESOURCE_SUPPLY_COUNT
+		"curse":
+			return CURSE_SUPPLY_COUNT
 		_:
 			return ACTION_SUPPLY_COUNT
 
@@ -1437,6 +1457,7 @@ func _gain_from_supply(card: CardDefinition, destination: String) -> bool:
 			player.discard_pile.append(card)
 	_prepend_gain_reactions(card, destination)
 	_prepend_triggered_effects(card, "gain", {"zone": destination})
+	_queue_gain_attacks(card)
 	return true
 
 
@@ -1613,6 +1634,136 @@ func _begin_survey_top(amount: int) -> void:
 		"DISCARD NONE",
 		{"revealed": revealed}
 	)
+
+
+func _resolve_attack(effect: Dictionary, _source_card: CardDefinition) -> void:
+	match str(effect.get("mode", "gain_curse")):
+		"gain_curse":
+			for _index in range(int(effect.get("amount", 1))):
+				_gain_card_by_id(
+					str(effect.get("card_id", CURSE_CARD_ID)),
+					str(effect.get("destination", "discard"))
+				)
+		"discard_down":
+			var target_size := int(effect.get("target_hand_size", 3))
+			var discard_count := maxi(0, player.hand.size() - target_size)
+			_request_zone_choice(
+				player.hand,
+				"Choose %d card%s to discard for the attack."
+				% [discard_count, "" if discard_count == 1 else "s"],
+				discard_count,
+				discard_count,
+				"discard_hand",
+				"DISCARD"
+			)
+		"topdeck_victory":
+			var victory_cards: Array[CardDefinition] = []
+			for card in player.hand:
+				if card.card_type == "victory":
+					victory_cards.append(card)
+			_request_zone_choice(
+				victory_cards,
+				"Choose a victory card from your hand to put on top of your deck.",
+				mini(1, victory_cards.size()),
+				mini(1, victory_cards.size()),
+				"topdeck_hand",
+				"PUT ON DECK"
+			)
+		"trash_revealed_resource":
+			_begin_attack_reveal_resource(
+				int(effect.get("amount", 2)),
+				str(effect.get("exclude_card_id", ""))
+			)
+		_:
+			push_warning("Unknown attack mode: %s" % str(effect.get("mode", "")))
+
+
+func _register_gain_attack(effect: Dictionary, source_card: CardDefinition) -> void:
+	var raw_attack = effect.get("attack", {})
+	if typeof(raw_attack) != TYPE_DICTIONARY:
+		return
+	var gain_attacks: Array = turn_flags.get("gain_attacks", [])
+	gain_attacks.append({
+		"card_type": str(effect.get("card_type", "")),
+		"attack": raw_attack.duplicate(true),
+		"source_card": source_card,
+	})
+	turn_flags["gain_attacks"] = gain_attacks
+
+
+func _queue_gain_attacks(gained_card: CardDefinition) -> void:
+	for watcher in turn_flags.get("gain_attacks", []):
+		var watched_type := str(watcher.get("card_type", ""))
+		if not watched_type.is_empty() and gained_card.card_type != watched_type:
+			continue
+		var attack: Dictionary = watcher.get("attack", {}).duplicate(true)
+		attack["kind"] = "attack"
+		resolution_queue.push_back({
+			"kind": "special",
+			"effect": attack,
+			"source_card": watcher.get("source_card"),
+		})
+
+
+func _resolve_choice_attack(choice: CardChoice, cards: Array[CardDefinition]) -> void:
+	if not choice.context.has("attack"):
+		return
+	if cards.is_empty():
+		return
+	var required_type := str(choice.context.get("attack_if_discarded_type", ""))
+	if not required_type.is_empty():
+		var has_required_type := false
+		for card in cards:
+			if card.card_type == required_type:
+				has_required_type = true
+				break
+		if not has_required_type:
+			return
+	var attack: Dictionary = choice.context.get("attack", {}).duplicate(true)
+	_resolve_attack(attack, choice.context.get("source_card"))
+
+
+func _begin_attack_reveal_resource(amount: int, exclude_card_id: String) -> void:
+	var revealed: Array[CardDefinition] = []
+	var resources: Array[CardDefinition] = []
+	for _index in range(amount):
+		var card := _take_top_card()
+		if card == null:
+			continue
+		revealed.append(card)
+		if card.card_type == "resource" and card.id != exclude_card_id:
+			resources.append(card)
+	if revealed.is_empty():
+		return
+	if resources.is_empty():
+		_discard_revealed_cards(revealed)
+		return
+	_request_zone_choice(
+		resources,
+		"Choose a revealed resource to trash for the attack.",
+		1,
+		1,
+		"attack_trash_resource",
+		"TRASH",
+		"SKIP",
+		{"revealed": revealed}
+	)
+
+
+func _finish_attack_reveal_resource(
+	revealed: Array[CardDefinition],
+	trashed_cards: Array[CardDefinition]
+) -> void:
+	for card in trashed_cards:
+		revealed.erase(card)
+	player.trash_pile.append_array(trashed_cards)
+	_queue_zone_events(trashed_cards, "trash", "trash")
+	_discard_revealed_cards(revealed)
+
+
+func _discard_revealed_cards(cards: Array[CardDefinition]) -> void:
+	player.discard_pile.append_array(cards)
+	_queue_zone_events(cards, "discard", "discard")
 
 
 func _begin_order_cards(cards: Array[CardDefinition]) -> void:

@@ -10,8 +10,8 @@ can resolve its stated solo effect faithfully.
 - Add a reusable pending-choice and effect-queue system in the rules layer.
 - Keep card definitions data-driven and keep card-specific behavior out of UI
   nodes.
-- Continue omitting opponent-only attack and reaction clauses in this
-  single-player game.
+- Resolve attack clauses as solo pressure in this single-player game while
+  continuing to omit opponent-only reaction clauses.
 
 ## Required mechanics
 

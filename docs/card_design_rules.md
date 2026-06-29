@@ -12,7 +12,7 @@ process.
 
 - `id`: stable snake-case identifier used by rules and saves.
 - `name`: original display name.
-- `type`: `resource`, `action`, or `victory`.
+- `type`: `resource`, `action`, `victory`, or `curse`.
 - `art_id`: filename stem under `assets/cards/`; cards may share art temporarily.
 - `cost`: coin cost.
 - `description`: detailed tooltip explanation written for this solo ruleset.
@@ -83,6 +83,14 @@ Supported kinds:
 - `replace_gain`
 - `shuffle_actions_from_discard`
 - `upgrade_exact_nonself`
+- `attack`
+- `register_gain_attack`
+
+`attack` resolves the configured solo attack mode. Supported modes are
+`gain_curse`, `discard_down`, `topdeck_victory`, and
+`trash_revealed_resource`. `register_gain_attack` stores an attack for the turn
+and resolves it whenever a gained card matches the configured filter, such as
+an action card. Curse attacks gain `briar_hex`, a 0-cost curse worth -1 VP.
 
 Effects resolve in array order. Descriptions and compact labels must present
 that same order.
@@ -149,6 +157,9 @@ Pebble Coin and Homestead are starter cards and do not enter the market. Every
 other definition with `market_enabled: true` is eligible. A
 `market_enabled: false` card remains loadable, playable in tests or future modes,
 and available to preserve its art/name identity.
+
+Briar Hex is a non-market support curse. It remains in the catalog so attack
+effects can gain it from its finite curse pile.
 
 Each selected market card receives a finite pile. Buying or gaining decrements
 that pile; empty piles cannot be bought or gained and count toward effects that

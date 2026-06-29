@@ -52,12 +52,12 @@ Cache, Embassy, Ill-Gotten Gains, or Mandarin.
    revealed-card ordering, filtered hand choices, and action recovery.
 5. Add gain/buy watchers for cheaper bonus gains and Silver Leaf replacement.
 6. Allow cleanup to pause for a card choice and resume the turn afterward.
-7. Omit rival-only attack and reaction clauses in the single-player ruleset.
+7. Resolve attack clauses as solo pressure while omitting rival-only reactions.
 
 ## Validation
 
 - Every new definition must use existing artwork and original wording.
-- Add focused tests for every new generalized mechanic and ensure all 64 card
+- Add focused tests for every new generalized mechanic and ensure all 63 card
   definitions can complete resolution without an endless choice chain.
 - Preserve the 2-resource, 10-action, 2-victory market layout.
 - Run rules and UI smoke tests plus the Web release export.

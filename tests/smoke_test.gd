@@ -1,7 +1,7 @@
 extends SceneTree
 
 const CARD_DATA_PATH := "res://data/cards/starter_cards.json"
-const EXPECTED_CARD_COUNT := 64
+const EXPECTED_CARD_COUNT := 63
 const WORDING_GUIDE_PATH := "res://docs/card_wording_conventions.md"
 const INACTIVE_CARD_IDS := [
 	"starpath_seeker",
@@ -10,6 +10,7 @@ const INACTIVE_CARD_IDS := [
 	"astral_spyglass",
 	"relic_seeker",
 	"timber_camp",
+	"briar_hex",
 ]
 const EXPECTED_ART_LINKED_NAMES := {
 	"wishing_garden": "Wishing Stone",
@@ -27,9 +28,7 @@ const EXPECTED_ART_LINKED_NAMES := {
 	"candlecap_laboratory": "Candlecap",
 	"grand_archive": "Quiet Archive",
 	"crossroads_market": "Orchard Map",
-	"town_militia": "Stone Muster",
 	"moonlit_mine": "Moonwell Token",
-	"mist_cloak": "Moss Thread",
 	"coin_broker": "Acorn Purse",
 	"supply_scout": "Trail Biscuit",
 	"manor_rebuilder": "Orchard Estate",
@@ -275,6 +274,9 @@ func _test_scoring() -> void:
 	game_state.player.play_area.append(game_state.card_catalog["royal_charter"])
 	_check(game_state.calculate_score() == 10, "Fixed scoring should include every owned zone.")
 
+	game_state.player.discard_pile.append(game_state.card_catalog["briar_hex"])
+	_check(game_state.calculate_score() == 9, "Curse scoring should subtract VP.")
+
 	game_state.player.clear_all()
 	game_state.player.draw_pile.append(game_state.card_catalog["wishing_garden"])
 	for _index in range(9):
@@ -313,6 +315,7 @@ func _test_special_effects() -> void:
 	_test_silver_merchant()
 	_test_echoing_hall()
 	_test_banner_vassal()
+	_test_attack_effects()
 
 
 func _test_master_weaver() -> void:
@@ -521,6 +524,90 @@ func _test_banner_vassal() -> void:
 	_check(game_state.player.hand.size() == 3, "The revealed Forge Hall should draw three cards.")
 
 
+func _test_attack_effects() -> void:
+	var game_state := _empty_game()
+	var witch: CardDefinition = game_state.card_catalog["briar_witch"]
+	game_state.player.hand.append(witch)
+	_check(game_state.play_card(witch), "Briar Witch should play.")
+	_check(
+		game_state.player.discard_pile.has(game_state.card_catalog["briar_hex"]),
+		"Briar Witch should gain a Briar Hex through its attack."
+	)
+	_check(
+		game_state.get_supply_count("briar_hex") == GameState.CURSE_SUPPLY_COUNT - 1,
+		"Briar Hex attacks should use a finite curse pile."
+	)
+
+	game_state = _empty_game()
+	var clerk: CardDefinition = game_state.card_catalog["royal_clerk"]
+	var homestead: CardDefinition = game_state.card_catalog["homestead"]
+	game_state.player.hand.assign([clerk, homestead])
+	_check(game_state.play_card(clerk), "Royal Decree should play.")
+	_check(game_state.has_pending_choice(), "Royal Decree should request a victory topdeck.")
+	_resolve_choice_by_ids(game_state, ["homestead"])
+	_check(
+		game_state.player.draw_pile.back() == homestead,
+		"Royal Decree should put the chosen victory card on top of the deck."
+	)
+
+	game_state = _empty_game()
+	var reaver: CardDefinition = game_state.card_catalog["roadside_reaver"]
+	var silver: CardDefinition = game_state.card_catalog["silver_leaf"]
+	game_state.player.hand.append(reaver)
+	game_state.player.draw_pile.append(game_state.card_catalog["homestead"])
+	game_state.player.draw_pile.append(silver)
+	_check(game_state.play_card(reaver), "Trail Cache should play.")
+	_check(game_state.has_pending_choice(), "Trail Cache should request a resource to trash.")
+	_resolve_choice_by_ids(game_state, ["silver_leaf"])
+	_check(
+		game_state.player.trash_pile.has(silver),
+		"Trail Cache should trash the selected revealed resource."
+	)
+
+	game_state = _empty_game()
+	var magistrate: CardDefinition = game_state.card_catalog["river_magistrate"]
+	game_state.player.hand.assign([
+		magistrate,
+		game_state.card_catalog["homestead"],
+		game_state.card_catalog["silver_leaf"],
+	])
+	for _index in range(3):
+		game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	_check(game_state.play_card(magistrate), "Magistrate should play.")
+	_check(game_state.has_pending_choice(), "Magistrate should request attack discards.")
+	_resolve_choice_by_ids(game_state, ["homestead", "silver_leaf"])
+	_check(game_state.player.hand.size() == 3, "Magistrate should discard down to 3 cards.")
+
+	game_state = _empty_game()
+	var hut: CardDefinition = game_state.card_catalog["briar_hut"]
+	game_state.player.hand.append(hut)
+	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	game_state.player.draw_pile.append(game_state.card_catalog["homestead"])
+	game_state.player.draw_pile.append(game_state.card_catalog["forge_hall"])
+	_check(game_state.play_card(hut), "Briar Hut should play.")
+	_resolve_choice_by_ids(game_state, ["forge_hall", "pebble_coin"])
+	_check(
+		game_state.player.discard_pile.has(game_state.card_catalog["briar_hex"]),
+		"Briar Hut should attack when it discarded an action."
+	)
+
+	game_state = _empty_game()
+	_set_test_market(game_state, ["guild_workshop"])
+	var kettle: CardDefinition = game_state.card_catalog["candlecap_kettle"]
+	game_state.player.hand.append(kettle)
+	_check(game_state.play_card(kettle), "Cap Kettle should play.")
+	game_state.player.coins = 99
+	_check(
+		game_state.buy_card(game_state.card_catalog["guild_workshop"]),
+		"Cap Kettle should allow buying a test action."
+	)
+	_check(
+		game_state.player.discard_pile.has(game_state.card_catalog["briar_hex"]),
+		"Cap Kettle should attack after an action card is gained."
+	)
+
+
 func _test_hinterland_expansion() -> void:
 	_test_progressive_cards_and_costs()
 	_test_gain_and_discard_triggers()
@@ -698,14 +785,14 @@ func _test_gain_and_discard_triggers() -> void:
 
 func _test_develop_modes_and_filtered_gains() -> void:
 	var game_state := _empty_game()
-	_set_test_market(game_state, ["firefly_gold", "silver_leaf", "town_militia"])
+	_set_test_market(game_state, ["firefly_gold", "silver_leaf", "forge_hall"])
 	var development: CardDefinition = game_state.card_catalog["tinkers_development"]
 	var silver: CardDefinition = game_state.card_catalog["silver_leaf"]
 	game_state.player.hand.assign([development, silver])
 	_check(game_state.play_card(development), "Tinker Dev should play.")
 	_resolve_choice_by_ids(game_state, ["silver_leaf"])
 	_resolve_mode(game_state, "higher_first")
-	_resolve_choice_by_ids(game_state, ["town_militia"])
+	_resolve_choice_by_ids(game_state, ["forge_hall"])
 	_resolve_choice_by_ids(game_state, ["firefly_gold"])
 	_check(
 		game_state.player.draw_pile.size() == 2,
@@ -735,13 +822,13 @@ func _test_develop_modes_and_filtered_gains() -> void:
 	)
 
 	game_state = _empty_game()
-	_set_test_market(game_state, ["guild_workshop", "town_militia"])
+	_set_test_market(game_state, ["guild_workshop", "forge_hall"])
 	var wheelwright: CardDefinition = game_state.card_catalog["tinker_wheelwright"]
-	var militia: CardDefinition = game_state.card_catalog["town_militia"]
-	game_state.player.hand.assign([wheelwright, militia])
+	var forge: CardDefinition = game_state.card_catalog["forge_hall"]
+	game_state.player.hand.assign([wheelwright, forge])
 	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
 	_check(game_state.play_card(wheelwright), "Cartwright should play.")
-	_resolve_choice_by_ids(game_state, ["town_militia"])
+	_resolve_choice_by_ids(game_state, ["forge_hall"])
 	_resolve_choice_by_ids(game_state, ["guild_workshop"])
 	_check(
 		game_state.player.discard_pile.has(game_state.card_catalog["guild_workshop"]),

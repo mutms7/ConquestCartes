@@ -54,6 +54,16 @@
     "victory_points": 6
   },
   {
+    "id": "briar_hex",
+    "name": "Briar Hex",
+    "type": "curse",
+    "art_id": "briar_gate",
+    "cost": 0,
+    "description": "Worth -1 VP.",
+    "victory_points": -1,
+    "market_enabled": false
+  },
+  {
     "id": "wishing_garden",
     "name": "Wishing Stone",
     "type": "victory",
@@ -105,13 +115,20 @@
     "type": "action",
     "art_id": "trail_biscuit",
     "cost": 5,
-    "description": "Gain an Amber Circlet.",
+    "description": "Gain an Amber Circlet. Attack: reveal the top 2 cards of your deck. Trash one revealed resource other than Pebble Coin, then discard the rest.",
     "special_effects": [
       {
         "kind": "gain_card",
         "card_id": "amber_circlet",
         "destination": "discard",
         "label": "Gain Amber Circlet"
+      },
+      {
+        "kind": "attack",
+        "mode": "trash_revealed_resource",
+        "amount": 2,
+        "exclude_card_id": "pebble_coin",
+        "label": "Attack: Break Resource"
       }
     ]
   },
@@ -121,13 +138,18 @@
     "type": "action",
     "art_id": "royal_charter",
     "cost": 4,
-    "description": "Gain a Silver Leaf on top of your deck.",
+    "description": "Gain a Silver Leaf on top of your deck. Attack: put a victory card from your hand on top of your deck.",
     "special_effects": [
       {
         "kind": "gain_card",
         "card_id": "silver_leaf",
         "destination": "deck",
         "label": "Silver Leaf to Deck"
+      },
+      {
+        "kind": "attack",
+        "mode": "topdeck_victory",
+        "label": "Attack: Save Victory"
       }
     ]
   },
@@ -291,15 +313,6 @@
     ]
   },
   {
-    "id": "town_militia",
-    "name": "Stone Muster",
-    "type": "action",
-    "art_id": "stone_wall",
-    "cost": 4,
-    "description": "Gain 2 coins.",
-    "gain_coins": 2
-  },
-  {
     "id": "moonlit_mine",
     "name": "Moonwell Token",
     "type": "action",
@@ -313,15 +326,6 @@
         "label": "Upgrade Resource +3"
       }
     ]
-  },
-  {
-    "id": "mist_cloak",
-    "name": "Moss Thread",
-    "type": "action",
-    "art_id": "moss_thread",
-    "cost": 2,
-    "description": "Draw 2 cards.",
-    "draw_cards": 2
   },
   {
     "id": "coin_broker",
@@ -475,8 +479,16 @@
     "type": "action",
     "art_id": "briar_gate",
     "cost": 5,
-    "description": "Draw 2 cards.",
-    "draw_cards": 2
+    "description": "Draw 2 cards. Attack: gain a Briar Hex.",
+    "draw_cards": 2,
+    "special_effects": [
+      {
+        "kind": "attack",
+        "mode": "gain_curse",
+        "card_id": "briar_hex",
+        "label": "Attack: Gain Hex"
+      }
+    ]
   },
   {
     "id": "timber_camp",
@@ -590,9 +602,17 @@
     "group": "Hinterlands",
     "art_id": "river_courier",
     "cost": 5,
-    "description": "Draw 3 cards. Gain 1 buy.",
+    "description": "Draw 3 cards. Gain 1 buy. Attack: discard down to 3 cards in hand.",
     "draw_cards": 3,
-    "gain_buys": 1
+    "gain_buys": 1,
+    "special_effects": [
+      {
+        "kind": "attack",
+        "mode": "discard_down",
+        "target_hand_size": 3,
+        "label": "Attack: Discard Down"
+      }
+    ]
   },
   {
     "id": "bellfoundry_village",
@@ -853,9 +873,20 @@
     "group": "Hinterlands",
     "art_id": "candlecap",
     "cost": 5,
-    "description": "Gain 2 coins and 1 buy.",
+    "description": "Gain 2 coins and 1 buy. This turn, whenever you gain an action card, attack: gain a Briar Hex.",
     "coin_value": 2,
-    "gain_buys": 1
+    "gain_buys": 1,
+    "special_effects": [
+      {
+        "kind": "register_gain_attack",
+        "card_type": "action",
+        "attack": {
+          "mode": "gain_curse",
+          "card_id": "briar_hex"
+        },
+        "label": "Action Gain: Attack"
+      }
+    ]
   },
   {
     "id": "briar_hound",
@@ -946,12 +977,18 @@
     "group": "Hinterlands",
     "art_id": "stone_wall",
     "cost": 5,
-    "description": "Gain a cheaper card. When you gain this while another action card is in play, play this immediately.",
+    "description": "Gain a cheaper card. Attack: gain a Briar Hex. When you gain this while another action card is in play, play this immediately.",
     "special_effects": [
       {
         "kind": "gain_cheaper",
         "destination": "discard",
         "label": "Gain Cheaper Card"
+      },
+      {
+        "kind": "attack",
+        "mode": "gain_curse",
+        "card_id": "briar_hex",
+        "label": "Attack: Gain Hex"
       },
       {
         "kind": "play_self_if_action_in_play",
@@ -967,7 +1004,7 @@
     "group": "Hinterlands",
     "art_id": "briar_gate",
     "cost": 5,
-    "description": "Draw 4 cards. Discard 2 cards.",
+    "description": "Draw 4 cards. Discard 2 cards. If you discarded an action card this way, attack: gain a Briar Hex.",
     "draw_cards": 4,
     "special_effects": [
       {
@@ -975,7 +1012,12 @@
         "amount": 2,
         "required": true,
         "prompt": "Choose 2 cards from your hand to discard.",
-        "label": "Discard 2"
+        "attack_if_discarded_type": "action",
+        "attack": {
+          "mode": "gain_curse",
+          "card_id": "briar_hex"
+        },
+        "label": "Discard 2, Attack"
       }
     ]
   },

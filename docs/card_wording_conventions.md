@@ -15,6 +15,7 @@ sentences, and rules wording must remain original.
   `Produces`, or `Trashes`.
 - Put standard outputs first in this order: cards, actions, buys, coins.
 - Put conditional or zone-changing instructions after standard outputs.
+- Put `Attack:` clauses after standard outputs and before event-triggered text.
 - Put `When you gain`, `When you discard`, `When you trash`, and cleanup
   instructions after the card's play effect.
 - Follow the actual resolution order used by `special_effects`.
@@ -54,6 +55,9 @@ In rules sentences, use lowercase:
 - `action card`
 - `resource`
 - `victory card`
+- `curse`
+
+Use `Briar Hex` for the curse card name and `curse` for the type label.
 
 The uppercase type label in the card footer is presentation, not rules wording.
 

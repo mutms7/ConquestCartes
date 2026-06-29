@@ -8,10 +8,10 @@ contents of your deck into victory points.
 
 ## Current Game
 
-- 64 data-driven cards with original names and painterly artwork
+- 63 data-driven cards with original names and painterly artwork
 - A 14-card kingdom market: 2 resources, 10 actions, and 2 victory cards
 - A named 26-card Hinterlands group within the card catalog
-- Six archived cards retained in the catalog but excluded from random markets
+- Seven support or archived cards retained in the catalog but excluded from random markets
 - Seven Pebble Coins and three Homesteads in the starting deck
 - Five-card hands, reshuffling discard piles, actions, coins, and buys
 - Deck searching, trashing, gaining, upgrading, replaying, and variable scoring
@@ -19,10 +19,11 @@ contents of your deck into victory points.
   replaying, inspecting, and ordering cards
 - Gain, buy, discard, trash, and cleanup triggers for reactive cards
 - Temporary cost reductions, progressive resources, and event-driven bonuses
+- Solo attack effects and 0-cost Briar Hex curses worth -1 VP
 - Finite supply piles with visible counts and sold-out handling
 - Art-linked names that preserve the identity of the original illustration library
 - High-contrast type surfaces: golden umber resources, midnight-blue actions,
-  and deep plum victory cards
+  deep plum victory cards, and violet-black curses
 - Final scoring after turn 15
 - Handcrafted medieval tabletop UI using dark jewel-toned cards, bright brass,
   cool slate, and restrained heraldic ornament
@@ -119,8 +120,8 @@ See `assets/licenses/ASSET_SOURCES.md` for provenance details.
 
 - Single-player only; there is no opponent, multiplayer, or campaign.
 - No save system, music, or full accessibility menu.
-- Rival-only attack and reaction clauses are omitted in the solo ruleset.
-- The art library contains 29 finished illustrations. The 64-card catalog
+- Rival-only reaction clauses are omitted in the solo ruleset.
+- The art library contains 29 finished illustrations. The 63-card catalog
   currently references 28 of them; related cards share paintings through the
   data-driven `art_id` field, while Sunspire Monument remains reserve art.
 - The game is balanced as a compact prototype rather than a finished commercial

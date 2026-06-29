@@ -32,6 +32,7 @@ const COLOR_CARD_BROWN_LIGHT := Color("#5a3a28")
 const COLOR_RESOURCE_CARD := Color("#68431f")
 const COLOR_ACTION_CARD := Color("#293e52")
 const COLOR_VICTORY_CARD := Color("#552d46")
+const COLOR_CURSE_CARD := Color("#32263f")
 const COLOR_WALNUT := Color("#39251b")
 const COLOR_WALNUT_DARK := Color("#19161a")
 const COLOR_BRASS := Color("#d5aa50")
@@ -46,6 +47,7 @@ const COLOR_ESTATES_CARPET := Color("#28503b")
 const COLOR_RESOURCE_ACCENT := Color("#f0bd58")
 const COLOR_ACTION_ACCENT := Color("#76b5e8")
 const COLOR_VICTORY_ACCENT := Color("#df7890")
+const COLOR_CURSE_ACCENT := Color("#b49ad9")
 
 const TITLE_FONT_PATH := "res://assets/fonts/Cinzel/static/Cinzel-SemiBold.ttf"
 const BODY_FONT_PATH := "res://assets/fonts/Inter/static/Inter_18pt-Regular.ttf"
@@ -1706,7 +1708,7 @@ func _create_card_button(
 		type_label.add_theme_font_override("font", body_bold_font)
 	meta_row.add_child(type_label)
 
-	if card.victory_points > 0 or card.score_per_cards > 0:
+	if card.victory_points != 0 or card.score_per_cards > 0:
 		if icon_textures.has("victory"):
 			meta_row.add_child(
 				_create_icon(
@@ -1720,7 +1722,7 @@ func _create_card_button(
 		victory_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 		victory_label.text = (
 			"%d VP" % card.victory_points
-			if card.victory_points > 0
+			if card.victory_points != 0
 			else "VP / %d" % card.score_per_cards
 		)
 		victory_label.add_theme_color_override(
@@ -2099,6 +2101,8 @@ func _get_card_surface_color(card_type: String) -> Color:
 			return COLOR_RESOURCE_CARD
 		"victory":
 			return COLOR_VICTORY_CARD
+		"curse":
+			return COLOR_CURSE_CARD
 		_:
 			return COLOR_ACTION_CARD
 
@@ -2109,6 +2113,8 @@ func _get_card_type_accent(card_type: String) -> Color:
 			return COLOR_RESOURCE_ACCENT
 		"victory":
 			return COLOR_VICTORY_ACCENT
+		"curse":
+			return COLOR_CURSE_ACCENT
 		_:
 			return COLOR_ACTION_ACCENT
 

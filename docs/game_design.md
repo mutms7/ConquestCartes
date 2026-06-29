@@ -16,8 +16,8 @@ resets turn resources, and draws a new five-card hand. Empty draw piles are
 replenished by shuffling the discard pile.
 
 The market contains 14 cards: 2 resources, 10 actions, and 2 victory cards. The
-catalog contains 64 cards: 2 starters, 56 random-market candidates, and 6
-archived cards retained for testing, future sets, and art-linked reuse. The
+catalog contains 63 cards: 2 starters, 54 random-market candidates, and 7
+support or archived cards retained for testing, future sets, and art-linked reuse. The
 26-card mechanics expansion is tagged as the `Hinterlands` group.
 The home menu includes a tabbed Kingdoms browser. Whole optional kingdoms or
 individual non-required cards can be disabled before a new game, removing those
@@ -47,8 +47,9 @@ ordered rules queue after each choice.
 The solo rules support discarding, trashing, gaining, upgrading, replaying,
 setting actions aside, inspecting cards, choosing revealed-card destinations,
 selecting top-deck order, reacting to gain/discard/trash events, reducing costs,
-and pausing cleanup for optional card recovery. Rival-only attack and reaction
-clauses still have no effect because the game has no opponent.
+resolving solo attack effects, gaining 0-cost Briar Hex curses, and pausing
+cleanup for optional card recovery. Rival-only reaction clauses still have no
+effect because the game has no opponent.
 
 ## End and Scoring
 
