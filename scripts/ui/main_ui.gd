@@ -258,6 +258,7 @@ func _ready() -> void:
 	game_state.choice_requested.connect(_on_choice_requested)
 	game_state.choice_resolved.connect(_on_choice_resolved)
 	game_state.active_player_changed.connect(_on_active_player_changed)
+	game_state.end_turn_cooldown_reduced.connect(_on_network_end_turn_cooldown_reduced)
 	turn_manager.configure(game_state)
 	turn_manager.turn_completed.connect(_on_turn_completed)
 	turn_manager.turn_cleanup_started.connect(_on_turn_cleanup_started)
@@ -281,9 +282,15 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if network_enabled and not network_is_host:
-		if turn_manager.ending_turn and turn_manager.cooldown_remaining > 0.0:
-			turn_manager.cooldown_remaining = maxf(0.0, turn_manager.cooldown_remaining - delta)
+	if network_enabled:
+		if network_is_host:
+			_tick_network_cooldowns(delta)
+		elif game_state.player.ending_turn and game_state.player.cooldown_remaining > 0.0:
+			game_state.player.cooldown_remaining = maxf(
+				0.0,
+				game_state.player.cooldown_remaining - delta
+			)
+		_sync_turn_manager_to_local_player()
 	else:
 		turn_manager.tick(delta)
 	_refresh_end_turn_button()
@@ -402,8 +409,39 @@ func _can_control_active_player() -> bool:
 	return game_state.active_player_index == local_player_index
 
 
-func _is_sender_active_player(peer_id: int) -> bool:
-	return int(network_peer_to_player.get(peer_id, -1)) == game_state.active_player_index
+func _player_index_for_peer(peer_id: int) -> int:
+	if peer_id == 1:
+		return 0
+	return int(network_peer_to_player.get(peer_id, -1))
+
+
+func _set_network_view_player(player_index: int) -> void:
+	if game_state.players.is_empty():
+		return
+	game_state.set_active_player_index(clampi(player_index, 0, game_state.players.size() - 1))
+	_sync_turn_manager_to_local_player()
+
+
+func _set_authoritative_player(player_index: int) -> void:
+	if game_state.players.is_empty():
+		return
+	game_state.set_active_player_index(clampi(player_index, 0, game_state.players.size() - 1))
+
+
+func _restore_local_network_view() -> void:
+	if not network_enabled:
+		return
+	_set_network_view_player(local_player_index)
+
+
+func _sync_turn_manager_to_local_player() -> void:
+	if not network_enabled or game_state.players.is_empty():
+		return
+	var local_player := game_state.players[clampi(local_player_index, 0, game_state.players.size() - 1)]
+	turn_manager.turn_number = local_player.turn_number
+	turn_manager.ending_turn = local_player.ending_turn
+	turn_manager.cooldown_remaining = local_player.cooldown_remaining
+	turn_manager.cooldown_duration = local_player.cooldown_duration
 
 
 func _on_network_peer_connected(peer_id: int) -> void:
@@ -441,6 +479,95 @@ func _on_network_server_disconnected() -> void:
 	_refresh_home_controls()
 
 
+func _on_network_end_turn_cooldown_reduced(amount: float) -> void:
+	if not network_enabled:
+		return
+	var game_player := game_state.player
+	if not game_player.ending_turn or game_player.cooldown_remaining <= 0.0:
+		return
+	game_player.cooldown_remaining = maxf(0.0, game_player.cooldown_remaining - maxf(0.0, amount))
+	_sync_turn_manager_to_local_player()
+
+
+func _start_network_player_cooldown(player_index: int) -> void:
+	if turn_manager.game_over or game_state.players.is_empty():
+		return
+	_set_authoritative_player(player_index)
+	var game_player := game_state.player
+	if game_player.pending_choice != null or game_player.ending_turn:
+		_restore_local_network_view()
+		return
+	game_player.cooldown_duration = game_state.get_end_turn_cooldown_seconds()
+	game_player.cooldown_remaining = game_player.cooldown_duration
+	game_player.ending_turn = true
+	print(
+		"[Game] End turn %d for %s in %.1f seconds"
+		% [game_player.turn_number, game_player.player_name, game_player.cooldown_duration]
+	)
+	_restore_local_network_view()
+
+
+func _tick_network_cooldowns(delta: float) -> void:
+	if turn_manager.game_over:
+		return
+	var changed := false
+	for player_index in range(game_state.players.size()):
+		var game_player := game_state.players[player_index]
+		if not game_player.ending_turn:
+			continue
+		if game_player.cooldown_remaining > 0.0:
+			game_player.cooldown_remaining = maxf(0.0, game_player.cooldown_remaining - delta)
+			changed = true
+		if game_player.cooldown_remaining > 0.0:
+			continue
+		if game_player.pending_choice != null or game_player.cleanup_in_progress:
+			continue
+		_finish_network_player_turn(player_index)
+		changed = true
+	if changed:
+		_restore_local_network_view()
+		_broadcast_network_snapshot()
+
+
+func _finish_network_player_turn(player_index: int) -> void:
+	_set_authoritative_player(player_index)
+	var game_player := game_state.player
+	if not game_player.ending_turn:
+		return
+	pending_cleanup_ghosts = _capture_cleanup_cards() if player_index == local_player_index else []
+	game_state.begin_cleanup()
+	if game_player.pending_choice != null or game_player.cleanup_in_progress:
+		return
+	_complete_network_player_cleanup(player_index)
+
+
+func _complete_network_player_cleanup(player_index: int) -> void:
+	_set_authoritative_player(player_index)
+	var game_player := game_state.player
+	game_player.ending_turn = false
+	game_player.cooldown_remaining = 0.0
+	game_player.cooldown_duration = 0.0
+	game_state.reset_turn_resources()
+	if game_state.is_game_end_condition_met():
+		turn_manager.game_over = true
+		turn_manager.final_scores = game_state.calculate_all_scores()
+		turn_manager.final_score = (
+			turn_manager.final_scores[local_player_index]
+			if local_player_index < turn_manager.final_scores.size()
+			else 0
+		)
+		_restore_local_network_view()
+		_show_final_score(turn_manager.final_score)
+		return
+	game_player.turn_number += 1
+	game_state.draw_cards(5)
+	_restore_local_network_view()
+	if player_index == local_player_index:
+		_animate_cleanup_cards(pending_cleanup_ghosts)
+		pending_cleanup_ghosts.clear()
+		call_deferred("_animate_draw_cards", game_state.player.hand.size())
+
+
 func _broadcast_network_snapshot() -> void:
 	if not network_enabled or not network_is_host:
 		return
@@ -464,23 +591,23 @@ func _create_network_snapshot() -> Dictionary:
 			"buys": game_player.buys,
 			"cooldown_reduction": game_player.end_turn_cooldown_reduction,
 			"turn_flags": _serialize_turn_flags(game_player.turn_flags),
+			"pending_choice": _serialize_choice(game_player.pending_choice),
 			"cleanup_in_progress": game_player.cleanup_in_progress,
+			"ending_turn": game_player.ending_turn,
+			"cooldown_remaining": game_player.cooldown_remaining,
+			"cooldown_duration": game_player.cooldown_duration,
 		})
 	return {
 		"players": player_snapshots,
-		"active_player_index": game_state.active_player_index,
+		"active_player_index": local_player_index,
 		"multiplayer_enabled": game_state.multiplayer_enabled,
 		"market": _card_ids_from_zone(game_state.market),
 		"supply": game_state.supply_piles.duplicate(true),
-		"pending_choice": _serialize_choice(game_state.pending_choice),
 		"turn": {
 			"turn_number": turn_manager.turn_number,
 			"game_over": turn_manager.game_over,
 			"final_score": turn_manager.final_score,
 			"final_scores": turn_manager.final_scores.duplicate(),
-			"ending_turn": turn_manager.ending_turn,
-			"cooldown_remaining": turn_manager.cooldown_remaining,
-			"cooldown_duration": turn_manager.cooldown_duration,
 		},
 	}
 
@@ -553,12 +680,16 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 			player_data.get("cooldown_reduction", 0.0)
 		)
 		synced_player.turn_flags = player_data.get("turn_flags", {}).duplicate(true)
+		synced_player.pending_choice = _choice_from_snapshot(player_data.get("pending_choice", {}))
 		synced_player.cleanup_in_progress = bool(player_data.get("cleanup_in_progress", false))
+		synced_player.ending_turn = bool(player_data.get("ending_turn", false))
+		synced_player.cooldown_remaining = float(player_data.get("cooldown_remaining", 0.0))
+		synced_player.cooldown_duration = float(player_data.get("cooldown_duration", 0.0))
 		game_state.players.append(synced_player)
 	if game_state.players.is_empty():
 		return
 	game_state.active_player_index = clampi(
-		int(snapshot.get("active_player_index", 0)),
+		local_player_index,
 		0,
 		game_state.players.size() - 1
 	)
@@ -568,19 +699,18 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 	game_state.multiplayer_enabled = bool(snapshot.get("multiplayer_enabled", true))
 	game_state.market = _cards_from_ids(snapshot.get("market", []))
 	game_state.supply_piles = snapshot.get("supply", {}).duplicate(true)
-	game_state.pending_choice = _choice_from_snapshot(snapshot.get("pending_choice", {}))
+	game_state.pending_choice = game_state.player.pending_choice
 	game_state.player.pending_choice = game_state.pending_choice
 
 	var turn_data: Dictionary = snapshot.get("turn", {})
-	turn_manager.turn_number = int(turn_data.get("turn_number", 1))
 	turn_manager.game_over = bool(turn_data.get("game_over", false))
 	turn_manager.final_score = int(turn_data.get("final_score", 0))
 	turn_manager.final_scores.clear()
 	for score in turn_data.get("final_scores", []):
 		turn_manager.final_scores.append(int(score))
-	turn_manager.ending_turn = bool(turn_data.get("ending_turn", false))
-	turn_manager.cooldown_remaining = float(turn_data.get("cooldown_remaining", 0.0))
-	turn_manager.cooldown_duration = float(turn_data.get("cooldown_duration", 0.0))
+	if local_player_index < turn_manager.final_scores.size():
+		turn_manager.final_score = turn_manager.final_scores[local_player_index]
+	_sync_turn_manager_to_local_player()
 
 	has_active_game = true
 	_hide_home_screen()
@@ -634,39 +764,61 @@ func _sync_choice_overlay_from_network() -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_play_card(card_id: String) -> void:
-	if not network_is_host or not _is_sender_active_player(multiplayer.get_remote_sender_id()):
+	var player_index := _player_index_for_peer(multiplayer.get_remote_sender_id())
+	if not network_is_host or player_index < 0:
 		return
+	_set_authoritative_player(player_index)
 	var card := _find_card_in_active_hand(card_id)
 	if card != null and game_state.play_card(card):
+		_restore_local_network_view()
 		_broadcast_network_snapshot()
+	else:
+		_restore_local_network_view()
 
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_buy_card(card_id: String) -> void:
-	if not network_is_host or not _is_sender_active_player(multiplayer.get_remote_sender_id()):
+	var player_index := _player_index_for_peer(multiplayer.get_remote_sender_id())
+	if not network_is_host or player_index < 0:
 		return
+	_set_authoritative_player(player_index)
 	var card: CardDefinition = game_state.card_catalog.get(card_id) as CardDefinition
 	if card != null and game_state.buy_card(card):
+		_restore_local_network_view()
 		_broadcast_network_snapshot()
+	else:
+		_restore_local_network_view()
 
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_end_turn() -> void:
-	if not network_is_host or not _is_sender_active_player(multiplayer.get_remote_sender_id()):
+	var player_index := _player_index_for_peer(multiplayer.get_remote_sender_id())
+	if not network_is_host or player_index < 0:
 		return
-	turn_manager.end_turn()
+	_start_network_player_cooldown(player_index)
 	_broadcast_network_snapshot()
 
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_choice(raw_tokens: Array) -> void:
-	if not network_is_host or not _is_sender_active_player(multiplayer.get_remote_sender_id()):
+	var player_index := _player_index_for_peer(multiplayer.get_remote_sender_id())
+	if not network_is_host or player_index < 0:
 		return
+	_set_authoritative_player(player_index)
 	var tokens: Array[String] = []
 	for token in raw_tokens:
 		tokens.append(str(token))
 	if game_state.resolve_choice(tokens):
+		if (
+			game_state.player.ending_turn
+			and game_state.player.pending_choice == null
+			and not game_state.player.cleanup_in_progress
+		):
+			_complete_network_player_cleanup(player_index)
+		_restore_local_network_view()
 		_broadcast_network_snapshot()
+	else:
+		_restore_local_network_view()
 
 
 func _find_card_in_active_hand(card_id: String) -> CardDefinition:
@@ -3092,10 +3244,13 @@ func _on_end_turn_pressed() -> void:
 	if _is_network_client():
 		rpc_id(1, "_rpc_request_end_turn")
 		return
+	if network_enabled and network_is_host:
+		_start_network_player_cooldown(local_player_index)
+		_refresh_ui()
+		_broadcast_network_snapshot()
+		return
 	turn_manager.end_turn()
 	_refresh_ui()
-	if network_enabled and network_is_host:
-		_broadcast_network_snapshot()
 
 
 func _on_turn_completed(game_is_over: bool) -> void:

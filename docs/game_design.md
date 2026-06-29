@@ -15,6 +15,8 @@ from that finite supply pile. Ending a turn starts a 5-second cooldown; the
 player can still play cards while it counts down. When the cooldown finishes,
 the hand and play area are discarded, turn resources reset, and a new five-card
 hand is drawn. Empty draw piles are replenished by shuffling the discard pile.
+In multiplayer, each player has an independent cooldown and cleanup timer, so
+players can act in parallel against the shared supply.
 
 The market contains 14 cards: 2 resources, 10 actions, and 2 victory cards. The
 catalog contains 63 cards: 2 starters, 55 random-market candidates, and 6

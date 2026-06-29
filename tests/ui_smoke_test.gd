@@ -697,6 +697,18 @@ func _initialize() -> void:
 		and main_ui.game_state.get_player_count() == 2,
 		"Create Lobby should start a two-player table."
 	)
+	_end_turn_button().pressed.emit()
+	await process_frame
+	_check(
+		main_ui.game_state.active_player_index == 0
+		and main_ui.game_state.player.player_name == "Player 1",
+		"Network End Turn should keep the local host view on Player 1."
+	)
+	_check(
+		main_ui.game_state.players[0].ending_turn
+		and not main_ui.game_state.players[1].ending_turn,
+		"Network End Turn should start only Player 1's cooldown."
+	)
 	_check(
 		_active_ui_uses_original_assets(),
 		"Active UI code should use original assets and no Kenney fantasy-border paths."

@@ -14,6 +14,9 @@ var turn_flags: Dictionary = {}
 var pending_choice: CardChoice
 var resolution_queue: Array[Dictionary] = []
 var cleanup_in_progress: bool = false
+var ending_turn: bool = false
+var cooldown_remaining: float = 0.0
+var cooldown_duration: float = 0.0
 
 var coins: int = 0
 var actions: int = 1
@@ -31,6 +34,9 @@ func clear_all() -> void:
 	pending_choice = null
 	resolution_queue.clear()
 	cleanup_in_progress = false
+	ending_turn = false
+	cooldown_remaining = 0.0
+	cooldown_duration = 0.0
 	reset_turn_resources()
 
 
