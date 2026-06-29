@@ -748,6 +748,21 @@ func _initialize() -> void:
 		and main_ui.player_status_label.text.contains("P4: ready"),
 		"Player status should show the local player and all other lobby slots."
 	)
+	var client_race_snapshot: Dictionary = main_ui._create_network_snapshot()
+	main_ui.network_is_host = false
+	main_ui.local_player_index = 0
+	main_ui._apply_network_snapshot(client_race_snapshot)
+	main_ui._rpc_set_local_player_index(2)
+	await process_frame
+	_check(
+		main_ui.game_state.active_player_index == 2
+		and main_ui.game_state.player.player_name == "Player 3",
+		"Assigned clients should immediately view and control their player slot."
+	)
+	_check(
+		main_ui.player_status_label.text.contains("You: Player 3"),
+		"Player status should update when a client receives its assigned slot."
+	)
 	_check(
 		_active_ui_uses_original_assets(),
 		"Active UI code should use original assets and no Kenney fantasy-border paths."

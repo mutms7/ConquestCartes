@@ -498,6 +498,10 @@ func _next_open_network_player_index() -> int:
 func _rpc_set_local_player_index(player_index: int) -> void:
 	local_player_index = clampi(player_index, 0, NETWORK_MAX_PLAYERS - 1)
 	_set_lobby_status("Connected as Player %d." % (local_player_index + 1))
+	if network_enabled and not game_state.players.is_empty():
+		_restore_local_network_view()
+		_sync_choice_overlay_from_network()
+		_refresh_ui()
 
 
 func _on_network_connection_failed() -> void:
