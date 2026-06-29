@@ -19,7 +19,7 @@ contents of your deck into victory points.
   replaying, inspecting, and ordering cards
 - Gain, buy, discard, trash, and cleanup triggers for reactive cards
 - Temporary cost reductions, progressive resources, and event-driven bonuses
-- Multiplayer lobby tables with shared supplies and attacks that hit rivals
+- Direct-IP 2-player lobby tables with shared supplies and attacks that hit rivals
 - 0-cost Briar Hex curses worth -1 VP
 - A 5-second end-turn cooldown that still allows card play while it counts down
 - Finite supply piles with visible counts and sold-out handling
@@ -59,6 +59,19 @@ contents of your deck into victory points.
 Card surface color identifies its type. Slate-trimmed hand cards are playable,
 forest-trimmed market cards are affordable, and muted trim marks cards that are
 currently unavailable.
+
+## Multiplayer
+
+`CREATE LOBBY` hosts a direct-IP desktop lobby on port `27041`. The host is
+Player 1. Player 2 enters the host's IP address in the home-screen address field
+and presses `JOIN LOBBY`. The host owns the authoritative game state and
+broadcasts every play, buy, choice, cooldown, turn pass, attack, and score
+update to the client.
+
+For internet play outside the same LAN, the host must allow inbound traffic on
+port `27041` or use a VPN/tunnel such as Tailscale, ZeroTier, or another private
+network. Browser-hosted no-port-forward matchmaking would require a separate
+relay/signaling service.
 
 ## Run Locally
 
@@ -124,9 +137,8 @@ See `assets/licenses/ASSET_SOURCES.md` for provenance details.
 
 ## Current Limitations
 
-- Create Lobby currently runs an in-engine 2-player table; internet relay and
-  matchmaking are not included yet.
-- No save system, internet matchmaking, or full accessibility menu.
+- Direct-IP multiplayer requires LAN reachability, port forwarding, or a VPN.
+- No save system, relay matchmaking, or full accessibility menu.
 - Rival-only reaction clauses are omitted in the solo ruleset.
 - The art library contains 29 finished illustrations. The 63-card catalog
   currently references 29 of them; related cards share paintings through the

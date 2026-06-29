@@ -26,6 +26,8 @@ const HOME_ART_PATH := "res://assets/cards/sunspire_monument.png"
 const CARD_RULE_SIDE_MARGIN := 9
 const CARD_RULE_TOP_MARGIN := 1
 const CARD_RULE_BOTTOM_MARGIN := 7
+const NETWORK_PORT := 27041
+const NETWORK_DEFAULT_ADDRESS := "127.0.0.1"
 
 const COLOR_PARCHMENT := Color("#ead8ad")
 const COLOR_PARCHMENT_LIGHT := Color("#fff1ca")
@@ -120,6 +122,8 @@ var home_overlay: Control
 var home_new_game_button: Button
 var home_continue_button: Button
 var home_create_lobby_button: Button
+var home_join_lobby_button: Button
+var home_lobby_address_input: LineEdit
 var home_lobby_status_label: Label
 var home_settings_panel: VBoxContainer
 var home_kingdoms_panel: PanelContainer
@@ -131,6 +135,10 @@ var home_kingdom_detail_host: VBoxContainer
 var selected_home_kingdom := GameState.BASE_KINGDOM
 var selected_home_kingdom_card_id := ""
 var active_lobby_player_count := 1
+var network_enabled := false
+var network_is_host := false
+var local_player_index := 0
+var network_peer_to_player: Dictionary = {}
 var home_noise_overlay: TextureRect
 var table_noise_overlay: TextureRect
 var home_noise_slider: HSlider
@@ -253,6 +261,11 @@ func _ready() -> void:
 	turn_manager.configure(game_state)
 	turn_manager.turn_completed.connect(_on_turn_completed)
 	turn_manager.turn_cleanup_started.connect(_on_turn_cleanup_started)
+	multiplayer.peer_connected.connect(_on_network_peer_connected)
+	multiplayer.peer_disconnected.connect(_on_network_peer_disconnected)
+	multiplayer.connected_to_server.connect(_on_network_connected_to_server)
+	multiplayer.connection_failed.connect(_on_network_connection_failed)
+	multiplayer.server_disconnected.connect(_on_network_server_disconnected)
 
 	if not game_state.load_cards(CARD_DATA_PATH):
 		push_error("Could not load card data from %s." % CARD_DATA_PATH)
@@ -268,11 +281,16 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	turn_manager.tick(delta)
+	if network_enabled and not network_is_host:
+		if turn_manager.ending_turn and turn_manager.cooldown_remaining > 0.0:
+			turn_manager.cooldown_remaining = maxf(0.0, turn_manager.cooldown_remaining - delta)
+	else:
+		turn_manager.tick(delta)
 	_refresh_end_turn_button()
 
 
 func _start_new_game(_is_restart: bool) -> void:
+	_disconnect_network()
 	if game_state.card_catalog.is_empty() or not game_state.has_enough_market_candidates():
 		_refresh_home_controls()
 		return
@@ -313,6 +331,349 @@ func _start_lobby_game(player_count: int = 2) -> void:
 	turn_manager.start_first_turn()
 	_refresh_ui()
 	call_deferred("_animate_draw_cards", game_state.player.hand.size())
+
+
+func _host_network_lobby() -> void:
+	if game_state.card_catalog.is_empty() or not game_state.has_enough_market_candidates():
+		_refresh_home_controls()
+		return
+	_disconnect_network()
+	var peer := ENetMultiplayerPeer.new()
+	var error := peer.create_server(NETWORK_PORT, 1)
+	if error != OK:
+		_set_lobby_status("Could not host lobby on port %d." % NETWORK_PORT)
+		return
+	multiplayer.multiplayer_peer = peer
+	network_enabled = true
+	network_is_host = true
+	local_player_index = 0
+	network_peer_to_player = {1: 0}
+	_start_lobby_game(2)
+	_set_lobby_status("Hosting on port %d. Give Player 2 your IP address." % NETWORK_PORT)
+	_broadcast_network_snapshot()
+
+
+func _join_network_lobby() -> void:
+	if game_state.card_catalog.is_empty():
+		_refresh_home_controls()
+		return
+	_disconnect_network()
+	var address := NETWORK_DEFAULT_ADDRESS
+	if home_lobby_address_input != null:
+		address = home_lobby_address_input.text.strip_edges()
+	if address.is_empty():
+		address = NETWORK_DEFAULT_ADDRESS
+	var peer := ENetMultiplayerPeer.new()
+	var error := peer.create_client(address, NETWORK_PORT)
+	if error != OK:
+		_set_lobby_status("Could not start connection to %s." % address)
+		return
+	multiplayer.multiplayer_peer = peer
+	network_enabled = true
+	network_is_host = false
+	local_player_index = 1
+	has_active_game = false
+	_set_lobby_status("Connecting to %s:%d..." % [address, NETWORK_PORT])
+	_refresh_home_controls()
+
+
+func _disconnect_network() -> void:
+	if multiplayer.multiplayer_peer != null:
+		multiplayer.multiplayer_peer.close()
+	multiplayer.multiplayer_peer = null
+	network_enabled = false
+	network_is_host = false
+	local_player_index = 0
+	network_peer_to_player.clear()
+
+
+func _set_lobby_status(message: String) -> void:
+	if home_lobby_status_label != null:
+		home_lobby_status_label.text = message
+
+
+func _is_network_client() -> bool:
+	return network_enabled and not network_is_host
+
+
+func _can_control_active_player() -> bool:
+	if not network_enabled:
+		return true
+	return game_state.active_player_index == local_player_index
+
+
+func _is_sender_active_player(peer_id: int) -> bool:
+	return int(network_peer_to_player.get(peer_id, -1)) == game_state.active_player_index
+
+
+func _on_network_peer_connected(peer_id: int) -> void:
+	if not network_is_host:
+		return
+	network_peer_to_player[peer_id] = 1
+	_set_lobby_status("Player 2 connected.")
+	_broadcast_network_snapshot()
+
+
+func _on_network_peer_disconnected(peer_id: int) -> void:
+	if network_is_host:
+		network_peer_to_player.erase(peer_id)
+		_set_lobby_status("Player disconnected. Hosting remains open.")
+
+
+func _on_network_connected_to_server() -> void:
+	network_enabled = true
+	network_is_host = false
+	local_player_index = 1
+	_set_lobby_status("Connected. Waiting for lobby state...")
+
+
+func _on_network_connection_failed() -> void:
+	_disconnect_network()
+	_set_lobby_status("Connection failed.")
+	_refresh_home_controls()
+
+
+func _on_network_server_disconnected() -> void:
+	_disconnect_network()
+	has_active_game = false
+	_show_home_screen(false)
+	_set_lobby_status("Host disconnected.")
+	_refresh_home_controls()
+
+
+func _broadcast_network_snapshot() -> void:
+	if not network_enabled or not network_is_host:
+		return
+	rpc("_rpc_apply_network_snapshot", _create_network_snapshot())
+	_refresh_ui()
+
+
+func _create_network_snapshot() -> Dictionary:
+	var player_snapshots: Array[Dictionary] = []
+	for game_player in game_state.players:
+		player_snapshots.append({
+			"name": game_player.player_name,
+			"turn_number": game_player.turn_number,
+			"draw": _card_ids_from_zone(game_player.draw_pile),
+			"hand": _card_ids_from_zone(game_player.hand),
+			"play": _card_ids_from_zone(game_player.play_area),
+			"discard": _card_ids_from_zone(game_player.discard_pile),
+			"trash": _card_ids_from_zone(game_player.trash_pile),
+			"coins": game_player.coins,
+			"actions": game_player.actions,
+			"buys": game_player.buys,
+			"cooldown_reduction": game_player.end_turn_cooldown_reduction,
+			"turn_flags": _serialize_turn_flags(game_player.turn_flags),
+			"cleanup_in_progress": game_player.cleanup_in_progress,
+		})
+	return {
+		"players": player_snapshots,
+		"active_player_index": game_state.active_player_index,
+		"multiplayer_enabled": game_state.multiplayer_enabled,
+		"market": _card_ids_from_zone(game_state.market),
+		"supply": game_state.supply_piles.duplicate(true),
+		"pending_choice": _serialize_choice(game_state.pending_choice),
+		"turn": {
+			"turn_number": turn_manager.turn_number,
+			"game_over": turn_manager.game_over,
+			"final_score": turn_manager.final_score,
+			"final_scores": turn_manager.final_scores.duplicate(),
+			"ending_turn": turn_manager.ending_turn,
+			"cooldown_remaining": turn_manager.cooldown_remaining,
+			"cooldown_duration": turn_manager.cooldown_duration,
+		},
+	}
+
+
+func _card_ids_from_zone(zone: Array[CardDefinition]) -> Array[String]:
+	var card_ids: Array[String] = []
+	for card in zone:
+		if card != null:
+			card_ids.append(card.id)
+	return card_ids
+
+
+func _serialize_turn_flags(flags: Dictionary) -> Dictionary:
+	var serialized: Dictionary = {}
+	for key in flags:
+		var value = flags[key]
+		match typeof(value):
+			TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING:
+				serialized[key] = value
+	return serialized
+
+
+func _serialize_choice(choice: CardChoice) -> Dictionary:
+	if choice == null:
+		return {}
+	var candidates: Array[Dictionary] = []
+	for candidate in choice.candidates:
+		var card: CardDefinition = candidate.get("card") as CardDefinition
+		if card == null:
+			continue
+		candidates.append({
+			"token": str(candidate.get("token", "")),
+			"card_id": card.id,
+			"subtitle": str(candidate.get("subtitle", "")),
+		})
+	return {
+		"id": choice.id,
+		"prompt": choice.prompt,
+		"minimum": choice.minimum,
+		"maximum": choice.maximum,
+		"confirm_text": choice.confirm_text,
+		"skip_text": choice.skip_text,
+		"resolver": choice.resolver,
+		"candidates": candidates,
+	}
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_apply_network_snapshot(snapshot: Dictionary) -> void:
+	if network_is_host:
+		return
+	_apply_network_snapshot(snapshot)
+
+
+func _apply_network_snapshot(snapshot: Dictionary) -> void:
+	game_state.players.clear()
+	for player_data in snapshot.get("players", []):
+		var synced_player := PlayerState.new()
+		synced_player.player_name = str(player_data.get("name", "Player"))
+		synced_player.turn_number = int(player_data.get("turn_number", 1))
+		synced_player.draw_pile = _cards_from_ids(player_data.get("draw", []))
+		synced_player.hand = _cards_from_ids(player_data.get("hand", []))
+		synced_player.play_area = _cards_from_ids(player_data.get("play", []))
+		synced_player.discard_pile = _cards_from_ids(player_data.get("discard", []))
+		synced_player.trash_pile = _cards_from_ids(player_data.get("trash", []))
+		synced_player.coins = int(player_data.get("coins", 0))
+		synced_player.actions = int(player_data.get("actions", 1))
+		synced_player.buys = int(player_data.get("buys", 1))
+		synced_player.end_turn_cooldown_reduction = float(
+			player_data.get("cooldown_reduction", 0.0)
+		)
+		synced_player.turn_flags = player_data.get("turn_flags", {}).duplicate(true)
+		synced_player.cleanup_in_progress = bool(player_data.get("cleanup_in_progress", false))
+		game_state.players.append(synced_player)
+	if game_state.players.is_empty():
+		return
+	game_state.active_player_index = clampi(
+		int(snapshot.get("active_player_index", 0)),
+		0,
+		game_state.players.size() - 1
+	)
+	game_state.player = game_state.players[game_state.active_player_index]
+	game_state.turn_flags = game_state.player.turn_flags
+	game_state.cleanup_in_progress = game_state.player.cleanup_in_progress
+	game_state.multiplayer_enabled = bool(snapshot.get("multiplayer_enabled", true))
+	game_state.market = _cards_from_ids(snapshot.get("market", []))
+	game_state.supply_piles = snapshot.get("supply", {}).duplicate(true)
+	game_state.pending_choice = _choice_from_snapshot(snapshot.get("pending_choice", {}))
+	game_state.player.pending_choice = game_state.pending_choice
+
+	var turn_data: Dictionary = snapshot.get("turn", {})
+	turn_manager.turn_number = int(turn_data.get("turn_number", 1))
+	turn_manager.game_over = bool(turn_data.get("game_over", false))
+	turn_manager.final_score = int(turn_data.get("final_score", 0))
+	turn_manager.final_scores.clear()
+	for score in turn_data.get("final_scores", []):
+		turn_manager.final_scores.append(int(score))
+	turn_manager.ending_turn = bool(turn_data.get("ending_turn", false))
+	turn_manager.cooldown_remaining = float(turn_data.get("cooldown_remaining", 0.0))
+	turn_manager.cooldown_duration = float(turn_data.get("cooldown_duration", 0.0))
+
+	has_active_game = true
+	_hide_home_screen()
+	_sync_choice_overlay_from_network()
+	_refresh_ui()
+	if turn_manager.game_over and not end_game_overlay.visible:
+		_show_final_score(turn_manager.final_score)
+
+
+func _cards_from_ids(card_ids: Array) -> Array[CardDefinition]:
+	var cards: Array[CardDefinition] = []
+	for card_id in card_ids:
+		var card: CardDefinition = game_state.card_catalog.get(str(card_id)) as CardDefinition
+		if card != null:
+			cards.append(card)
+	return cards
+
+
+func _choice_from_snapshot(choice_data: Dictionary) -> CardChoice:
+	if choice_data.is_empty():
+		return null
+	var choice := CardChoice.new()
+	choice.id = int(choice_data.get("id", 0))
+	choice.prompt = str(choice_data.get("prompt", ""))
+	choice.minimum = int(choice_data.get("minimum", 0))
+	choice.maximum = int(choice_data.get("maximum", 0))
+	choice.confirm_text = str(choice_data.get("confirm_text", "CONFIRM"))
+	choice.skip_text = str(choice_data.get("skip_text", "SKIP"))
+	choice.resolver = str(choice_data.get("resolver", ""))
+	for candidate_data in choice_data.get("candidates", []):
+		var card: CardDefinition = (
+			game_state.card_catalog.get(str(candidate_data.get("card_id", "")))
+			as CardDefinition
+		)
+		if card != null:
+			choice.add_candidate(
+				str(candidate_data.get("token", "")),
+				card,
+				str(candidate_data.get("subtitle", ""))
+			)
+	return choice
+
+
+func _sync_choice_overlay_from_network() -> void:
+	if game_state.pending_choice != null and _can_control_active_player():
+		if current_choice == null or current_choice.id != game_state.pending_choice.id:
+			_on_choice_requested(game_state.pending_choice)
+	else:
+		_hide_choice_overlay()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_play_card(card_id: String) -> void:
+	if not network_is_host or not _is_sender_active_player(multiplayer.get_remote_sender_id()):
+		return
+	var card := _find_card_in_active_hand(card_id)
+	if card != null and game_state.play_card(card):
+		_broadcast_network_snapshot()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_buy_card(card_id: String) -> void:
+	if not network_is_host or not _is_sender_active_player(multiplayer.get_remote_sender_id()):
+		return
+	var card: CardDefinition = game_state.card_catalog.get(card_id) as CardDefinition
+	if card != null and game_state.buy_card(card):
+		_broadcast_network_snapshot()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_end_turn() -> void:
+	if not network_is_host or not _is_sender_active_player(multiplayer.get_remote_sender_id()):
+		return
+	turn_manager.end_turn()
+	_broadcast_network_snapshot()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_choice(raw_tokens: Array) -> void:
+	if not network_is_host or not _is_sender_active_player(multiplayer.get_remote_sender_id()):
+		return
+	var tokens: Array[String] = []
+	for token in raw_tokens:
+		tokens.append(str(token))
+	if game_state.resolve_choice(tokens):
+		_broadcast_network_snapshot()
+
+
+func _find_card_in_active_hand(card_id: String) -> CardDefinition:
+	for card in game_state.player.hand:
+		if card.id == card_id:
+			return card
+	return null
 
 
 func _load_optional_assets() -> void:
@@ -572,6 +933,21 @@ func _build_home_screen() -> void:
 	home_create_lobby_button.pressed.connect(_on_home_create_lobby_pressed)
 	button_stack.add_child(home_create_lobby_button)
 
+	home_lobby_address_input = LineEdit.new()
+	home_lobby_address_input.name = "LobbyAddress"
+	home_lobby_address_input.text = NETWORK_DEFAULT_ADDRESS
+	home_lobby_address_input.placeholder_text = "Host IP address"
+	home_lobby_address_input.custom_minimum_size = Vector2(310, 38)
+	home_lobby_address_input.add_theme_font_size_override("font_size", 14)
+	if body_font != null:
+		home_lobby_address_input.add_theme_font_override("font", body_font)
+	button_stack.add_child(home_lobby_address_input)
+
+	home_join_lobby_button = _create_home_menu_button("JOIN LOBBY")
+	home_join_lobby_button.name = "JoinLobbyButton"
+	home_join_lobby_button.pressed.connect(_on_home_join_lobby_pressed)
+	button_stack.add_child(home_join_lobby_button)
+
 	var settings_button := _create_home_menu_button("SETTINGS")
 	settings_button.name = "SettingsButton"
 	settings_button.pressed.connect(_on_home_settings_pressed)
@@ -584,7 +960,7 @@ func _build_home_screen() -> void:
 
 	home_lobby_status_label = Label.new()
 	home_lobby_status_label.name = "LobbyStatus"
-	home_lobby_status_label.text = "Create Lobby starts a 2-player table."
+	home_lobby_status_label.text = "Host or join a direct-IP 2-player table."
 	home_lobby_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	home_lobby_status_label.add_theme_color_override("font_color", COLOR_PARCHMENT.darkened(0.08))
 	home_lobby_status_label.add_theme_font_size_override("font_size", 12)
@@ -912,13 +1288,25 @@ func _refresh_home_controls() -> void:
 		home_continue_button.disabled = not has_active_game
 	if home_create_lobby_button != null:
 		home_create_lobby_button.disabled = not can_start
+	if home_join_lobby_button != null:
+		home_join_lobby_button.disabled = not can_start or network_enabled
+	if home_lobby_address_input != null:
+		home_lobby_address_input.editable = not network_enabled
 	if home_lobby_status_label != null:
-		home_lobby_status_label.text = (
-			"Active lobby: %d players share this market."
-			% game_state.get_player_count()
-			if game_state.multiplayer_enabled
-			else "Create Lobby starts a 2-player table."
-		)
+		if network_enabled and network_is_host:
+			home_lobby_status_label.text = (
+				"Hosting on port %d. Give Player 2 your IP address."
+				% NETWORK_PORT
+			)
+		elif network_enabled:
+			home_lobby_status_label.text = "Connected as Player %d." % (local_player_index + 1)
+		elif game_state.multiplayer_enabled:
+			home_lobby_status_label.text = (
+				"Active lobby: %d players share this market."
+				% game_state.get_player_count()
+			)
+		else:
+			home_lobby_status_label.text = "Host or join a direct-IP 2-player table."
 	if home_audio_toggle != null:
 		home_audio_toggle.set_pressed_no_signal(audio_enabled)
 	if home_motion_toggle != null:
@@ -1406,7 +1794,7 @@ func _refresh_end_turn_button() -> void:
 		end_turn_button.modulate = Color(0.72, 0.74, 0.78, 1.0)
 		return
 	end_turn_button.text = "END TURN"
-	end_turn_button.disabled = game_state.has_pending_choice()
+	end_turn_button.disabled = game_state.has_pending_choice() or not _can_control_active_player()
 	end_turn_button.modulate = Color.WHITE
 
 
@@ -1589,7 +1977,12 @@ func _refresh_play_area() -> void:
 
 
 func _can_play_card(card: CardDefinition) -> bool:
-	if turn_manager.game_over or game_state.has_pending_choice() or not card.is_playable():
+	if (
+		not _can_control_active_player()
+		or turn_manager.game_over
+		or game_state.has_pending_choice()
+		or not card.is_playable()
+	):
 		return false
 	if card.card_type == "action" and game_state.player.actions <= 0:
 		return false
@@ -1598,7 +1991,8 @@ func _can_play_card(card: CardDefinition) -> bool:
 
 func _can_buy_card(card: CardDefinition) -> bool:
 	return (
-		not turn_manager.game_over
+		_can_control_active_player()
+		and not turn_manager.game_over
 		and not game_state.has_pending_choice()
 		and game_state.player.buys > 0
 		and game_state.player.coins >= game_state.get_effective_cost(card)
@@ -2504,6 +2898,9 @@ func _clear_container(container: Container) -> void:
 
 
 func _on_choice_requested(choice: CardChoice) -> void:
+	if network_enabled and not _can_control_active_player():
+		_hide_choice_overlay()
+		return
 	current_choice = choice
 	selected_choice_tokens.clear()
 	choice_buttons.clear()
@@ -2537,6 +2934,8 @@ func _on_choice_requested(choice: CardChoice) -> void:
 	choice_overlay.show()
 	_refresh_choice_controls()
 	_refresh_ui()
+	if network_enabled and network_is_host:
+		_broadcast_network_snapshot()
 
 
 func _on_choice_resolved(choice_id: int) -> void:
@@ -2601,16 +3000,26 @@ func _on_choice_skipped() -> void:
 func _submit_choice(tokens: Array[String]) -> void:
 	if current_choice == null:
 		return
+	if _is_network_client():
+		rpc_id(1, "_rpc_request_choice", tokens)
+		return
 	var hand_before := game_state.player.hand.size()
 	if not game_state.resolve_choice(tokens):
 		return
 	_refresh_ui()
+	if network_enabled and network_is_host:
+		_broadcast_network_snapshot()
 	var drawn_count := maxi(0, game_state.player.hand.size() - hand_before)
 	if drawn_count > 0:
 		call_deferred("_animate_draw_cards", drawn_count)
 
 
 func _on_hand_card_pressed(card: CardDefinition) -> void:
+	if network_enabled and not _can_control_active_player():
+		return
+	if _is_network_client():
+		rpc_id(1, "_rpc_request_play_card", card.id)
+		return
 	var source_button := _find_card_button(hand_container, card.id)
 	var ghost: Control = null
 	if source_button != null:
@@ -2637,9 +3046,16 @@ func _on_hand_card_pressed(card: CardDefinition) -> void:
 		)
 	if played and card.draw_cards > 0:
 		call_deferred("_animate_draw_cards", card.draw_cards)
+	if played and network_enabled and network_is_host:
+		_broadcast_network_snapshot()
 
 
 func _on_market_card_pressed(card: CardDefinition) -> void:
+	if network_enabled and not _can_control_active_player():
+		return
+	if _is_network_client():
+		rpc_id(1, "_rpc_request_buy_card", card.id)
+		return
 	var source_button := _find_card_button(market_container, card.id)
 	var ghost: Control = null
 	if source_button != null:
@@ -2665,14 +3081,21 @@ func _on_market_card_pressed(card: CardDefinition) -> void:
 			Vector2(0.22, 0.22)
 		)
 		_pulse_control(discard_label, COLOR_BRASS.lightened(0.24))
+	if bought and network_enabled and network_is_host:
+		_broadcast_network_snapshot()
 
 
 func _on_end_turn_pressed() -> void:
-	if game_state.has_pending_choice():
+	if game_state.has_pending_choice() or not _can_control_active_player():
 		return
 	_play_ui_sound("end_turn")
+	if _is_network_client():
+		rpc_id(1, "_rpc_request_end_turn")
+		return
 	turn_manager.end_turn()
 	_refresh_ui()
+	if network_enabled and network_is_host:
+		_broadcast_network_snapshot()
 
 
 func _on_turn_completed(game_is_over: bool) -> void:
@@ -2683,6 +3106,8 @@ func _on_turn_completed(game_is_over: bool) -> void:
 		_show_final_score(turn_manager.final_score)
 	elif not game_state.multiplayer_enabled:
 		call_deferred("_animate_draw_cards", game_state.player.hand.size())
+	if network_enabled and network_is_host:
+		_broadcast_network_snapshot()
 
 
 func _on_turn_cleanup_started() -> void:
@@ -2712,7 +3137,12 @@ func _on_home_continue_pressed() -> void:
 
 func _on_home_create_lobby_pressed() -> void:
 	_play_ui_sound("button_click")
-	_start_lobby_game(2)
+	_host_network_lobby()
+
+
+func _on_home_join_lobby_pressed() -> void:
+	_play_ui_sound("button_click")
+	_join_network_lobby()
 
 
 func _on_home_settings_pressed() -> void:

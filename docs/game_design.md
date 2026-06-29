@@ -2,9 +2,9 @@
 
 ## Concept
 
-A cozy tabletop fantasy deck-building game for one local player or an in-engine
+A cozy tabletop fantasy deck-building game for one local player or a direct-IP
 two-player lobby. The prototype focuses on a short, readable play loop rather
-than campaign or matchmaking systems.
+than campaign or relay matchmaking systems.
 
 ## Turn Loop
 
@@ -51,8 +51,10 @@ selecting top-deck order, reacting to gain/discard/trash events, reducing costs,
 resolving attack effects, gaining 0-cost Briar Hex curses, and pausing
 cleanup for optional card recovery.
 
-In a lobby, attacks resolve against rival player states. Opponent-only choices
-auto-resolve until a networked per-client choice UI exists.
+In a lobby, attacks resolve against rival player states. The host owns the
+authoritative game state, while joined clients send play, buy, choice, and
+end-turn requests to the host and receive full state snapshots in return.
+Opponent-only choices auto-resolve.
 
 ## End and Scoring
 
@@ -63,8 +65,8 @@ pile, hand, play area, and discard pile.
 ## Prototype Scope
 
 - Desktop, 1280x720, 2D interface
-- One local player or a local two-player lobby
+- One local player or a direct-IP two-player lobby
 - Random fourteen-card kingdom market with finite supply piles
 - Home menu with New Game, Create Lobby, Continue, local Settings controls, and a Kingdoms card browser
 - Original medieval interface, painterly card art, and UI audio
-- No AI opponent, internet matchmaking, campaign, or save system
+- No AI opponent, relay matchmaking, campaign, or save system

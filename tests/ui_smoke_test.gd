@@ -20,6 +20,8 @@ func _initialize() -> void:
 	)
 	_check(_home_continue_button().disabled, "Continue should be disabled before a game starts.")
 	_check(not _home_create_lobby_button().disabled, "Create Lobby should be available at startup.")
+	_check(not _home_join_lobby_button().disabled, "Join Lobby should be available at startup.")
+	_check(_home_lobby_address_input().text == "127.0.0.1", "Join Lobby should default to localhost.")
 	_home_settings_button().pressed.emit()
 	await process_frame
 	_check(_home_settings_panel().visible, "Settings should open from the home menu.")
@@ -761,6 +763,14 @@ func _home_continue_button() -> Button:
 
 func _home_create_lobby_button() -> Button:
 	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/CreateLobbyButton")
+
+
+func _home_lobby_address_input() -> LineEdit:
+	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/LobbyAddress")
+
+
+func _home_join_lobby_button() -> Button:
+	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/JoinLobbyButton")
 
 
 func _home_settings_button() -> Button:
