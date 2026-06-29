@@ -80,6 +80,7 @@ func _initialize() -> void:
 	_test_supply_piles()
 	_test_turn_cooldown()
 	_test_multiplayer_lobby_attacks()
+	_test_multiplayer_game_end()
 	_test_special_effects()
 	_test_hinterland_expansion()
 	_test_every_playable_card_resolves()
@@ -422,6 +423,56 @@ func _test_multiplayer_lobby_attacks() -> void:
 	_check(
 		game_state.get_active_player_name() == first_player_name,
 		"End Turn should keep the local player view active for parallel play."
+	)
+
+
+func _test_multiplayer_game_end() -> void:
+	var game_state := GameState.new()
+	_check(game_state.load_cards(CARD_DATA_PATH), "Card data should load for multiplayer game end.")
+	_check(game_state.setup_starting_game(2), "A two-player lobby should set up for game end.")
+	game_state.start_all_players()
+	_check(
+		not game_state.is_game_end_condition_met(),
+		"A fresh multiplayer lobby should not already be over."
+	)
+
+	# Give the two players different victory holdings so their scores differ.
+	var homestead: CardDefinition = game_state.card_catalog["homestead"]
+	game_state.players[0].discard_pile.append(homestead)
+	game_state.players[0].discard_pile.append(homestead)
+	game_state.players[1].discard_pile.append(homestead)
+
+	# Emptying three supply piles ends the shared game.
+	var emptied := 0
+	for card_id in game_state.supply_piles.keys():
+		if emptied >= GameState.SUPPLY_EMPTY_END_COUNT:
+			break
+		game_state.set_supply_count(card_id, 0)
+		emptied += 1
+	_check(
+		game_state.is_game_end_condition_met(),
+		"Three empty supply piles should end a multiplayer game."
+	)
+	var scores := game_state.calculate_all_scores()
+	_check(scores.size() == 2, "Game end should score every lobby player.")
+	_check(
+		scores[0] > scores[1],
+		"Per-player scoring should reflect each player's own victory cards."
+	)
+
+	# Emptying the top victory pile is the other end condition.
+	var fresh := GameState.new()
+	_check(fresh.load_cards(CARD_DATA_PATH), "Card data should reload for the VP end check.")
+	_check(fresh.setup_starting_game(2), "A second two-player lobby should set up.")
+	fresh.start_all_players()
+	_check(
+		not fresh.is_game_end_condition_met(),
+		"A second fresh lobby should not already be over."
+	)
+	fresh.set_supply_count(GameState.SIX_VP_CARD_ID, 0)
+	_check(
+		fresh.is_game_end_condition_met(),
+		"Emptying the top victory pile should end a multiplayer game."
 	)
 
 

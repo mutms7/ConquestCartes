@@ -14,6 +14,9 @@
   `get_end_turn_cooldown_seconds`). Never block hand or market card clicks while a
   cooldown counts down. Card play is gated by `_can_play_card`, which must not
   check the cooldown; only the End Turn button itself is disabled during cooldown.
+  Do not broadcast a network snapshot every frame while a cooldown ticks: clients
+  run their own local countdown, and a per-frame snapshot rebuilds their board and
+  swallows clicks. Broadcast only when a cooldown expires (see `_tick_network_cooldowns`).
 - Keep changes small, readable, and reviewable.
 - Do not delete asset license files.
 - Every feature must run in Godot without parse errors.

@@ -562,19 +562,23 @@ func _start_network_player_cooldown(player_index: int) -> void:
 func _tick_network_cooldowns(delta: float) -> void:
 	if turn_manager.game_over:
 		return
-	var changed := false
+	# Tick every player's End Turn button cooldown locally, but only broadcast a
+	# snapshot when a cooldown actually expires. Clients run their own local
+	# countdown for the button, so a per-frame snapshot would rebuild their whole
+	# board 60 times a second and swallow card/market clicks mid-cooldown. The
+	# cooldown must lock the End Turn button only, never the rest of the screen.
+	var expired := false
 	for player_index in range(game_state.players.size()):
 		var game_player := game_state.players[player_index]
 		if game_player.cooldown_remaining <= 0.0:
 			continue
 		game_player.cooldown_remaining = maxf(0.0, game_player.cooldown_remaining - delta)
-		changed = true
 		if game_player.cooldown_remaining > 0.0:
 			continue
 		game_player.ending_turn = false
 		game_player.cooldown_duration = 0.0
-		changed = true
-	if changed:
+		expired = true
+	if expired:
 		_restore_local_network_view()
 		_broadcast_network_snapshot()
 

@@ -807,6 +807,25 @@ func _initialize() -> void:
 			main_ui.game_state.player.discard_pile.size() == discard_before_cooldown_buy + 1,
 			"Buying from the market should work during End Turn cooldown."
 		)
+	# A mid-cooldown tick must keep locking only the End Turn button: the rest of
+	# the board stays interactive and is not torn down underneath the player.
+	main_ui._tick_network_cooldowns(1.0)
+	await process_frame
+	_check(
+		main_ui.turn_manager.is_cooling_down() and _end_turn_button().disabled,
+		"A mid-cooldown tick should keep the End Turn button locked."
+	)
+	var mid_cooldown_card := _find_card_button(_hand_container(), "pebble_coin")
+	_check(
+		mid_cooldown_card != null and not mid_cooldown_card.disabled,
+		"Hand cards should stay playable midway through the End Turn cooldown."
+	)
+	main_ui._tick_network_cooldowns(GameState.DEFAULT_END_TURN_COOLDOWN_SECONDS)
+	await process_frame
+	_check(
+		not main_ui.turn_manager.is_cooling_down(),
+		"A cooldown expiring should re-enable only the End Turn button."
+	)
 	_check(
 		main_ui.player_status_label != null
 		and main_ui.player_status_label.text.contains("You: Player 1")
