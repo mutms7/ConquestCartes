@@ -411,6 +411,15 @@ func _can_control_active_player() -> bool:
 	return game_state.active_player_index == local_player_index
 
 
+func _can_interact_with_local_player() -> bool:
+	if not network_enabled:
+		return true
+	if game_state.players.is_empty():
+		return false
+	_restore_local_network_view()
+	return _can_control_active_player()
+
+
 func _player_index_for_peer(peer_id: int) -> int:
 	if peer_id == 1:
 		return 0
@@ -420,7 +429,14 @@ func _player_index_for_peer(peer_id: int) -> int:
 func _set_network_view_player(player_index: int) -> void:
 	if game_state.players.is_empty():
 		return
-	game_state.set_active_player_index(clampi(player_index, 0, game_state.players.size() - 1))
+	var target_index := clampi(player_index, 0, game_state.players.size() - 1)
+	if (
+		game_state.active_player_index == target_index
+		and game_state.player == game_state.players[target_index]
+	):
+		_sync_turn_manager_to_local_player()
+		return
+	game_state.set_active_player_index(target_index)
 	_sync_turn_manager_to_local_player()
 
 
@@ -2191,7 +2207,7 @@ func _refresh_play_area() -> void:
 
 func _can_play_card(card: CardDefinition) -> bool:
 	if (
-		not _can_control_active_player()
+		not _can_interact_with_local_player()
 		or turn_manager.game_over
 		or game_state.has_pending_choice()
 		or not card.is_playable()
@@ -2204,7 +2220,7 @@ func _can_play_card(card: CardDefinition) -> bool:
 
 func _can_buy_card(card: CardDefinition) -> bool:
 	return (
-		_can_control_active_player()
+		_can_interact_with_local_player()
 		and not turn_manager.game_over
 		and not game_state.has_pending_choice()
 		and game_state.player.buys > 0
@@ -3241,7 +3257,7 @@ func _submit_choice(tokens: Array[String]) -> void:
 
 
 func _on_hand_card_pressed(card: CardDefinition) -> void:
-	if network_enabled and not _can_control_active_player():
+	if network_enabled and not _can_interact_with_local_player():
 		return
 	if _is_network_client():
 		rpc_id(1, "_rpc_request_play_card", card.id)
@@ -3277,7 +3293,7 @@ func _on_hand_card_pressed(card: CardDefinition) -> void:
 
 
 func _on_market_card_pressed(card: CardDefinition) -> void:
-	if network_enabled and not _can_control_active_player():
+	if network_enabled and not _can_interact_with_local_player():
 		return
 	if _is_network_client():
 		rpc_id(1, "_rpc_request_buy_card", card.id)

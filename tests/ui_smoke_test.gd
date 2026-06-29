@@ -709,6 +709,37 @@ func _initialize() -> void:
 		and not main_ui.game_state.players[1].ending_turn,
 		"Network End Turn should start only Player 1's cooldown."
 	)
+	var cooldown_resource_button := _find_card_button(_hand_container(), "pebble_coin")
+	_check(cooldown_resource_button != null, "Cooldown hand should include a playable Pebble Coin.")
+	if cooldown_resource_button != null:
+		_check(
+			not cooldown_resource_button.disabled,
+			"Hand cards should remain playable during End Turn cooldown."
+		)
+		var play_area_before: int = main_ui.game_state.player.play_area.size()
+		cooldown_resource_button.pressed.emit()
+		await process_frame
+		_check(
+			main_ui.game_state.player.play_area.size() == play_area_before + 1,
+			"Playing a hand card should work during End Turn cooldown."
+		)
+	main_ui.game_state.player.coins = 99
+	main_ui.game_state.player.buys = 1
+	main_ui._refresh_ui()
+	var cooldown_market_button: Button = null
+	for button in _all_market_buttons():
+		if not button.disabled:
+			cooldown_market_button = button
+			break
+	_check(cooldown_market_button != null, "Market cards should remain buyable during End Turn cooldown.")
+	if cooldown_market_button != null:
+		var discard_before_cooldown_buy: int = main_ui.game_state.player.discard_pile.size()
+		cooldown_market_button.pressed.emit()
+		await process_frame
+		_check(
+			main_ui.game_state.player.discard_pile.size() == discard_before_cooldown_buy + 1,
+			"Buying from the market should work during End Turn cooldown."
+		)
 	_check(
 		main_ui.player_status_label != null
 		and main_ui.player_status_label.text.contains("You: Player 1")
