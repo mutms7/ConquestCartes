@@ -2359,28 +2359,62 @@ func _create_multiplayer_option_button(
 
 
 func _create_mp_icon_tile(glyph: String, enabled: bool) -> Panel:
+	# A dark, antique-brass medallion: deep translucent walnut fill with a thin
+	# brass rim and a soft top sheen, then a brass glyph. Reads as an inset
+	# plaque rather than a flat bright-gold square.
 	var tile := Panel.new()
+	tile.clip_contents = true
 	tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tile.custom_minimum_size = Vector2(46, 46)
 	tile.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var fill := Color("#e8c879") if enabled else Color(0.78, 0.7, 0.52, 0.6)
-	var style := _make_flat_card_style(fill, Color("#9c6f28"), 1)
-	style.set_corner_radius_all(11)
-	style.shadow_color = Color(0.835, 0.667, 0.314, 0.3) if enabled else Color.TRANSPARENT
-	style.shadow_size = 6 if enabled else 0
+	var fill := Color(0.14, 0.095, 0.052, 0.66) if enabled else Color(0.14, 0.1, 0.06, 0.34)
+	var rim := Color(0.835, 0.667, 0.314, 0.7) if enabled else Color(0.835, 0.667, 0.314, 0.28)
+	var style := _make_flat_card_style(fill, rim, 1)
+	style.set_corner_radius_all(12)
+	style.shadow_color = Color(0, 0, 0, 0.35) if enabled else Color.TRANSPARENT
+	style.shadow_size = 5 if enabled else 0
+	style.shadow_offset = Vector2(0, 2)
 	tile.add_theme_stylebox_override("panel", style)
+
+	var sheen := TextureRect.new()
+	sheen.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sheen.texture = _make_vertical_gradient_texture(
+		Color(0.835, 0.667, 0.314, 0.2 if enabled else 0.08),
+		Color(0.835, 0.667, 0.314, 0.0)
+	)
+	sheen.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	sheen.stretch_mode = TextureRect.STRETCH_SCALE
+	tile.add_child(sheen)
+	sheen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
 	var label := Label.new()
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.text = glyph
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_color_override("font_color", Color("#3a2410"))
+	label.add_theme_color_override(
+		"font_color",
+		Color("#e8c879") if enabled else Color(0.835, 0.667, 0.314, 0.45)
+	)
 	label.add_theme_font_size_override("font_size", 22)
 	if title_font != null:
 		label.add_theme_font_override("font", title_font)
 	tile.add_child(label)
 	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	return tile
+
+
+func _make_vertical_gradient_texture(top: Color, bottom: Color) -> GradientTexture2D:
+	var gradient := Gradient.new()
+	gradient.offsets = PackedFloat32Array([0.0, 1.0])
+	gradient.colors = PackedColorArray([top, bottom])
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.fill_from = Vector2(0, 0)
+	texture.fill_to = Vector2(0, 1)
+	texture.width = 4
+	texture.height = 48
+	return texture
 
 
 func _create_lobby_max_players_row() -> VBoxContainer:
@@ -5003,12 +5037,13 @@ func _make_top_button_style(square: bool, hover: bool = false) -> StyleBoxFlat:
 
 
 func _make_end_turn_style(hover: bool = false, disabled: bool = false) -> StyleBoxFlat:
-	var base := Color("#f0cf80") if not disabled else Color(0.35, 0.32, 0.28, 0.75)
+	# Antique gold rather than bright neon yellow: deeper, warmer, more regal.
+	var base := Color("#c39a44") if not disabled else Color(0.35, 0.32, 0.28, 0.75)
 	if hover and not disabled:
-		base = Color("#f6dc9b")
+		base = Color("#d8b25e")
 	var style := _make_flat_card_style(
 		base,
-		Color("#9c6f28") if not disabled else Color(0, 0, 0, 0.35),
+		Color("#6e4a16") if not disabled else Color(0, 0, 0, 0.35),
 		1
 	)
 	style.set_corner_radius_all(9)
