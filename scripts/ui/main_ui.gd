@@ -11,8 +11,11 @@ const CARD_HOVER_SCALE := Vector2(1.03, 1.03)
 const HAND_HOVER_SCALE := Vector2(1.1, 1.1)
 const CARD_NORMAL_SCALE := Vector2.ONE
 # Distance (px) from the hand row's bottom edge down to the shared fan pivot.
-# Larger = gentler arc. Cards rotate around this point so the hand splays out.
+# Larger = gentler arc. Card centres ride an arc around this point (the spread).
 const HAND_FAN_PIVOT_DROP := 360.0
+# How much each card actually tilts, as a fraction of its arc angle. Lower keeps
+# the same fan spread but stands the card faces flatter / more upright.
+const HAND_FAN_TILT := 0.42
 const HOVER_ANIMATION_SECONDS := 0.08
 const CARD_MOVE_SECONDS := 0.18
 const CARD_DRAW_SECONDS := 0.16
@@ -1036,9 +1039,12 @@ func _build_bottom_docks() -> void:
 	end_turn_button.custom_minimum_size = Vector2(END_TURN_BUTTON_WIDTH, 48)
 	end_turn_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	# Left dock: compact Coins / Actions / Buys ledger.
+	# Left dock: compact Coins / Actions / Buys ledger, rows split by hairlines.
+	left_stats.add_theme_constant_override("separation", 4)
 	coin_stat.reparent(left_stats)
+	left_stats.add_child(_create_ledger_hairline())
 	action_stat.reparent(left_stats)
+	left_stats.add_child(_create_ledger_hairline())
 	buy_stat.reparent(left_stats)
 	_configure_stat_row(coin_stat, COLOR_RESOURCE_ACCENT)
 	_configure_stat_row(action_stat, COLOR_ACTION_ACCENT)
@@ -1125,30 +1131,57 @@ func _create_hud_ledger(ledger_name: String) -> Dictionary:
 	return {"panel": panel, "stats": stats}
 
 
+func _create_ledger_hairline() -> ColorRect:
+	var rule := ColorRect.new()
+	rule.name = "LedgerHairline"
+	rule.custom_minimum_size = Vector2(0, 1)
+	rule.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rule.color = Color(0.835, 0.667, 0.314, 0.16)
+	return rule
+
+
 func _configure_stat_row(stat: VBoxContainer, accent: Color) -> void:
-	stat.custom_minimum_size = Vector2(0, 70)
+	# Lay each ledger row out as a single line: [icon] LABEL .......... VALUE.
+	# The icon sits in a fixed-width left column so all three icons share one
+	# vertical line, and values right-align into a column of their own.
+	stat.custom_minimum_size = Vector2(0, 44)
 	stat.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	stat.add_theme_constant_override("separation", 0)
 	var title := stat.find_child("Title", true, false) as Label
 	var value := stat.find_child("Value", true, false) as Label
 	var value_row := value.get_parent() as HBoxContainer if value != null else null
 	var icon := stat.find_child("Icon", true, false) as TextureRect
+	if value_row == null:
+		return
+	value_row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	value_row.add_theme_constant_override("separation", 10)
+	value_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	value_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	if icon != null:
+		icon.custom_minimum_size = Vector2(26, 26)
+		icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.modulate = accent
 	if title != null:
+		title.reparent(value_row)
+		value_row.move_child(title, 1)
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		title.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		title.add_theme_color_override("font_color", COLOR_BRASS)
-		title.add_theme_font_size_override("font_size", 11)
+		title.add_theme_font_size_override("font_size", 13)
 		if title_font != null:
 			title.add_theme_font_override("font", title_font)
-	if value_row != null:
-		value_row.alignment = BoxContainer.ALIGNMENT_END
-		value_row.add_theme_constant_override("separation", 6)
-	if icon != null:
-		icon.custom_minimum_size = Vector2(20, 20)
-		icon.modulate = accent
 	if value != null:
 		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		value.custom_minimum_size = Vector2(46, 0)
+		value.size_flags_horizontal = Control.SIZE_SHRINK_END
+		value.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		value.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
-		value.add_theme_font_size_override("font_size", 34)
+		value.add_theme_font_size_override("font_size", 30)
 		if title_font != null:
 			value.add_theme_font_override("font", title_font)
 
@@ -3742,15 +3775,15 @@ func _apply_hand_fan_offsets() -> void:
 		var card_size := card.size
 		if card_size == Vector2.ZERO:
 			card_size = CARD_FACE_SIZE
-		# Stack every card at the bottom-centre, then rotate it around the shared
-		# low pivot. Equal-angle steps fan the cards out symmetrically.
-		var base_pos := Vector2(
-			row_size.x * 0.5 - card_size.x * 0.5,
-			row_size.y - card_size.y
-		)
-		card.position = base_pos
-		card.pivot_offset = pivot - base_pos
-		card.rotation_degrees = (float(index) - center) * angle_step
+		var radius := HAND_FAN_PIVOT_DROP + card_size.y * 0.5
+		var arc_angle := deg_to_rad((float(index) - center) * angle_step)
+		# The card centre rides an arc around the shared pivot (this is the fan
+		# spread) while the card itself only tilts a fraction of that angle, so
+		# the faces stay flatter / more upright than the spread would imply.
+		var card_center := pivot + Vector2(sin(arc_angle), -cos(arc_angle)) * radius
+		card.pivot_offset = card_size * 0.5
+		card.position = card_center - card_size * 0.5
+		card.rotation_degrees = (float(index) - center) * angle_step * HAND_FAN_TILT
 
 
 func _refresh_market() -> void:
