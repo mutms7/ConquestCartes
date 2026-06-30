@@ -1,7 +1,7 @@
 extends SceneTree
 
 const CARD_DATA_PATH := "res://data/cards/starter_cards.json"
-const EXPECTED_CARD_COUNT := 63
+const EXPECTED_CARD_COUNT := 65
 const WORDING_GUIDE_PATH := "res://docs/card_wording_conventions.md"
 const INACTIVE_CARD_IDS := [
 	"starpath_seeker",
@@ -10,6 +10,12 @@ const INACTIVE_CARD_IDS := [
 	"astral_spyglass",
 	"relic_seeker",
 	"briar_hex",
+]
+# Timer cards that only appear in multiplayer markets (excluded from solo).
+const MULTIPLAYER_ONLY_CARD_IDS := [
+	"sunspire_bell",
+	"hourglass_reliquary",
+	"twilight_retreat",
 ]
 const EXPECTED_ART_LINKED_NAMES := {
 	"wishing_garden": "Wishing Stone",
@@ -80,6 +86,7 @@ func _initialize() -> void:
 	_test_supply_piles()
 	_test_turn_cooldown()
 	_test_turn_based_mode()
+	_test_multiplayer_only_timer_cards()
 	_test_multiplayer_lobby_attacks()
 	_test_multiplayer_game_end()
 	_test_special_effects()
@@ -374,8 +381,8 @@ func _test_turn_cooldown() -> void:
 	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
 	_check(game_state.play_card(bell), "Sunspire Bell should play.")
 	_check(
-		is_equal_approx(game_state.get_end_turn_cooldown_seconds(), 4.5),
-		"Sunspire Bell should reduce the multiplayer end-turn cooldown by 0.5 seconds."
+		is_equal_approx(game_state.get_end_turn_cooldown_seconds(), 4.0),
+		"Sunspire Bell should reduce the multiplayer end-turn cooldown by 1 second this turn."
 	)
 
 	game_state = _empty_game()
@@ -389,8 +396,74 @@ func _test_turn_cooldown() -> void:
 	var cooldown_before := turn_manager.cooldown_remaining
 	_check(game_state.play_card(bell), "Sunspire Bell should play during cooldown.")
 	_check(
-		is_equal_approx(turn_manager.cooldown_remaining, cooldown_before - 0.5),
-		"Sunspire Bell should shorten an active cooldown by 0.5 seconds."
+		is_equal_approx(turn_manager.cooldown_remaining, cooldown_before - 1.0),
+		"Sunspire Bell should shorten an active cooldown by 1 second."
+	)
+
+
+func _test_multiplayer_only_timer_cards() -> void:
+	# The timer cards only appear in multiplayer markets, and their cooldown
+	# effects apply per-turn (Bell / Retreat) or per-conquest (Reliquary).
+	var solo := _create_game_state()
+	if solo == null:
+		return
+	var solo_ids: Array[String] = []
+	for candidate in solo.get_market_candidates():
+		solo_ids.append(candidate.id)
+	for card_id in MULTIPLAYER_ONLY_CARD_IDS:
+		_check(
+			not solo_ids.has(card_id),
+			"%s should be hidden from singleplayer markets." % card_id
+		)
+
+	var mp := GameState.new()
+	if not mp.load_cards(CARD_DATA_PATH):
+		_check(false, "Card data should load for multiplayer-only cards.")
+		return
+	mp.setup_starting_game(2)
+	var mp_ids: Array[String] = []
+	for candidate in mp.get_market_candidates():
+		mp_ids.append(candidate.id)
+	for card_id in MULTIPLAYER_ONLY_CARD_IDS:
+		_check(
+			mp_ids.has(card_id),
+			"%s should be available as a multiplayer market candidate." % card_id
+		)
+
+	# Hourglass Reliquary: a per-conquest reduction that survives a turn reset,
+	# and trashes itself when played.
+	var relic_state := _empty_game()
+	relic_state.multiplayer_enabled = true
+	var relic: CardDefinition = relic_state.card_catalog["hourglass_reliquary"]
+	relic_state.player.hand.append(relic)
+	_check(relic_state.play_card(relic), "Hourglass Reliquary should play.")
+	_check(
+		relic_state.player.trash_pile.has(relic),
+		"Hourglass Reliquary should trash itself when played."
+	)
+	_check(
+		is_equal_approx(relic_state.get_end_turn_cooldown_seconds(), 4.5),
+		"Hourglass Reliquary should cut the cooldown by 0.5 seconds."
+	)
+	relic_state.reset_turn_resources()
+	_check(
+		is_equal_approx(relic_state.get_end_turn_cooldown_seconds(), 4.5),
+		"The conquest cooldown reduction should persist past a turn reset."
+	)
+
+	# Twilight Retreat: reduces this turn's cooldown and flags the turn to end.
+	var retreat_state := _empty_game()
+	retreat_state.multiplayer_enabled = true
+	var retreat: CardDefinition = retreat_state.card_catalog["twilight_retreat"]
+	retreat_state.player.hand.append(retreat)
+	_check(retreat_state.play_card(retreat), "Twilight Retreat should play.")
+	_check(
+		is_equal_approx(retreat_state.get_end_turn_cooldown_seconds(), 2.0),
+		"Twilight Retreat should cut this turn's cooldown by 3 seconds."
+	)
+	_check(
+		retreat_state.consume_end_turn_request(),
+		"Twilight Retreat should request that the turn ends."
 	)
 
 
@@ -1127,8 +1200,13 @@ func _test_random_market_setup() -> void:
 	_check(first_market.size() == GameState.MARKET_SIZE, "Market should use its configured size.")
 	_check(
 		game_state.get_market_candidates().size()
-		== EXPECTED_CARD_COUNT - GameState.STARTING_CARD_COUNTS.size() - INACTIVE_CARD_IDS.size(),
-		"Only starter and explicitly inactive cards should be excluded from the market."
+		== (
+			EXPECTED_CARD_COUNT
+			- GameState.STARTING_CARD_COUNTS.size()
+			- INACTIVE_CARD_IDS.size()
+			- MULTIPLAYER_ONLY_CARD_IDS.size()
+		),
+		"Solo markets should exclude starter, inactive, and multiplayer-only cards."
 	)
 	for card_id in INACTIVE_CARD_IDS:
 		_check(not first_market.has(card_id), "%s should not appear in the market." % card_id)

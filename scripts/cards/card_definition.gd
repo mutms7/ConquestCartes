@@ -16,6 +16,7 @@ var gain_actions: int = 0
 var gain_buys: int = 0
 var gain_coins: int = 0
 var market_enabled: bool = true
+var multiplayer_only: bool = false
 var special_effects: Array[Dictionary] = []
 
 
@@ -36,6 +37,7 @@ static func from_dict(data: Dictionary) -> CardDefinition:
 	card.gain_buys = int(data.get("gain_buys", 0))
 	card.gain_coins = int(data.get("gain_coins", 0))
 	card.market_enabled = bool(data.get("market_enabled", true))
+	card.multiplayer_only = bool(data.get("multiplayer_only", false))
 	var effects_data = data.get("special_effects", [])
 	if typeof(effects_data) == TYPE_ARRAY:
 		for effect in effects_data:

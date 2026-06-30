@@ -701,6 +701,7 @@ func _create_network_snapshot() -> Dictionary:
 			"actions": game_player.actions,
 			"buys": game_player.buys,
 			"cooldown_reduction": game_player.end_turn_cooldown_reduction,
+			"game_cooldown_reduction": game_player.game_cooldown_reduction,
 			"turn_flags": _serialize_turn_flags(game_player.turn_flags),
 			"pending_choice": _serialize_choice(game_player.pending_choice),
 			"cleanup_in_progress": game_player.cleanup_in_progress,
@@ -791,6 +792,9 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		synced_player.buys = int(player_data.get("buys", 1))
 		synced_player.end_turn_cooldown_reduction = float(
 			player_data.get("cooldown_reduction", 0.0)
+		)
+		synced_player.game_cooldown_reduction = float(
+			player_data.get("game_cooldown_reduction", 0.0)
 		)
 		synced_player.turn_flags = player_data.get("turn_flags", {}).duplicate(true)
 		synced_player.pending_choice = _choice_from_snapshot(player_data.get("pending_choice", {}))
@@ -890,6 +894,8 @@ func _rpc_request_play_card(card_id: String) -> void:
 	_set_authoritative_player(player_index)
 	var card := _find_card_in_active_hand(card_id)
 	if card != null and game_state.play_card(card):
+		if game_state.consume_end_turn_request():
+			_start_network_player_cooldown(player_index)
 		_restore_local_network_view()
 		_broadcast_network_snapshot()
 	else:
@@ -5425,6 +5431,21 @@ func _on_hand_card_pressed(card: CardDefinition) -> void:
 		call_deferred("_animate_draw_cards", card.draw_cards)
 	if played and network_enabled and network_is_host:
 		_broadcast_network_snapshot()
+	if played and game_state.consume_end_turn_request():
+		_end_turn_from_card(local_player_index)
+
+
+func _end_turn_from_card(player_index: int) -> void:
+	# A card asked to end the player's turn. Route through the same paths as the
+	# End Turn button so cooldowns and turn-passing behave identically.
+	if network_enabled and network_is_host:
+		_start_network_player_cooldown(player_index)
+		_refresh_ui()
+		_queue_network_ui_refresh()
+		_broadcast_network_snapshot()
+	elif not network_enabled:
+		turn_manager.end_turn()
+		_refresh_ui()
 
 
 func _on_market_card_pressed(card: CardDefinition) -> void:

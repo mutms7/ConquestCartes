@@ -182,7 +182,9 @@ func get_end_turn_cooldown_seconds() -> float:
 		return 0.0
 	return maxf(
 		0.5,
-		end_turn_cooldown_seconds - player.end_turn_cooldown_reduction
+		end_turn_cooldown_seconds
+		- player.end_turn_cooldown_reduction
+		- player.game_cooldown_reduction
 	)
 
 
@@ -192,6 +194,27 @@ func reduce_end_turn_cooldown(amount: float) -> void:
 		return
 	player.end_turn_cooldown_reduction += reduction
 	end_turn_cooldown_reduced.emit(reduction)
+
+
+func reduce_end_turn_cooldown_for_game(amount: float) -> void:
+	# A permanent reduction that lasts the rest of the conquest (every future
+	# turn), unlike reduce_end_turn_cooldown which only affects the current turn.
+	var reduction := maxf(0.0, amount)
+	if reduction <= 0.0:
+		return
+	player.game_cooldown_reduction += reduction
+	end_turn_cooldown_reduced.emit(reduction)
+
+
+func request_end_turn_after_play() -> void:
+	turn_flags["end_turn_after_play"] = true
+
+
+func consume_end_turn_request() -> bool:
+	if bool(turn_flags.get("end_turn_after_play", false)):
+		turn_flags.erase("end_turn_after_play")
+		return true
+	return false
 
 
 func has_pending_choice() -> bool:
@@ -212,6 +235,8 @@ func get_market_candidates() -> Array[CardDefinition]:
 			continue
 		var card: CardDefinition = card_catalog[card_id]
 		if not card.market_enabled:
+			continue
+		if card.multiplayer_only and not multiplayer_enabled:
 			continue
 		if not is_kingdom_enabled(get_card_kingdom(card)):
 			continue
@@ -800,6 +825,10 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 			)
 		"reduce_end_turn_cooldown":
 			reduce_end_turn_cooldown(float(effect.get("amount", 0.5)))
+		"reduce_end_turn_cooldown_game":
+			reduce_end_turn_cooldown_for_game(float(effect.get("amount", 0.5)))
+		"end_turn":
+			request_end_turn_after_play()
 		"discard_filtered":
 			var discard_candidates := _filter_hand_cards(effect)
 			var discard_amount := mini(int(effect.get("amount", 1)), discard_candidates.size())

@@ -1081,15 +1081,55 @@
     "name": "Sunspire Bell",
     "type": "action",
     "art_id": "sunspire_monument",
-    "cost": 6,
-    "description": "Draw 1 card. Gain 1 action. Reduce your end-turn cooldown by 0.5 seconds this turn.",
-    "draw_cards": 1,
+    "cost": 5,
+    "description": "Gain 1 action. Reduce your end-turn cooldown by 1 second this turn.",
     "gain_actions": 1,
+    "multiplayer_only": true,
     "special_effects": [
       {
         "kind": "reduce_end_turn_cooldown",
+        "amount": 1.0,
+        "label": "Cooldown -1s"
+      }
+    ]
+  },
+  {
+    "id": "hourglass_reliquary",
+    "name": "Time Relic",
+    "type": "action",
+    "art_id": "gilded_reliquary",
+    "cost": 6,
+    "description": "Reduce your end-turn cooldown by 0.5 seconds for the rest of the conquest, then trash this.",
+    "multiplayer_only": true,
+    "special_effects": [
+      {
+        "kind": "reduce_end_turn_cooldown_game",
         "amount": 0.5,
-        "label": "Cooldown -0.5"
+        "label": "Cooldown -0.5s (conquest)"
+      },
+      {
+        "kind": "trash_self",
+        "label": "Trash this"
+      }
+    ]
+  },
+  {
+    "id": "twilight_retreat",
+    "name": "Dusk Retreat",
+    "type": "action",
+    "art_id": "starlit_wagon",
+    "cost": 5,
+    "description": "Reduce your end-turn cooldown by 3 seconds this turn, then end your turn.",
+    "multiplayer_only": true,
+    "special_effects": [
+      {
+        "kind": "reduce_end_turn_cooldown",
+        "amount": 3.0,
+        "label": "Cooldown -3s"
+      },
+      {
+        "kind": "end_turn",
+        "label": "End your turn"
       }
     ]
   }

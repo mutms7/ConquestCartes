@@ -10,6 +10,8 @@ var trash_pile: Array[CardDefinition] = []
 var player_name: String = "Player"
 var turn_number: int = 1
 var end_turn_cooldown_reduction: float = 0.0
+# Persists for the whole conquest (game); not reset each turn.
+var game_cooldown_reduction: float = 0.0
 var turn_flags: Dictionary = {}
 var pending_choice: CardChoice
 var resolution_queue: Array[Dictionary] = []
@@ -37,6 +39,7 @@ func clear_all() -> void:
 	ending_turn = false
 	cooldown_remaining = 0.0
 	cooldown_duration = 0.0
+	game_cooldown_reduction = 0.0
 	reset_turn_resources()
 
 
