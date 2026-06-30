@@ -1474,8 +1474,9 @@ func _create_relics_rail() -> PanelContainer:
 		label.add_theme_font_override("font", title_font)
 	row.add_child(label)
 
+	# Relic slots start empty; relics get added later.
 	for index in range(4):
-		row.add_child(_create_relic_slot(index < 2, index))
+		row.add_child(_create_relic_slot(false, index))
 	return rail
 
 
@@ -1963,7 +1964,8 @@ func _build_multiplayer_panel() -> void:
 		"CreateLocalButton",
 		"Create local",
 		"Host a table on your network.",
-		true
+		true,
+		"⌂"
 	)
 	home_create_lobby_button.pressed.connect(_on_home_create_lobby_pressed)
 	options.add_child(home_create_lobby_button)
@@ -1972,7 +1974,8 @@ func _build_multiplayer_panel() -> void:
 		"JoinLocalButton",
 		"Join local",
 		"Enter a host IP to join.",
-		true
+		true,
+		"→"
 	)
 	home_join_lobby_button.pressed.connect(_on_home_join_lobby_pressed)
 	options.add_child(home_join_lobby_button)
@@ -1981,7 +1984,8 @@ func _build_multiplayer_panel() -> void:
 		"CreateOnlineButton",
 		"Create online",
 		"Coming soon.",
-		false
+		false,
+		"✦"
 	)
 	options.add_child(create_online)
 
@@ -1989,7 +1993,8 @@ func _build_multiplayer_panel() -> void:
 		"JoinOnlineButton",
 		"Join online",
 		"Coming soon.",
-		false
+		false,
+		"#"
 	)
 	options.add_child(join_online)
 
@@ -2292,25 +2297,90 @@ func _create_multiplayer_option_button(
 	button_name: String,
 	title: String,
 	description: String,
-	enabled: bool
+	enabled: bool,
+	icon_glyph: String = "*"
 ) -> Button:
 	var button := Button.new()
 	button.name = button_name
-	button.text = "%s\n%s" % [title, description]
 	button.custom_minimum_size = Vector2(230, 118)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	button.disabled = not enabled
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if enabled else Control.CURSOR_ARROW
-	button.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
-	button.add_theme_color_override("font_disabled_color", COLOR_PARCHMENT_MUTED)
-	button.add_theme_font_size_override("font_size", 15)
-	if body_bold_font != null:
-		button.add_theme_font_override("font", body_bold_font)
 	button.add_theme_stylebox_override("normal", _make_parchment_button_style(false))
 	button.add_theme_stylebox_override("hover", _make_parchment_button_style(false, true))
 	button.add_theme_stylebox_override("disabled", _make_parchment_button_style(false, false, true))
+
+	var margin := MarginContainer.new()
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_top", 14)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_bottom", 14)
+	button.add_child(margin)
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 14)
+	row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	margin.add_child(row)
+
+	var ink := COLOR_PARCHMENT_INK if enabled else COLOR_PARCHMENT_MUTED
+	row.add_child(_create_mp_icon_tile(icon_glyph, enabled))
+
+	var text_column := VBoxContainer.new()
+	text_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	text_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	text_column.alignment = BoxContainer.ALIGNMENT_CENTER
+	text_column.add_theme_constant_override("separation", 4)
+	row.add_child(text_column)
+
+	var title_label := Label.new()
+	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title_label.text = title
+	title_label.add_theme_color_override("font_color", ink)
+	title_label.add_theme_font_size_override("font_size", 18)
+	if title_font != null:
+		title_label.add_theme_font_override("font", title_font)
+	text_column.add_child(title_label)
+
+	var desc_label := Label.new()
+	desc_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	desc_label.text = description
+	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc_label.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
+	desc_label.add_theme_font_size_override("font_size", 13)
+	if body_font != null:
+		desc_label.add_theme_font_override("font", body_font)
+	text_column.add_child(desc_label)
 	return button
+
+
+func _create_mp_icon_tile(glyph: String, enabled: bool) -> Panel:
+	var tile := Panel.new()
+	tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tile.custom_minimum_size = Vector2(46, 46)
+	tile.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var fill := Color("#e8c879") if enabled else Color(0.78, 0.7, 0.52, 0.6)
+	var style := _make_flat_card_style(fill, Color("#9c6f28"), 1)
+	style.set_corner_radius_all(11)
+	style.shadow_color = Color(0.835, 0.667, 0.314, 0.3) if enabled else Color.TRANSPARENT
+	style.shadow_size = 6 if enabled else 0
+	tile.add_theme_stylebox_override("panel", style)
+	var label := Label.new()
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.text = glyph
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_color_override("font_color", Color("#3a2410"))
+	label.add_theme_font_size_override("font_size", 22)
+	if title_font != null:
+		label.add_theme_font_override("font", title_font)
+	tile.add_child(label)
+	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	return tile
 
 
 func _create_lobby_max_players_row() -> VBoxContainer:
@@ -3099,22 +3169,12 @@ func _refresh_kingdom_detail() -> void:
 		return
 	var card: CardDefinition = game_state.card_catalog[selected_home_kingdom_card_id]
 
-	var detail_card := _create_card_button(card, "kingdom_detail")
-	detail_card.name = "DetailCard_%s" % card.id
-	detail_card.focus_mode = Control.FOCUS_NONE
-	detail_card.mouse_default_cursor_shape = Control.CURSOR_ARROW
-	home_kingdom_detail_host.add_child(detail_card)
-
-	var meta_label := Label.new()
-	meta_label.name = "DetailMeta"
-	meta_label.text = "%s    COST %d" % [card.card_type.to_upper(), card.cost]
-	if not card.card_group.is_empty():
-		meta_label.text += "    %s" % card.card_group.to_upper()
-	meta_label.add_theme_color_override("font_color", Color("#9c6f28"))
-	meta_label.add_theme_font_size_override("font_size", 12)
-	if body_bold_font != null:
-		meta_label.add_theme_font_override("font", body_bold_font)
-	home_kingdom_detail_host.add_child(meta_label)
+	# Show the very same large card preview the player sees when hovering a card
+	# on the game board.
+	var preview_view := _build_card_preview_view(card)
+	preview_view.name = "DetailCard_%s" % card.id
+	preview_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	home_kingdom_detail_host.add_child(preview_view)
 
 	var card_toggle := CheckButton.new()
 	card_toggle.name = "DetailCardToggle"
@@ -3132,24 +3192,98 @@ func _refresh_kingdom_detail() -> void:
 	card_toggle.toggled.connect(_on_kingdom_card_toggled.bind(card.id))
 	home_kingdom_detail_host.add_child(card_toggle)
 
-	var rules_label := RichTextLabel.new()
-	rules_label.name = "DetailRules"
-	rules_label.bbcode_enabled = true
-	rules_label.fit_content = false
-	rules_label.scroll_active = true
-	rules_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	rules_label.custom_minimum_size = Vector2(0, 116)
-	rules_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rules_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	rules_label.text = "[center]%s[/center]" % _get_card_rules_text(card.description)
-	rules_label.add_theme_color_override("default_color", COLOR_PARCHMENT_BODY)
-	rules_label.add_theme_font_size_override("normal_font_size", 13)
-	rules_label.add_theme_font_size_override("bold_font_size", 13)
-	if body_font != null:
-		rules_label.add_theme_font_override("normal_font", body_font)
+
+func _build_card_preview_view(card: CardDefinition) -> PanelContainer:
+	# Recreates the in-game hover preview (CardPreview in Main.tscn) as a
+	# self-contained panel so menus can show the identical large card view.
+	var type_palette := _get_card_type_palette(card.card_type)
+	var surface := _get_card_surface_color(card.card_type)
+
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _make_preview_style(surface, type_palette.accent))
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 14)
+	margin.add_theme_constant_override("margin_top", 13)
+	margin.add_theme_constant_override("margin_right", 14)
+	margin.add_theme_constant_override("margin_bottom", 13)
+	panel.add_child(margin)
+
+	var layout := VBoxContainer.new()
+	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_theme_constant_override("separation", 6)
+	margin.add_child(layout)
+
+	var name_label := Label.new()
+	name_label.name = "PreviewName"
+	name_label.text = card.card_name
+	name_label.custom_minimum_size = Vector2(0, 36)
+	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_label.add_theme_color_override("font_color", type_palette.name_text)
+	name_label.add_theme_font_size_override("font_size", 21)
+	if title_font != null:
+		name_label.add_theme_font_override("font", title_font)
+	layout.add_child(name_label)
+
+	var meta_label := Label.new()
+	meta_label.name = "PreviewMeta"
+	meta_label.text = (
+		"%s · COST %d COINS · %s"
+		% [
+			card.card_type.to_upper(),
+			game_state.get_effective_cost(card),
+			_get_card_meta_chip_text(card).to_upper()
+		]
+	)
+	if not card.card_group.is_empty():
+		meta_label.text += " · %s" % card.card_group.to_upper()
+	meta_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	meta_label.add_theme_color_override("font_color", type_palette.chip_text)
+	meta_label.add_theme_font_size_override("font_size", 11)
 	if body_bold_font != null:
-		rules_label.add_theme_font_override("bold_font", body_bold_font)
-	home_kingdom_detail_host.add_child(rules_label)
+		meta_label.add_theme_font_override("font", body_bold_font)
+	layout.add_child(meta_label)
+
+	var art_frame := PanelContainer.new()
+	art_frame.name = "PreviewArtFrame"
+	art_frame.clip_contents = true
+	art_frame.custom_minimum_size = Vector2(0, PREVIEW_ART_HEIGHT)
+	art_frame.add_theme_stylebox_override(
+		"panel",
+		_make_card_art_style(surface.darkened(0.14))
+	)
+	layout.add_child(art_frame)
+
+	var art := TextureRect.new()
+	art.name = "PreviewArt"
+	art.texture = _load_card_texture(card.art_id)
+	art.modulate = Color(1, 1, 1, CARD_ART_OPACITY)
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	art_frame.add_child(art)
+	art_frame.visible = art.texture != null
+
+	var effect_label := RichTextLabel.new()
+	effect_label.name = "PreviewEffect"
+	effect_label.bbcode_enabled = true
+	effect_label.fit_content = false
+	effect_label.scroll_active = false
+	effect_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	effect_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	effect_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	effect_label.custom_minimum_size = Vector2(0, 120)
+	effect_label.text = _get_card_rules_text(card.description)
+	effect_label.add_theme_color_override("default_color", type_palette.description_text)
+	effect_label.add_theme_font_size_override("normal_font_size", 13)
+	effect_label.add_theme_font_size_override("bold_font_size", 13)
+	if body_font != null:
+		effect_label.add_theme_font_override("normal_font", body_font)
+	if body_bold_font != null:
+		effect_label.add_theme_font_override("bold_font", body_bold_font)
+	layout.add_child(effect_label)
+
+	return panel
 
 
 func _node_key(value: String) -> String:
@@ -3826,9 +3960,15 @@ func _render_market_cards(
 	cards: Array[CardDefinition],
 	container: GridContainer
 ) -> void:
+	# Before any card is played this turn the player has no coins to judge
+	# affordability by, so show the whole market fully saturated (neutral).
+	# Once they start playing cards, switch to the affordable / unaffordable look.
+	var no_cards_played := game_state.player.play_area.is_empty()
 	for card in cards:
 		var affordable := _can_buy_card(card)
-		var visual_state := MARKET_AFFORDABLE if affordable else MARKET_UNAFFORDABLE
+		var visual_state := MARKET_NEUTRAL
+		if not no_cards_played:
+			visual_state = MARKET_AFFORDABLE if affordable else MARKET_UNAFFORDABLE
 		var button := _create_card_button(card, visual_state)
 		button.disabled = game_state.get_supply_count(card.id) <= 0
 		button.mouse_default_cursor_shape = (

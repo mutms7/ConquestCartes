@@ -477,16 +477,16 @@ func _initialize() -> void:
 		var pre_play_market_supply: int = main_ui.game_state.get_supply_count(pre_play_market_card_id)
 		var pre_play_discard_count: int = main_ui.game_state.player.discard_pile.size()
 		_check(
-			pre_play_market_button.get_meta("visual_state") == "market_unaffordable"
+			pre_play_market_button.get_meta("visual_state") == "market_neutral"
 			and not pre_play_market_button.disabled,
-			"Pre-play market cards should stay inspectable but show unaffordable treatment."
+			"Pre-play market cards should be neutral and inspectable before any card is played."
 		)
 		_check(
-			_card_art(pre_play_market_button).material != null
+			_card_art(pre_play_market_button).material == null
 			and _card_art(pre_play_market_button).modulate.a >= 0.9
-			and pre_play_market_button.modulate.a < 1.0
+			and is_equal_approx(pre_play_market_button.modulate.a, 1.0)
 			and _card_art_scrim(pre_play_market_button).color.a <= 0.24,
-			"Unaffordable market art should be dimmed while remaining readable."
+			"Pre-play market cards should stay fully saturated, not dimmed."
 		)
 		_check(
 			is_equal_approx(_card_art_coverage(pre_play_market_button), main_ui.CARD_ART_HEIGHT / main_ui.CARD_FACE_SIZE.y),
@@ -549,6 +549,11 @@ func _initialize() -> void:
 		_check(
 			_play_area_panel().size == play_area_size_before_play,
 			"Playing a card should not resize the play area or move the UI."
+		)
+		var post_play_market_button := _all_market_buttons()[0]
+		_check(
+			post_play_market_button.get_meta("visual_state") != "market_neutral",
+			"After a card is played the market should switch to affordability treatment."
 		)
 
 	var short_rules_card: CardDefinition = main_ui.game_state.card_catalog["candlecap_laboratory"]
@@ -1207,8 +1212,8 @@ func _kingdom_card_button(card_id: String) -> Button:
 	return _home_kingdoms_panel().find_child("Card_%s" % card_id, true, false) as Button
 
 
-func _kingdom_detail_card(card_id: String) -> Button:
-	return _home_kingdoms_panel().find_child("DetailCard_%s" % card_id, true, false) as Button
+func _kingdom_detail_card(card_id: String) -> Control:
+	return _home_kingdoms_panel().find_child("DetailCard_%s" % card_id, true, false) as Control
 
 
 func _kingdom_detail_toggle() -> CheckButton:
