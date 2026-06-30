@@ -141,8 +141,8 @@ func _initialize() -> void:
 	_check(
 		is_equal_approx(_home_kingdoms_panel().anchor_left, 0.5)
 		and is_equal_approx(_home_kingdoms_panel().anchor_right, 0.5)
-		and _home_kingdoms_panel().offset_left == -610
-		and _home_kingdoms_panel().offset_right == 610,
+		and _home_kingdoms_panel().offset_left == -578
+		and _home_kingdoms_panel().offset_right == 578,
 		"Kingdoms browser should be centered at the wide handoff width."
 	)
 	_kingdoms_close_button().pressed.emit()
@@ -409,7 +409,7 @@ func _initialize() -> void:
 		)
 		_check(
 			is_equal_approx(_card_art_coverage(resource_button), main_ui.HAND_CARD_ART_HEIGHT / main_ui.CARD_FACE_SIZE.y)
-			and _card_text_scrim(resource_button).color.a <= 0.96,
+			and _card_text_scrim_alpha(resource_button) <= 0.96,
 			"Card art should occupy the top band with a distinct rules body below."
 		)
 		_check(_card_art(resource_button).texture != null, "Card faces should display card artwork.")
@@ -1400,8 +1400,13 @@ func _card_art_scrim(button: Button) -> ColorRect:
 	return button.get_node("CardContent/CardLayout/ArtFrame/ArtScrim")
 
 
-func _card_text_scrim(button: Button) -> ColorRect:
+func _card_text_scrim(button: Button) -> Panel:
 	return button.get_node("CardContent/CardLayout/TextScrim")
+
+
+func _card_text_scrim_alpha(button: Button) -> float:
+	var style := _card_text_scrim(button).get_theme_stylebox("panel") as StyleBoxFlat
+	return style.bg_color.a if style != null else 1.0
 
 
 func _card_art_coverage(button: Button) -> float:
@@ -1469,7 +1474,7 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 		or effect_center.alignment != BoxContainer.ALIGNMENT_BEGIN
 		or _card_art_coverage(button) < 0.48
 		or _card_art_coverage(button) > 0.58
-		or text_scrim.color.a > 0.96
+		or _card_text_scrim_alpha(button) > 0.96
 		or not price_badge.has_node("CoinFace")
 		or not price_badge.has_node("InnerRing")
 		or not price_badge.has_node("CoinRivet")

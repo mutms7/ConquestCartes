@@ -75,11 +75,16 @@ const COLOR_RESOURCE_ACCENT := Color("#f0bd58")
 const COLOR_ACTION_ACCENT := Color("#7db6e8")
 const COLOR_VICTORY_ACCENT := Color("#e08aa2")
 const COLOR_CURSE_ACCENT := Color("#b49ad9")
-const COLOR_PARCHMENT_PANEL := Color("#f5e6c0")
-const COLOR_PARCHMENT_PANEL_DARK := Color("#e3cb94")
-const COLOR_PARCHMENT_INK := Color("#2c1d0c")
-const COLOR_PARCHMENT_BODY := Color("#3a2a16")
-const COLOR_PARCHMENT_MUTED := Color("#6e4f24")
+# Menu surfaces (Settings / Kingdoms / Multiplayer / Lobby) are styled to match
+# the dark, thin-brass-bordered home buttons that open them: a dark walnut
+# interior with light parchment type, rather than a bright cream parchment card.
+const COLOR_PARCHMENT_PANEL := Color(0.105, 0.075, 0.045, 0.98)
+const COLOR_PARCHMENT_PANEL_DARK := Color(0.07, 0.05, 0.03, 0.98)
+const COLOR_PARCHMENT_INK := Color("#f0dcab")
+const COLOR_PARCHMENT_BODY := Color("#e4d4ad")
+const COLOR_PARCHMENT_MUTED := Color("#9c8a64")
+const COLOR_MENU_ACCENT := Color("#caa25a")
+const COLOR_MENU_BORDER := Color(0.835, 0.667, 0.314, 0.5)
 
 const TITLE_FONT_PATH := "res://assets/fonts/Cinzel/static/Cinzel-Bold.ttf"
 const BODY_FONT_PATH := "res://assets/fonts/Inter/static/Inter_18pt-Regular.ttf"
@@ -1820,20 +1825,20 @@ func _create_home_panel(panel_name: String, panel_size: Vector2) -> PanelContain
 
 
 func _build_settings_panel() -> void:
-	home_settings_panel = _create_home_panel("SettingsPanel", Vector2(470, 610))
+	home_settings_panel = _create_home_panel("SettingsPanel", Vector2(470, 672))
 	var margin := MarginContainer.new()
 	margin.name = "Margin"
 	margin.add_theme_constant_override("margin_left", 34)
-	margin.add_theme_constant_override("margin_top", 28)
+	margin.add_theme_constant_override("margin_top", 22)
 	margin.add_theme_constant_override("margin_right", 34)
-	margin.add_theme_constant_override("margin_bottom", 28)
+	margin.add_theme_constant_override("margin_bottom", 20)
 	home_settings_panel.add_child(margin)
 
 	var layout := VBoxContainer.new()
 	layout.name = "Layout"
 	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	layout.add_theme_constant_override("separation", 11)
+	layout.add_theme_constant_override("separation", 8)
 	margin.add_child(layout)
 
 	layout.add_child(_create_parchment_title("Settings", "Tune the table without leaving the match."))
@@ -1965,7 +1970,7 @@ func _build_multiplayer_panel() -> void:
 		"Create local",
 		"Host a table on your network.",
 		true,
-		"⌂"
+		"host"
 	)
 	home_create_lobby_button.pressed.connect(_on_home_create_lobby_pressed)
 	options.add_child(home_create_lobby_button)
@@ -1975,7 +1980,7 @@ func _build_multiplayer_panel() -> void:
 		"Join local",
 		"Enter a host IP to join.",
 		true,
-		"→"
+		"join"
 	)
 	home_join_lobby_button.pressed.connect(_on_home_join_lobby_pressed)
 	options.add_child(home_join_lobby_button)
@@ -1985,7 +1990,7 @@ func _build_multiplayer_panel() -> void:
 		"Create online",
 		"Coming soon.",
 		false,
-		"✦"
+		"online"
 	)
 	options.add_child(create_online)
 
@@ -1994,7 +1999,7 @@ func _build_multiplayer_panel() -> void:
 		"Join online",
 		"Coming soon.",
 		false,
-		"#"
+		"online"
 	)
 	options.add_child(join_online)
 
@@ -2144,7 +2149,7 @@ func _create_parchment_title(title_text: String, subtitle: String) -> VBoxContai
 	var crest := Label.new()
 	crest.text = "*"
 	crest.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	crest.add_theme_color_override("font_color", Color("#9c6f28"))
+	crest.add_theme_color_override("font_color", COLOR_MENU_ACCENT)
 	crest.add_theme_font_size_override("font_size", 18)
 	if title_font != null:
 		crest.add_theme_font_override("font", title_font)
@@ -2174,8 +2179,8 @@ func _create_parchment_title(title_text: String, subtitle: String) -> VBoxContai
 func _create_parchment_rule() -> ColorRect:
 	var rule := ColorRect.new()
 	rule.name = "GoldRule"
-	rule.custom_minimum_size = Vector2(0, 2)
-	rule.color = Color(0.612, 0.435, 0.157, 0.44)
+	rule.custom_minimum_size = Vector2(0, 1)
+	rule.color = Color(0.835, 0.667, 0.314, 0.4)
 	return rule
 
 
@@ -2183,7 +2188,7 @@ func _create_settings_section_label(text: String) -> Label:
 	var label := Label.new()
 	label.name = "%sSection" % _node_key(text)
 	label.text = text.to_upper()
-	label.add_theme_color_override("font_color", Color("#9c6f28"))
+	label.add_theme_color_override("font_color", COLOR_MENU_ACCENT)
 	label.add_theme_font_size_override("font_size", 12)
 	if title_font != null:
 		label.add_theme_font_override("font", title_font)
@@ -2249,7 +2254,7 @@ func _create_settings_slider_row(
 	value_label.custom_minimum_size = Vector2(44, 0)
 	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	value_label.add_theme_color_override("font_color", Color("#9c6f28"))
+	value_label.add_theme_color_override("font_color", COLOR_MENU_ACCENT)
 	value_label.add_theme_font_size_override("font_size", 13)
 	if body_bold_font != null:
 		value_label.add_theme_font_override("font", body_bold_font)
@@ -2277,7 +2282,7 @@ func _create_parchment_button(button_name: String, label: String, primary: bool)
 	var button_width := 116 if primary else 92
 	button.custom_minimum_size = Vector2(button_width, 36)
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	var font_color := Color("#3a2410") if primary else Color("#9c6f28")
+	var font_color := Color("#2c1d0c") if primary else COLOR_PARCHMENT_BODY
 	button.add_theme_color_override("font_color", font_color)
 	button.add_theme_color_override(
 		"font_disabled_color",
@@ -2298,7 +2303,7 @@ func _create_multiplayer_option_button(
 	title: String,
 	description: String,
 	enabled: bool,
-	icon_glyph: String = "*"
+	icon_kind: String = "online"
 ) -> Button:
 	var button := Button.new()
 	button.name = button_name
@@ -2327,7 +2332,7 @@ func _create_multiplayer_option_button(
 	margin.add_child(row)
 
 	var ink := COLOR_PARCHMENT_INK if enabled else COLOR_PARCHMENT_MUTED
-	row.add_child(_create_mp_icon_tile(icon_glyph, enabled))
+	row.add_child(_create_mp_icon_tile(icon_kind, enabled))
 
 	var text_column := VBoxContainer.new()
 	text_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2358,10 +2363,10 @@ func _create_multiplayer_option_button(
 	return button
 
 
-func _create_mp_icon_tile(glyph: String, enabled: bool) -> Panel:
+func _create_mp_icon_tile(kind: String, enabled: bool) -> Panel:
 	# A dark, antique-brass medallion: deep translucent walnut fill with a thin
-	# brass rim and a soft top sheen, then a brass glyph. Reads as an inset
-	# plaque rather than a flat bright-gold square.
+	# brass rim, then a crisp line-art glyph drawn directly so it always renders
+	# (the old approach leaned on font glyphs that fell back to empty boxes).
 	var tile := Panel.new()
 	tile.clip_contents = true
 	tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2376,45 +2381,50 @@ func _create_mp_icon_tile(glyph: String, enabled: bool) -> Panel:
 	style.shadow_offset = Vector2(0, 2)
 	tile.add_theme_stylebox_override("panel", style)
 
-	var sheen := TextureRect.new()
-	sheen.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	sheen.texture = _make_vertical_gradient_texture(
-		Color(0.835, 0.667, 0.314, 0.2 if enabled else 0.08),
-		Color(0.835, 0.667, 0.314, 0.0)
-	)
-	sheen.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	sheen.stretch_mode = TextureRect.STRETCH_SCALE
-	tile.add_child(sheen)
-	sheen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	var label := Label.new()
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.text = glyph
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_color_override(
-		"font_color",
-		Color("#e8c879") if enabled else Color(0.835, 0.667, 0.314, 0.45)
-	)
-	label.add_theme_font_size_override("font_size", 22)
-	if title_font != null:
-		label.add_theme_font_override("font", title_font)
-	tile.add_child(label)
-	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var glyph := Control.new()
+	glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ink := Color("#e8c879") if enabled else Color(0.835, 0.667, 0.314, 0.42)
+	glyph.draw.connect(_draw_mp_icon.bind(glyph, kind, ink))
+	tile.add_child(glyph)
+	glyph.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	return tile
 
 
-func _make_vertical_gradient_texture(top: Color, bottom: Color) -> GradientTexture2D:
-	var gradient := Gradient.new()
-	gradient.offsets = PackedFloat32Array([0.0, 1.0])
-	gradient.colors = PackedColorArray([top, bottom])
-	var texture := GradientTexture2D.new()
-	texture.gradient = gradient
-	texture.fill_from = Vector2(0, 0)
-	texture.fill_to = Vector2(0, 1)
-	texture.width = 4
-	texture.height = 48
-	return texture
+func _draw_mp_icon(canvas: Control, kind: String, ink: Color) -> void:
+	# Line-art icons drawn in the canvas's local space (the icon tile, ~46x46).
+	var c := canvas.size * 0.5
+	var w := 2.4
+	match kind:
+		"host":
+			# A table / pavilion: a peaked roof over an open frame.
+			canvas.draw_polyline(PackedVector2Array([
+				Vector2(c.x - 10, c.y - 1),
+				Vector2(c.x, c.y - 10),
+				Vector2(c.x + 10, c.y - 1),
+			]), ink, w, true)
+			canvas.draw_polyline(PackedVector2Array([
+				Vector2(c.x - 7, c.y - 1),
+				Vector2(c.x - 7, c.y + 8),
+				Vector2(c.x + 7, c.y + 8),
+				Vector2(c.x + 7, c.y - 1),
+			]), ink, w, true)
+			canvas.draw_line(Vector2(c.x, c.y + 8), Vector2(c.x, c.y + 2), ink, w, true)
+		"join":
+			# Enter / arrow stepping through a doorway.
+			canvas.draw_line(Vector2(c.x - 10, c.y), Vector2(c.x + 4, c.y), ink, w, true)
+			canvas.draw_polyline(PackedVector2Array([
+				Vector2(c.x, c.y - 5),
+				Vector2(c.x + 5, c.y),
+				Vector2(c.x, c.y + 5),
+			]), ink, w, true)
+			canvas.draw_line(Vector2(c.x + 8, c.y - 9), Vector2(c.x + 8, c.y + 9), ink, w, true)
+		_:
+			# Globe: an outer ring with latitude chords and a central meridian.
+			canvas.draw_arc(c, 9.0, 0.0, TAU, 48, ink, w, true)
+			canvas.draw_line(Vector2(c.x - 9, c.y), Vector2(c.x + 9, c.y), ink, w, true)
+			canvas.draw_line(Vector2(c.x - 7, c.y - 4.5), Vector2(c.x + 7, c.y - 4.5), ink, w * 0.8, true)
+			canvas.draw_line(Vector2(c.x - 7, c.y + 4.5), Vector2(c.x + 7, c.y + 4.5), ink, w * 0.8, true)
+			canvas.draw_line(Vector2(c.x, c.y - 9), Vector2(c.x, c.y + 9), ink, w, true)
 
 
 func _create_lobby_max_players_row() -> VBoxContainer:
@@ -2482,8 +2492,8 @@ func _create_lobby_seat_row(index: int, filled: bool) -> PanelContainer:
 	var panel := PanelContainer.new()
 	panel.name = "Seat%d" % (index + 1)
 	panel.custom_minimum_size = Vector2(0, 62)
-	var seat_bg := Color(0.975, 0.902, 0.706, 0.52) if filled else Color(0.5, 0.39, 0.22, 0.12)
-	var seat_border_alpha := 0.34 if filled else 0.24
+	var seat_bg := Color(0.19, 0.14, 0.085, 0.6) if filled else Color(0.07, 0.05, 0.03, 0.42)
+	var seat_border_alpha := 0.5 if filled else 0.24
 	panel.add_theme_stylebox_override(
 		"panel",
 		_make_pill_style(
@@ -2587,9 +2597,9 @@ func _build_kingdom_browser() -> void:
 	home_kingdoms_panel.anchor_top = 0.5
 	home_kingdoms_panel.anchor_right = 0.5
 	home_kingdoms_panel.anchor_bottom = 0.5
-	home_kingdoms_panel.offset_left = -610
+	home_kingdoms_panel.offset_left = -578
 	home_kingdoms_panel.offset_top = -322
-	home_kingdoms_panel.offset_right = 610
+	home_kingdoms_panel.offset_right = 578
 	home_kingdoms_panel.offset_bottom = 322
 
 	var browser_margin := MarginContainer.new()
@@ -2629,8 +2639,8 @@ func _build_kingdom_browser() -> void:
 	close_button.text = "<- BACK"
 	close_button.custom_minimum_size = Vector2(92, 34)
 	close_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	close_button.add_theme_color_override("font_color", Color("#9c6f28"))
-	close_button.add_theme_color_override("font_hover_color", COLOR_PARCHMENT_BODY)
+	close_button.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	close_button.add_theme_color_override("font_hover_color", Color.WHITE)
 	close_button.add_theme_font_size_override("font_size", 12)
 	if body_bold_font != null:
 		close_button.add_theme_font_override("font", body_bold_font)
@@ -2701,7 +2711,7 @@ func _build_kingdom_browser() -> void:
 	detail_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	detail_panel.add_theme_stylebox_override(
 		"panel",
-			_make_pill_style(Color(0.965, 0.878, 0.69, 0.38), Color(0.612, 0.435, 0.157, 0.38), 14)
+			_make_pill_style(Color(0.05, 0.035, 0.022, 0.55), Color(0.835, 0.667, 0.314, 0.32), 14)
 	)
 	browser.add_child(detail_panel)
 
@@ -4266,10 +4276,12 @@ func _create_card_button(
 	art_frame.clip_contents = true
 	art_frame.custom_minimum_size = Vector2(CARD_FACE_SIZE.x, art_height)
 	art_frame.size = Vector2(CARD_FACE_SIZE.x, art_height)
-	art_frame.add_theme_stylebox_override(
-		"panel",
-		_make_card_art_style(card_surface.darkened(0.16))
-	)
+	# Art sits flush at the top of the card, so it only rounds its top corners;
+	# the bottom edge is straight and meets the text panel below it.
+	var art_style := _make_card_art_style(card_surface.darkened(0.16))
+	art_style.corner_radius_bottom_left = 0
+	art_style.corner_radius_bottom_right = 0
+	art_frame.add_theme_stylebox_override("panel", art_style)
 	layout.add_child(art_frame)
 	art_frame.anchor_left = 0.0
 	art_frame.anchor_top = 0.0
@@ -4299,10 +4311,23 @@ func _create_card_button(
 	art_frame.add_child(art_scrim)
 	art_scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	var text_scrim := ColorRect.new()
+	# The lower text band rounds its bottom corners to match the card's rounded
+	# outline, so the face no longer reads as a square block poking past the frame.
+	var text_scrim := Panel.new()
 	text_scrim.name = "TextScrim"
 	text_scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	text_scrim.color = Color(card_surface.r, card_surface.g, card_surface.b, 0.94)
+	var scrim_style := _make_flat_card_style(
+		Color(card_surface.r, card_surface.g, card_surface.b, 0.94),
+		Color.TRANSPARENT,
+		0
+	)
+	scrim_style.corner_radius_top_left = 0
+	scrim_style.corner_radius_top_right = 0
+	scrim_style.corner_radius_bottom_left = 13
+	scrim_style.corner_radius_bottom_right = 13
+	scrim_style.shadow_color = Color.TRANSPARENT
+	scrim_style.shadow_size = 0
+	text_scrim.add_theme_stylebox_override("panel", scrim_style)
 	text_scrim.position = Vector2(0, text_scrim_y)
 	text_scrim.size = Vector2(CARD_FACE_SIZE.x, CARD_FACE_SIZE.y - text_scrim_y)
 	layout.add_child(text_scrim)
@@ -4933,13 +4958,14 @@ func _make_card_style(
 	border_width: int,
 	highlighted: bool = true
 ) -> StyleBox:
+	# Playable / affordable cards are signalled by their bright type-accent border
+	# alone, not by a coloured halo. Both states use the same restrained dark drop
+	# shadow so the table reads as a clean row of cards rather than a glowing one.
 	var style := _make_flat_card_style(color, border_color, border_width)
 	style.set_corner_radius_all(13)
-	var shadow_color := border_color.lightened(0.1) if highlighted else Color(0, 0, 0, 0.5)
-	shadow_color.a = 0.4 if highlighted else 0.5
-	style.shadow_color = shadow_color
-	style.shadow_size = 16 if highlighted else 10
-	style.shadow_offset = Vector2(0, 8 if highlighted else 5)
+	style.shadow_color = Color(0, 0, 0, 0.45)
+	style.shadow_size = 7 if highlighted else 5
+	style.shadow_offset = Vector2(0, 4)
 	return style
 
 
@@ -5139,16 +5165,16 @@ func _make_preview_style(surface_color: Color, border_color: Color) -> StyleBox:
 
 
 func _make_parchment_panel_style() -> StyleBoxFlat:
-	var style := _make_flat_card_style(COLOR_PARCHMENT_PANEL, Color("#b89a5e"), 2)
+	var style := _make_flat_card_style(COLOR_PARCHMENT_PANEL, COLOR_MENU_BORDER, 1)
 	style.bg_color = COLOR_PARCHMENT_PANEL
-	style.set_corner_radius_all(22)
+	style.set_corner_radius_all(18)
 	style.content_margin_left = 8
 	style.content_margin_top = 8
 	style.content_margin_right = 8
 	style.content_margin_bottom = 8
-	style.shadow_color = Color(0, 0, 0, 0.58)
-	style.shadow_size = 24
-	style.shadow_offset = Vector2(0, 12)
+	style.shadow_color = Color(0, 0, 0, 0.62)
+	style.shadow_size = 26
+	style.shadow_offset = Vector2(0, 14)
 	return style
 
 
@@ -5157,27 +5183,30 @@ func _make_parchment_button_style(
 	hover: bool = false,
 	disabled: bool = false
 ) -> StyleBoxFlat:
-	var bg := Color("#f0cf80") if primary else Color(0.965, 0.878, 0.69, 0.52)
-	var border := Color("#9c6f28")
+	# Primary = a warm brass fill (the main call to action); secondary = the same
+	# dark, thin-brass-bordered ghost treatment as the home menu buttons.
+	var bg := Color("#d8b463") if primary else Color(0.157, 0.114, 0.078, 0.62)
+	var border := Color("#a87f2e") if primary else Color(0.835, 0.667, 0.314, 0.42)
 	if hover and not disabled:
-		bg = Color("#f6dc9b") if primary else Color(0.988, 0.922, 0.745, 0.74)
+		bg = Color("#e6c578") if primary else Color(0.22, 0.16, 0.1, 0.74)
+		border = Color("#c0922f") if primary else Color(0.835, 0.667, 0.314, 0.72)
 	if disabled:
-		bg = Color(0.58, 0.49, 0.34, 0.24)
-		border = Color(0.46, 0.34, 0.16, 0.26)
+		bg = Color(0.4, 0.34, 0.22, 0.28) if primary else Color(0.12, 0.09, 0.06, 0.4)
+		border = Color(0.5, 0.4, 0.22, 0.26)
 	var style := _make_flat_card_style(bg, border, 1)
 	style.set_corner_radius_all(9)
 	style.content_margin_left = 12
 	style.content_margin_top = 7
 	style.content_margin_right = 12
 	style.content_margin_bottom = 7
-	style.shadow_color = Color(0, 0, 0, 0.18)
-	style.shadow_size = 5
+	style.shadow_color = Color(0, 0, 0, 0.22)
+	style.shadow_size = 4
 	style.shadow_offset = Vector2(0, 2)
 	return style
 
 
 func _make_parchment_input_style() -> StyleBoxFlat:
-	var style := _make_flat_card_style(Color(0.94, 0.84, 0.62, 0.62), Color("#9c6f28"), 1)
+	var style := _make_flat_card_style(Color(0.05, 0.035, 0.022, 0.55), COLOR_MENU_BORDER, 1)
 	style.set_corner_radius_all(8)
 	style.content_margin_left = 10
 	style.content_margin_top = 6
