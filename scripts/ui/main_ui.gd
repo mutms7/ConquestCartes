@@ -8,7 +8,11 @@ const MARKET_AFFORDABLE := "market_affordable"
 const MARKET_UNAFFORDABLE := "market_unaffordable"
 const MARKET_NEUTRAL := "market_neutral"
 const CARD_HOVER_SCALE := Vector2(1.03, 1.03)
+const HAND_HOVER_SCALE := Vector2(1.1, 1.1)
 const CARD_NORMAL_SCALE := Vector2.ONE
+# Distance (px) from the hand row's bottom edge down to the shared fan pivot.
+# Larger = gentler arc. Cards rotate around this point so the hand splays out.
+const HAND_FAN_PIVOT_DROP := 360.0
 const HOVER_ANIMATION_SECONDS := 0.08
 const CARD_MOVE_SECONDS := 0.18
 const CARD_DRAW_SECONDS := 0.16
@@ -162,7 +166,8 @@ var home_lobby_panel: PanelContainer
 var home_lobby_seat_list: VBoxContainer
 var home_lobby_rules_summary: Label
 var home_lobby_start_button: Button
-var home_lobby_attack_toggle: CheckButton
+var home_lobby_turn_based_toggle: CheckButton
+var lobby_cooldown_slider: HSlider
 var home_kingdoms_panel: PanelContainer
 var home_kingdom_tab_list: VBoxContainer
 var home_kingdom_title_label: Label
@@ -1473,131 +1478,208 @@ func _build_home_screen() -> void:
 	add_child(home_overlay)
 	home_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	var home_art := _load_optional_texture(HOME_ART_PATH)
-	if home_art != null:
-		var background := TextureRect.new()
-		background.name = "HomeArt"
-		background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		background.texture = home_art
-		background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-		home_overlay.add_child(background)
-		background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# "The Sunspire" title screen: monument art bleeds in from the right while the
+	# menu options sit on the left over a dark left-to-clear scrim (handoff 1a).
+	var art := TextureRect.new()
+	art.name = "HomeArt"
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	art.texture = _load_optional_texture(HOME_ART_PATH)
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	home_overlay.add_child(art)
+	# Bias the cover crop towards the right two thirds so the monument frames the
+	# right side and the menu column reads against the darker left.
+	art.anchor_left = 0.18
+	art.anchor_top = 0.0
+	art.anchor_right = 1.0
+	art.anchor_bottom = 1.0
+
+	var scrim := TextureRect.new()
+	scrim.name = "HomeScrim"
+	scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var scrim_gradient := Gradient.new()
+	scrim_gradient.offsets = PackedFloat32Array([0.0, 0.32, 0.55, 0.75, 1.0])
+	scrim_gradient.colors = PackedColorArray([
+		Color(0.039, 0.027, 0.02, 1.0),
+		Color(0.039, 0.027, 0.02, 0.96),
+		Color(0.047, 0.035, 0.027, 0.55),
+		Color(0.047, 0.035, 0.027, 0.12),
+		Color(0.047, 0.035, 0.027, 0.0)
+	])
+	var scrim_texture := GradientTexture2D.new()
+	scrim_texture.gradient = scrim_gradient
+	scrim_texture.fill_from = Vector2(0, 0)
+	scrim_texture.fill_to = Vector2(1, 0)
+	scrim_texture.width = 96
+	scrim_texture.height = 4
+	scrim.texture = scrim_texture
+	scrim.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	scrim.stretch_mode = TextureRect.STRETCH_SCALE
+	home_overlay.add_child(scrim)
+	scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var vignette := TextureRect.new()
+	vignette.name = "HomeVignette"
+	vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vignette.texture = _make_radial_gradient_texture(
+		PackedFloat32Array([0.0, 0.45, 1.0]),
+		PackedColorArray([
+			Color(0, 0, 0, 0.0),
+			Color(0, 0, 0, 0.0),
+			Color(0, 0, 0, 0.42)
+		]),
+		Vector2(0.2, 0.5),
+		Vector2(1.25, 1.1)
+	)
+	vignette.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	home_overlay.add_child(vignette)
+	vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	home_noise_overlay = _create_noise_rect("HomeNoise", home_noise_amount)
 	home_overlay.add_child(home_noise_overlay)
 	home_noise_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	var dimmer := ColorRect.new()
-	dimmer.name = "Dimmer"
-	dimmer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	dimmer.color = Color(0.02, 0.026, 0.03, 0.56)
-	home_overlay.add_child(dimmer)
-	dimmer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	var side_shade := ColorRect.new()
-	side_shade.name = "MenuShade"
-	side_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	side_shade.color = Color(0.03, 0.036, 0.04, 0.52)
-	home_overlay.add_child(side_shade)
-	side_shade.anchor_right = 0.48
-	side_shade.anchor_bottom = 1.0
-	side_shade.offset_right = 80.0
-
 	var menu_margin := MarginContainer.new()
 	menu_margin.name = "MenuMargin"
 	menu_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	menu_margin.add_theme_constant_override("margin_left", 74)
-	menu_margin.add_theme_constant_override("margin_top", 58)
-	menu_margin.add_theme_constant_override("margin_right", 74)
-	menu_margin.add_theme_constant_override("margin_bottom", 58)
+	menu_margin.add_theme_constant_override("margin_left", 72)
+	menu_margin.add_theme_constant_override("margin_top", 28)
+	menu_margin.add_theme_constant_override("margin_right", 40)
+	menu_margin.add_theme_constant_override("margin_bottom", 28)
 	home_overlay.add_child(menu_margin)
 	menu_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	home_menu_root = menu_margin
 
 	var menu_layout := VBoxContainer.new()
 	menu_layout.name = "Menu"
-	menu_layout.custom_minimum_size = Vector2(370, 0)
+	menu_layout.custom_minimum_size = Vector2(486, 0)
 	menu_layout.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	menu_layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	menu_layout.add_theme_constant_override("separation", 14)
+	menu_layout.alignment = BoxContainer.ALIGNMENT_CENTER
+	menu_layout.add_theme_constant_override("separation", 6)
 	menu_margin.add_child(menu_layout)
 
-	var spacer_top := Control.new()
-	spacer_top.custom_minimum_size = Vector2(0, 28)
-	menu_layout.add_child(spacer_top)
+	var set_label := Label.new()
+	set_label.name = "SetLabel"
+	set_label.text = "BASE KINGDOM   ·   14 CARDS"
+	set_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	set_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	set_label.add_theme_color_override("font_color", COLOR_BRASS)
+	set_label.add_theme_constant_override("shadow_offset_x", 1)
+	set_label.add_theme_constant_override("shadow_offset_y", 1)
+	set_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
+	set_label.add_theme_font_size_override("font_size", 14)
+	if title_font != null:
+		set_label.add_theme_font_override("font", title_font)
+	menu_layout.add_child(set_label)
 
 	var title := Label.new()
 	title.name = "Title"
-	title.text = "CONQUEST CARTES"
+	title.text = "CONQUEST\nCARTES"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	title.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
-	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.76))
-	title.add_theme_constant_override("shadow_offset_x", 2)
-	title.add_theme_constant_override("shadow_offset_y", 3)
-	title.add_theme_font_size_override("font_size", 42)
+	title.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	title.add_theme_color_override("font_color", Color("#edca7a"))
+	title.add_theme_color_override("font_shadow_color", Color(0.835, 0.667, 0.314, 0.22))
+	title.add_theme_constant_override("shadow_offset_x", 0)
+	title.add_theme_constant_override("shadow_offset_y", 2)
+	title.add_theme_constant_override("line_spacing", -6)
+	title.add_theme_font_size_override("font_size", 66)
 	if title_font != null:
 		title.add_theme_font_override("font", title_font)
 	menu_layout.add_child(title)
 
-	var set_label := Label.new()
-	set_label.name = "SetLabel"
-	set_label.text = GameState.HINTERLANDS_GROUP.to_upper()
-	set_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	set_label.add_theme_color_override("font_color", COLOR_BRASS.lightened(0.2))
-	set_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.65))
-	set_label.add_theme_constant_override("shadow_offset_x", 1)
-	set_label.add_theme_constant_override("shadow_offset_y", 2)
-	set_label.add_theme_font_size_override("font_size", 16)
-	if body_bold_font != null:
-		set_label.add_theme_font_override("font", body_bold_font)
-	menu_layout.add_child(set_label)
+	var divider := _create_home_divider()
+	divider.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	menu_layout.add_child(divider)
+
+	var subtitle := Label.new()
+	subtitle.name = "Subtitle"
+	subtitle.text = (
+		"A game of kingdoms, coin, and quiet conquest. Build your deck, "
+		+ "raid the market, and out-scheme every rival at the table."
+	)
+	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	subtitle.custom_minimum_size = Vector2(430, 0)
+	subtitle.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	subtitle.add_theme_color_override("font_color", Color(0.905, 0.847, 0.714, 0.82))
+	subtitle.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.55))
+	subtitle.add_theme_constant_override("shadow_offset_y", 1)
+	subtitle.add_theme_font_size_override("font_size", 16)
+	if body_font != null:
+		subtitle.add_theme_font_override("font", body_font)
+	menu_layout.add_child(subtitle)
+
+	var button_gap := Control.new()
+	button_gap.custom_minimum_size = Vector2(0, 16)
+	menu_layout.add_child(button_gap)
 
 	var button_stack := VBoxContainer.new()
 	button_stack.name = "Buttons"
-	button_stack.custom_minimum_size = Vector2(310, 0)
+	button_stack.custom_minimum_size = Vector2(404, 0)
 	button_stack.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	button_stack.add_theme_constant_override("separation", 10)
+	button_stack.add_theme_constant_override("separation", 11)
 	menu_layout.add_child(button_stack)
 
-	home_new_game_button = _create_home_menu_button("NEW GAME")
+	home_new_game_button = _create_home_primary_button("NEW GAME")
 	home_new_game_button.name = "NewGameButton"
+	home_new_game_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	home_new_game_button.pressed.connect(_on_home_new_game_pressed)
 	button_stack.add_child(home_new_game_button)
 
-	home_continue_button = _create_home_menu_button("CONTINUE")
+	home_continue_button = _create_home_ghost_button("CONTINUE")
 	home_continue_button.name = "ContinueButton"
+	home_continue_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	home_continue_button.pressed.connect(_on_home_continue_pressed)
 	button_stack.add_child(home_continue_button)
 
-	var multiplayer_button := _create_home_menu_button("MULTIPLAYER")
+	var button_row := HBoxContainer.new()
+	button_row.name = "ButtonRow"
+	button_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button_row.add_theme_constant_override("separation", 11)
+	button_stack.add_child(button_row)
+
+	var multiplayer_button := _create_home_ghost_button("MULTIPLAYER")
 	multiplayer_button.name = "MultiplayerButton"
+	multiplayer_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	multiplayer_button.pressed.connect(_on_home_multiplayer_pressed)
-	button_stack.add_child(multiplayer_button)
+	button_row.add_child(multiplayer_button)
 
-	var kingdoms_button := _create_home_menu_button("KINGDOMS")
+	var kingdoms_button := _create_home_ghost_button("KINGDOMS")
 	kingdoms_button.name = "KingdomsButton"
+	kingdoms_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	kingdoms_button.pressed.connect(_on_home_kingdoms_pressed)
-	button_stack.add_child(kingdoms_button)
+	button_row.add_child(kingdoms_button)
 
-	var settings_button := _create_home_menu_button("SETTINGS")
+	var settings_button := _create_home_ghost_button("SETTINGS")
 	settings_button.name = "SettingsButton"
+	settings_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	settings_button.pressed.connect(_on_home_settings_pressed)
-	button_stack.add_child(settings_button)
+	button_row.add_child(settings_button)
 
 	home_lobby_status_label = Label.new()
 	home_lobby_status_label.name = "LobbyStatus"
 	home_lobby_status_label.text = "Choose Multiplayer to host or join a direct-IP table."
+	home_lobby_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	home_lobby_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	home_lobby_status_label.custom_minimum_size = Vector2(404, 0)
+	home_lobby_status_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	home_lobby_status_label.add_theme_color_override("font_color", COLOR_PARCHMENT.darkened(0.08))
 	home_lobby_status_label.add_theme_font_size_override("font_size", 12)
 	if body_font != null:
 		home_lobby_status_label.add_theme_font_override("font", body_font)
 	button_stack.add_child(home_lobby_status_label)
 
-	var spacer_fill := Control.new()
-	spacer_fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	menu_layout.add_child(spacer_fill)
+	var footer := Label.new()
+	footer.name = "HomeFooter"
+	footer.text = "v0.4 · PROTOTYPE      The Bazaar opens to travelers soon."
+	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	footer.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	footer.add_theme_color_override("font_color", Color(0.909, 0.784, 0.475, 0.5))
+	footer.add_theme_font_size_override("font_size", 13)
+	if body_font != null:
+		footer.add_theme_font_override("font", body_font)
+	menu_layout.add_child(footer)
 
 	_build_menu_backdrop()
 	_build_settings_panel()
@@ -1948,7 +2030,7 @@ func _build_lobby_panel() -> void:
 		rules_title.add_theme_font_override("font", title_font)
 	right.add_child(rules_title)
 
-	var lobby_cooldown_slider := _create_settings_slider_row(
+	lobby_cooldown_slider = _create_settings_slider_row(
 		right,
 		"Turn cooldown",
 		"LobbyCooldown",
@@ -1962,12 +2044,12 @@ func _build_lobby_panel() -> void:
 
 	right.add_child(_create_lobby_max_players_row())
 
-	home_lobby_attack_toggle = _create_parchment_toggle(
-		"AttackCardsToggle",
-		game_state.attack_cards_enabled
+	home_lobby_turn_based_toggle = _create_parchment_toggle(
+		"TurnBasedToggle",
+		game_state.turn_based_enabled
 	)
-	home_lobby_attack_toggle.toggled.connect(_on_lobby_attack_cards_toggled)
-	right.add_child(_create_settings_toggle_row("Attack cards", home_lobby_attack_toggle))
+	home_lobby_turn_based_toggle.toggled.connect(_on_lobby_turn_based_toggled)
+	right.add_child(_create_settings_toggle_row("Turn based", home_lobby_turn_based_toggle))
 
 	var kingdom_row := HBoxContainer.new()
 	kingdom_row.name = "KingdomRow"
@@ -2227,19 +2309,30 @@ func _refresh_lobby_panel() -> void:
 		var is_filled := index < filled_count
 		home_lobby_seat_list.add_child(_create_lobby_seat_row(index, is_filled))
 	if home_lobby_rules_summary != null:
-		var attack_status := "attacks on" if game_state.attack_cards_enabled else "attacks off"
-		home_lobby_rules_summary.text = (
-			"Starts when all seated players are ready. Cooldown %.1fs, up to %d players, %s."
-			% [game_state.end_turn_cooldown_seconds, lobby_max_players, attack_status]
-		)
+		if game_state.turn_based_enabled:
+			home_lobby_rules_summary.text = (
+				"Turn based: pass-and-play on one screen with no timer. "
+				+ "Up to %d players take sequential turns; the next player goes when you finish."
+				% lobby_max_players
+			)
+		else:
+			home_lobby_rules_summary.text = (
+				"Starts when all seated players are ready. Cooldown %.1fs, up to %d players, attacks on."
+				% [game_state.end_turn_cooldown_seconds, lobby_max_players]
+			)
 	if home_lobby_start_button != null:
 		home_lobby_start_button.disabled = not game_state.has_enough_market_candidates()
 	if home_lobby_address_input != null:
-		home_lobby_address_input.editable = lobby_pending_mode == "join" and not network_enabled
+		# Turn-based tables are local, so the network invite row is dimmed.
+		var network_lobby := not game_state.turn_based_enabled or lobby_pending_mode == "join"
+		home_lobby_address_input.editable = (
+			network_lobby and lobby_pending_mode == "join" and not network_enabled
+		)
+		home_lobby_address_input.modulate = Color(1, 1, 1, 1.0 if network_lobby else 0.4)
 		if lobby_pending_mode == "host":
 			home_lobby_address_input.text = "%s:%d" % [NETWORK_DEFAULT_ADDRESS, NETWORK_PORT]
-	if home_lobby_attack_toggle != null:
-		home_lobby_attack_toggle.set_pressed_no_signal(game_state.attack_cards_enabled)
+	if home_lobby_turn_based_toggle != null:
+		home_lobby_turn_based_toggle.set_pressed_no_signal(game_state.turn_based_enabled)
 
 
 func _create_lobby_seat_row(index: int, filled: bool) -> PanelContainer:
@@ -2483,6 +2576,81 @@ func _build_kingdom_browser() -> void:
 	home_kingdom_detail_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	home_kingdom_detail_host.add_theme_constant_override("separation", 8)
 	detail_margin.add_child(home_kingdom_detail_host)
+
+
+
+func _create_home_divider() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = "HomeDivider"
+	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	row.add_theme_constant_override("separation", 14)
+
+	var left_line := ColorRect.new()
+	left_line.custom_minimum_size = Vector2(82, 1)
+	left_line.color = Color(0.835, 0.667, 0.314, 0.55)
+	left_line.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(left_line)
+
+	var diamond := Label.new()
+	diamond.text = "◆"
+	diamond.add_theme_color_override("font_color", Color("#d5aa50"))
+	diamond.add_theme_font_size_override("font_size", 11)
+	row.add_child(diamond)
+
+	var right_line := ColorRect.new()
+	right_line.custom_minimum_size = Vector2(82, 1)
+	right_line.color = Color(0.835, 0.667, 0.314, 0.55)
+	right_line.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(right_line)
+	return row
+
+
+func _create_home_primary_button(label: String) -> Button:
+	var button := Button.new()
+	button.text = label
+	button.custom_minimum_size = Vector2(330, 50)
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.add_theme_color_override("font_color", Color("#3a2410"))
+	button.add_theme_color_override("font_hover_color", Color("#2a1908"))
+	button.add_theme_color_override("font_disabled_color", Color(0.23, 0.2, 0.16, 0.7))
+	button.add_theme_font_size_override("font_size", 18)
+	if title_font != null:
+		button.add_theme_font_override("font", title_font)
+	button.add_theme_stylebox_override("normal", _make_end_turn_style(false))
+	button.add_theme_stylebox_override("hover", _make_end_turn_style(true))
+	button.add_theme_stylebox_override("pressed", _make_end_turn_style(false))
+	button.add_theme_stylebox_override("disabled", _make_end_turn_style(false, true))
+	return button
+
+
+func _create_home_ghost_button(label: String) -> Button:
+	var button := Button.new()
+	button.text = label
+	button.custom_minimum_size = Vector2(0, 44)
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.add_theme_color_override("font_color", COLOR_PARCHMENT)
+	button.add_theme_color_override("font_hover_color", Color.WHITE)
+	button.add_theme_color_override("font_disabled_color", COLOR_PARCHMENT.darkened(0.4))
+	button.add_theme_font_size_override("font_size", 14)
+	if title_font != null:
+		button.add_theme_font_override("font", title_font)
+	button.add_theme_stylebox_override(
+		"normal",
+		_make_pill_style(Color(0.157, 0.114, 0.078, 0.6), Color(0.835, 0.667, 0.314, 0.42), 11)
+	)
+	button.add_theme_stylebox_override(
+		"hover",
+		_make_pill_style(Color(0.22, 0.16, 0.1, 0.7), Color(0.835, 0.667, 0.314, 0.7), 11)
+	)
+	button.add_theme_stylebox_override(
+		"pressed",
+		_make_pill_style(Color(0.13, 0.094, 0.062, 0.8), Color(0.835, 0.667, 0.314, 0.5), 11)
+	)
+	button.add_theme_stylebox_override(
+		"disabled",
+		_make_pill_style(Color(0.1, 0.08, 0.06, 0.45), Color(0.4, 0.32, 0.18, 0.3), 11)
+	)
+	return button
 
 
 func _create_home_menu_button(label: String) -> Button:
@@ -3111,8 +3279,10 @@ func _create_market_carpet(
 	var cards := GridContainer.new()
 	cards.name = "Cards"
 	cards.columns = columns
-	cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# Fixed-size cards: the grid hugs its content and centres in the zone so
+	# faces keep their exact size and ratio rather than stretching to fill.
+	cards.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	cards.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	cards.add_theme_constant_override("h_separation", 12)
 	cards.add_theme_constant_override("v_separation", 8)
 	layout.add_child(cards)
@@ -3534,43 +3704,53 @@ func _refresh_hand() -> void:
 		var visual_state := HAND_PLAYABLE if playable else HAND_UNPLAYABLE
 		var button := _create_card_button(card, visual_state)
 		button.disabled = not playable
-		button.rotation_degrees = _get_hand_card_rotation(index, hand_size)
 		button.mouse_default_cursor_shape = (
 			Control.CURSOR_POINTING_HAND if playable else Control.CURSOR_ARROW
 		)
 		button.pressed.connect(_on_hand_card_pressed.bind(card))
 		hand_container.add_child(button)
+	_apply_hand_fan_offsets()
 
 
-func _get_hand_card_rotation(index: int, total: int) -> float:
+func _hand_fan_angle_step(total: int) -> float:
+	# Degrees between neighbouring cards. Fewer cards splay wider; a big hand
+	# tightens the step so the fan never wraps too far.
 	if total <= 1:
 		return 0.0
-	var center := (float(total) - 1.0) * 0.5
-	return clampf((float(index) - center) * 4.0, -8.0, 8.0)
-
-
-func _get_hand_card_lift(index: int, total: int) -> float:
-	# Cards further from the centre sit lower so the fan reads as an arc
-	# (centre highest), matching the handoff's 0 / 5 / 16px vertical offsets.
-	if total <= 1:
-		return 0.0
-	var center := (float(total) - 1.0) * 0.5
-	var distance := absf(float(index) - center)
-	var span := maxf(center, 1.0)
-	return (distance / span) * 18.0
+	return clampf(70.0 / float(total), 6.0, 12.0)
 
 
 func _apply_hand_fan_offsets() -> void:
-	# Runs on every hand-row layout: re-anchor each card's pivot to its
-	# bottom-centre and push the outer cards down so the hand reads as a fan.
+	# Lay the hand out as a true fan: every card shares one pivot point well
+	# below the row and is rotated around it, so the cards radiate from a common
+	# base (like a hand of cards held at the bottom) instead of stepping up like
+	# a podium. Runs on every hand-row layout so it survives re-sorts.
 	var cards := hand_container.get_children()
 	var total := cards.size()
+	if total == 0:
+		return
+	var row_size := hand_container.size
+	if row_size.x <= 0.0:
+		row_size = Vector2(CARD_FACE_SIZE.x * float(total), CARD_FACE_SIZE.y)
+	var center := float(total - 1) * 0.5
+	var angle_step := _hand_fan_angle_step(total)
+	var pivot := Vector2(row_size.x * 0.5, row_size.y + HAND_FAN_PIVOT_DROP)
 	for index in range(total):
 		var card := cards[index] as Control
 		if card == null:
 			continue
-		card.pivot_offset = Vector2(card.size.x * 0.5, card.size.y)
-		card.position.y += _get_hand_card_lift(index, total)
+		var card_size := card.size
+		if card_size == Vector2.ZERO:
+			card_size = CARD_FACE_SIZE
+		# Stack every card at the bottom-centre, then rotate it around the shared
+		# low pivot. Equal-angle steps fan the cards out symmetrically.
+		var base_pos := Vector2(
+			row_size.x * 0.5 - card_size.x * 0.5,
+			row_size.y - card_size.y
+		)
+		card.position = base_pos
+		card.pivot_offset = pivot - base_pos
+		card.rotation_degrees = (float(index) - center) * angle_step
 
 
 func _refresh_market() -> void:
@@ -3789,9 +3969,12 @@ func _create_card_button(
 	if is_disabled_face:
 		border_color = Color(0, 0, 0, 0.45)
 	var button := Button.new()
+	# Every card on the table uses one fixed size and ratio so market, hand and
+	# in-play faces match exactly. Market cards centre inside their grid column
+	# instead of stretching to fill it.
 	button.custom_minimum_size = CARD_FACE_SIZE
-	if is_market_card:
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	button.focus_mode = Control.FOCUS_ALL
 	button.set_meta("card_id", card.id)
 	button.set_meta("visual_state", visual_state)
@@ -4217,10 +4400,12 @@ func _load_card_texture(card_id: String) -> Texture2D:
 
 func _update_card_pivot(button: Button) -> void:
 	if button.get_meta("hand_fan", false):
-		# Hand cards fan and lift from a shared base, so pivot at bottom-centre.
-		button.pivot_offset = Vector2(button.size.x * 0.5, button.size.y)
-	else:
-		button.pivot_offset = button.size * 0.5
+		# Hand cards share a fan pivot below the row; recompute the whole fan so
+		# this card's pivot/position stays consistent when it resizes.
+		if button.get_parent() == hand_container:
+			_apply_hand_fan_offsets()
+		return
+	button.pivot_offset = button.size * 0.5
 
 
 func _on_card_mouse_entered(
@@ -4229,8 +4414,11 @@ func _on_card_mouse_entered(
 	visual_state: String
 ) -> void:
 	if visual_state != MARKET_UNAFFORDABLE:
-		_animate_card_scale(button, CARD_HOVER_SCALE)
-		button.z_index = 10
+		var is_hand: bool = button.get_meta("hand_fan", false)
+		# Hand cards lift further out of the fan and grow a touch more so the
+		# hovered card clearly pops above its neighbours.
+		_animate_card_scale(button, HAND_HOVER_SCALE if is_hand else CARD_HOVER_SCALE)
+		button.z_index = 30 if is_hand else 10
 	_show_card_preview(card, button, visual_state)
 
 
@@ -5480,6 +5668,10 @@ func _on_lobby_start_pressed() -> void:
 	_play_ui_sound("button_click")
 	if lobby_pending_mode == "join":
 		_join_network_lobby()
+	elif game_state.turn_based_enabled:
+		# Turn-based tables are a local pass-and-play variation: players share the
+		# screen and take sequential turns, so no network server is started.
+		_start_lobby_game(lobby_max_players)
 	else:
 		_host_network_lobby()
 
@@ -5489,8 +5681,13 @@ func _on_lobby_max_players_pressed(count: int) -> void:
 	_refresh_lobby_panel()
 
 
-func _on_lobby_attack_cards_toggled(enabled: bool) -> void:
-	game_state.attack_cards_enabled = enabled
+func _on_lobby_turn_based_toggled(enabled: bool) -> void:
+	game_state.turn_based_enabled = enabled
+	if lobby_cooldown_slider != null:
+		# A turn-based table has no timer, so the cooldown control is irrelevant.
+		lobby_cooldown_slider.editable = not enabled
+		lobby_cooldown_slider.modulate = Color(1, 1, 1, 0.4 if enabled else 1.0)
+	_refresh_lobby_panel()
 	_refresh_home_controls()
 
 

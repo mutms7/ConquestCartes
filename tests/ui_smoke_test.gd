@@ -15,8 +15,8 @@ func _initialize() -> void:
 	_check(_home_overlay().visible, "Startup should open on the home screen.")
 	_check(_home_art().texture != null, "Home screen should use uploaded card artwork.")
 	_check(
-		_home_set_label().text == GameState.HINTERLANDS_GROUP.to_upper(),
-		"Home screen should name the active Hinterlands card group."
+		_home_set_label().text.contains("BASE KINGDOM"),
+		"Home screen should show the kingdom eyebrow above the title."
 	)
 	_check(_home_continue_button().disabled, "Continue should be disabled before a game starts.")
 	_check(not _home_multiplayer_button().disabled, "Multiplayer should be available at startup.")
@@ -35,14 +35,15 @@ func _initialize() -> void:
 		and _home_lobby_address_input().text == "127.0.0.1:27041",
 		"Create local should route into the lobby with a host address."
 	)
-	_home_lobby_attack_toggle().toggled.emit(false)
+	_home_lobby_turn_based_toggle().toggled.emit(true)
 	await process_frame
 	_check(
-		not main_ui.game_state.attack_cards_enabled
-		and _home_lobby_rules_summary().text.contains("attacks off"),
-		"Lobby attack toggle should update the actual market rules summary."
+		main_ui.game_state.turn_based_enabled
+		and _home_lobby_rules_summary().text.contains("Turn based")
+		and is_zero_approx(main_ui.game_state.get_end_turn_cooldown_seconds()),
+		"Lobby turn-based toggle should enable the no-timer sequential variation."
 	)
-	_home_lobby_attack_toggle().toggled.emit(true)
+	_home_lobby_turn_based_toggle().toggled.emit(false)
 	await process_frame
 	_home_settings_button().pressed.emit()
 	await process_frame
@@ -450,9 +451,19 @@ func _initialize() -> void:
 			_card_price(resource_button).get_theme_font("font") == main_ui.title_font,
 			"Card price numbers should use the fancy title font."
 		)
+		# The hand fans the cards with rotation, so evaluate the internal layout
+		# with rotation temporarily removed (the layout itself is rotation-free).
+		var saved_rotation := resource_button.rotation_degrees
+		resource_button.rotation_degrees = 0.0
+		var hand_layout_clear := _card_text_layout_is_clear(resource_button)
+		resource_button.rotation_degrees = saved_rotation
 		_check(
-			_card_text_layout_is_clear(resource_button),
+			hand_layout_clear,
 			"Hand card text should stay inside the frame without intersecting neighboring regions."
+		)
+		_check(
+			_hand_is_fanned(),
+			"Hand cards should fan out with rotation that grows from the centre outward."
 		)
 		_check(
 			is_equal_approx(
@@ -1059,7 +1070,7 @@ func _home_overlay() -> Control:
 
 
 func _home_art() -> TextureRect:
-	return main_ui.get_node("HomeOverlay/HomeArt")
+	return _home_overlay().find_child("HomeArt", true, false) as TextureRect
 
 
 func _home_set_label() -> Label:
@@ -1067,15 +1078,15 @@ func _home_set_label() -> Label:
 
 
 func _home_new_game_button() -> Button:
-	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/NewGameButton")
+	return _home_overlay().find_child("NewGameButton", true, false) as Button
 
 
 func _home_continue_button() -> Button:
-	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/ContinueButton")
+	return _home_overlay().find_child("ContinueButton", true, false) as Button
 
 
 func _home_multiplayer_button() -> Button:
-	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/MultiplayerButton")
+	return _home_overlay().find_child("MultiplayerButton", true, false) as Button
 
 
 func _home_multiplayer_panel() -> PanelContainer:
@@ -1086,8 +1097,8 @@ func _home_lobby_panel() -> PanelContainer:
 	return main_ui.get_node("HomeOverlay/LobbyPanel")
 
 
-func _home_lobby_attack_toggle() -> CheckButton:
-	return main_ui.home_lobby_attack_toggle
+func _home_lobby_turn_based_toggle() -> CheckButton:
+	return main_ui.home_lobby_turn_based_toggle
 
 
 func _home_lobby_rules_summary() -> Label:
@@ -1107,11 +1118,11 @@ func _home_join_lobby_button() -> Button:
 
 
 func _home_settings_button() -> Button:
-	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/SettingsButton")
+	return _home_overlay().find_child("SettingsButton", true, false) as Button
 
 
 func _home_kingdoms_button() -> Button:
-	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/KingdomsButton")
+	return _home_overlay().find_child("KingdomsButton", true, false) as Button
 
 
 func _home_settings_panel() -> PanelContainer:
@@ -1404,6 +1415,18 @@ func _card_effect(button: Button) -> RichTextLabel:
 
 func _card_price(button: Button) -> Label:
 	return button.get_node("PriceBadge/CostLabel")
+
+
+func _hand_is_fanned() -> bool:
+	# A real fan: rotation rises monotonically from a negative left edge through
+	# ~0 in the middle to a positive right edge (not a flat / podium row).
+	var cards := _hand_container().get_children()
+	if cards.size() < 3:
+		return true
+	var first := (cards[0] as Control).rotation_degrees
+	var last := (cards[cards.size() - 1] as Control).rotation_degrees
+	var mid := (cards[cards.size() / 2] as Control).rotation_degrees
+	return first < mid and mid < last and absf(last - first) >= 8.0
 
 
 func _card_text_layout_is_clear(button: Button) -> bool:

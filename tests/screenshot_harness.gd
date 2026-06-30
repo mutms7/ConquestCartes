@@ -58,6 +58,13 @@ func _run() -> void:
 	await _wait(20)
 	await _shot(main, "06_table")
 
+	# Turn-based local game (2 players, no timer)
+	main.game_state.turn_based_enabled = true
+	main.lobby_max_players = 2
+	main._start_lobby_game(2)
+	await _wait(20)
+	await _shot(main, "07_turn_based")
+
 	print("SCREENSHOTS DONE")
 	quit()
 

@@ -61,6 +61,10 @@ var disabled_kingdoms: Dictionary = {}
 var disabled_market_card_ids: Dictionary = {}
 var end_turn_cooldown_seconds: float = DEFAULT_END_TURN_COOLDOWN_SECONDS
 var attack_cards_enabled: bool = true
+# Turn-based mode: a sequential, no-timer variation. Players take turns one at a
+# time (you wait for the active player to finish before your turn begins) and
+# there is no end-turn cooldown timer at all.
+var turn_based_enabled: bool = false
 
 
 func load_cards(path: String) -> bool:
@@ -172,8 +176,9 @@ func start_all_players() -> void:
 
 func get_end_turn_cooldown_seconds() -> float:
 	# The end-turn cooldown is a multiplayer-only pacing mechanic. Singleplayer
-	# games have no timeout, so ending a turn is instant.
-	if not multiplayer_enabled:
+	# games have no timeout, so ending a turn is instant. Turn-based games also
+	# have no timer: play simply passes to the next player when you finish.
+	if not multiplayer_enabled or turn_based_enabled:
 		return 0.0
 	return maxf(
 		0.5,

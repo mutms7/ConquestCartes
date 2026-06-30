@@ -79,6 +79,7 @@ func _initialize() -> void:
 	_test_scoring()
 	_test_supply_piles()
 	_test_turn_cooldown()
+	_test_turn_based_mode()
 	_test_multiplayer_lobby_attacks()
 	_test_multiplayer_game_end()
 	_test_special_effects()
@@ -390,6 +391,40 @@ func _test_turn_cooldown() -> void:
 	_check(
 		is_equal_approx(turn_manager.cooldown_remaining, cooldown_before - 0.5),
 		"Sunspire Bell should shorten an active cooldown by 0.5 seconds."
+	)
+
+
+func _test_turn_based_mode() -> void:
+	# Turn-based is a no-timer, sequential variation: play passes to the next
+	# player once the active player finishes, and no cooldown is ever started.
+	var game_state := GameState.new()
+	if not game_state.load_cards(CARD_DATA_PATH):
+		_check(false, "Card data should load for turn-based mode.")
+		return
+	if not game_state.setup_starting_game(3):
+		_check(false, "A three-player turn-based game should set up.")
+		return
+	game_state.turn_based_enabled = true
+	_check(
+		is_equal_approx(game_state.get_end_turn_cooldown_seconds(), 0.0),
+		"Turn-based games should have no end-turn cooldown timer."
+	)
+	var turn_manager := TurnManager.new()
+	turn_manager.configure(game_state)
+	turn_manager.start_first_turn()
+	_check(game_state.active_player_index == 0, "Turn-based play should start with the first player.")
+	_finish_turn(turn_manager)
+	_check(
+		game_state.active_player_index == 1,
+		"Finishing a turn should pass play to the next seated player."
+	)
+	_check(not turn_manager.is_cooling_down(), "Turn-based end turn should never start a cooldown.")
+	_check(game_state.player.hand.size() == 5, "The next player should begin with a full hand.")
+	_finish_turn(turn_manager)
+	_finish_turn(turn_manager)
+	_check(
+		game_state.active_player_index == 0,
+		"Turn-based play should cycle back around the table."
 	)
 
 
