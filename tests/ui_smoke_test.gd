@@ -369,7 +369,8 @@ func _initialize() -> void:
 			"Card faces should include the 2a art scrim, accent line, and meta chip."
 		)
 		_check(
-			_card_art_scrim(resource_button).color.a <= 0.06,
+			_card_art(resource_button).modulate.a >= 0.9
+			and _card_art_scrim(resource_button).color.a <= 0.02,
 			"Card art scrims should tint the art without covering it."
 		)
 		_check(_card_art(resource_button).texture != null, "Card faces should display card artwork.")
@@ -433,8 +434,9 @@ func _initialize() -> void:
 		)
 		_check(
 			_card_art(pre_play_market_button).material == null
+			and _card_art(pre_play_market_button).modulate.a >= 0.9
 			and pre_play_market_button.modulate.a == 1.0
-			and _card_art_scrim(pre_play_market_button).color.a <= 0.06,
+			and _card_art_scrim(pre_play_market_button).color.a <= 0.02,
 			"Pre-play market art should stay full saturation and unobscured."
 		)
 		pre_play_market_button.pressed.emit()

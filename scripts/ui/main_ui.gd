@@ -21,6 +21,7 @@ const PLAY_AREA_PANEL_HEIGHT := 36.0
 const PLAY_AREA_CONTENT_HEIGHT := 28.0
 const CARD_ART_HEIGHT := 85.0
 const HAND_CARD_ART_HEIGHT := 91.0
+const CARD_ART_OPACITY := 0.92
 const HUD_LEDGER_WIDTH := 158.0
 const RIGHT_DOCK_WIDTH := 202.0
 const END_TURN_BUTTON_WIDTH := 188.0
@@ -3007,6 +3008,7 @@ func _create_card_button(
 	art_rect.name = "Art"
 	art_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	art_rect.texture = art_texture
+	art_rect.modulate = Color(1, 1, 1, CARD_ART_OPACITY)
 	art_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	if is_unavailable:
@@ -3399,6 +3401,7 @@ func _show_card_preview(
 	preview_name_label.add_theme_color_override("font_color", type_palette.name_text)
 	preview_meta_label.add_theme_color_override("font_color", type_palette.chip_text)
 	preview_art.texture = _load_card_texture(card.art_id)
+	preview_art.modulate = Color(1, 1, 1, CARD_ART_OPACITY)
 	preview_art_frame.visible = preview_art.texture != null
 	preview_art_frame.add_theme_stylebox_override(
 		"panel",
@@ -3563,7 +3566,7 @@ func _get_card_type_palette(card_type: String) -> Dictionary:
 				"chip_text": Color("#edc46f"),
 				"description_text": Color(0.957, 0.902, 0.769, 0.84),
 				"footer_text": Color(0.941, 0.741, 0.345, 0.72),
-				"scrim": Color(0.38, 0.19, 0.06, 0.05),
+				"scrim": Color(0.38, 0.19, 0.06, 0.01),
 			}
 		"victory":
 			return {
@@ -3574,7 +3577,7 @@ func _get_card_type_palette(card_type: String) -> Dictionary:
 				"chip_text": Color("#e6a889"),
 				"description_text": Color(0.961, 0.878, 0.827, 0.86),
 				"footer_text": Color(0.788, 0.431, 0.345, 0.74),
-				"scrim": Color(0.36, 0.11, 0.06, 0.05),
+				"scrim": Color(0.36, 0.11, 0.06, 0.01),
 			}
 		"curse":
 			return {
@@ -3585,7 +3588,7 @@ func _get_card_type_palette(card_type: String) -> Dictionary:
 				"chip_text": Color("#dbcdf2"),
 				"description_text": Color(0.91, 0.86, 0.98, 0.84),
 				"footer_text": Color(0.706, 0.604, 0.851, 0.72),
-				"scrim": Color(0.18, 0.10, 0.22, 0.06),
+				"scrim": Color(0.18, 0.10, 0.22, 0.01),
 			}
 		_:
 			return {
@@ -3596,7 +3599,7 @@ func _get_card_type_palette(card_type: String) -> Dictionary:
 				"chip_text": Color("#efbc78"),
 				"description_text": Color(0.953, 0.882, 0.757, 0.86),
 				"footer_text": Color(0.835, 0.541, 0.263, 0.74),
-				"scrim": Color(0.36, 0.18, 0.05, 0.05),
+				"scrim": Color(0.36, 0.18, 0.05, 0.01),
 			}
 
 
