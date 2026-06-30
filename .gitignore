@@ -4,3 +4,4 @@
 /web/
 /.vercel/
 .env*
+/_shots/

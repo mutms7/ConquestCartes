@@ -126,6 +126,12 @@ func _initialize() -> void:
 		"Kingdoms should open as its own home tab."
 	)
 	_check(
+		main_ui.menu_backdrop != null
+		and main_ui.menu_backdrop.visible
+		and not main_ui.home_menu_root.visible,
+		"Opening a menu tab should raise the dark backdrop and hide the main menu."
+	)
+	_check(
 		_kingdom_tabs().get_child_count() == GameState.KINGDOM_ORDER.size()
 		and _kingdom_card_grid().get_child_count() > 0
 		and _kingdom_detail_host().get_child_count() > 0,
@@ -134,13 +140,17 @@ func _initialize() -> void:
 	_check(
 		is_equal_approx(_home_kingdoms_panel().anchor_left, 0.5)
 		and is_equal_approx(_home_kingdoms_panel().anchor_right, 0.5)
-		and _home_kingdoms_panel().offset_left == -560
-		and _home_kingdoms_panel().offset_right == 560,
+		and _home_kingdoms_panel().offset_left == -610
+		and _home_kingdoms_panel().offset_right == 610,
 		"Kingdoms browser should be centered at the wide handoff width."
 	)
 	_kingdoms_close_button().pressed.emit()
 	await process_frame
 	_check(not _home_kingdoms_panel().visible, "Kingdoms close button should hide the browser.")
+	_check(
+		not main_ui.menu_backdrop.visible and main_ui.home_menu_root.visible,
+		"Closing the last menu tab should drop the backdrop and restore the main menu."
+	)
 	_home_kingdoms_button().pressed.emit()
 	await process_frame
 	var kingdom_browser_size := _home_kingdoms_panel().size

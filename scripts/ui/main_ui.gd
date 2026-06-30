@@ -147,6 +147,8 @@ var market_action_container: GridContainer
 var market_victory_container: GridContainer
 var pending_cleanup_ghosts: Array[Control] = []
 var home_overlay: Control
+var menu_backdrop: Control
+var home_menu_root: Control
 var home_new_game_button: Button
 var home_continue_button: Button
 var home_create_lobby_button: Button
@@ -1058,8 +1060,9 @@ func _build_bottom_docks() -> void:
 	hand_panel.custom_minimum_size = Vector2(0, 188)
 	hand_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hand_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	hand_container.add_theme_constant_override("separation", -12)
+	hand_container.add_theme_constant_override("separation", -22)
 	hand_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	hand_container.sort_children.connect(_apply_hand_fan_offsets)
 
 	# Right dock: player/turn tracker with End Turn beneath it.
 	turn_stat.reparent(right_stats)
@@ -1510,6 +1513,7 @@ func _build_home_screen() -> void:
 	menu_margin.add_theme_constant_override("margin_bottom", 58)
 	home_overlay.add_child(menu_margin)
 	menu_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	home_menu_root = menu_margin
 
 	var menu_layout := VBoxContainer.new()
 	menu_layout.name = "Menu"
@@ -1595,11 +1599,84 @@ func _build_home_screen() -> void:
 	spacer_fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	menu_layout.add_child(spacer_fill)
 
+	_build_menu_backdrop()
 	_build_settings_panel()
 	_build_kingdom_browser()
 	_build_multiplayer_panel()
 	_build_lobby_panel()
 	_refresh_home_controls()
+
+
+func _build_menu_backdrop() -> void:
+	# Full-screen dark vignette that sits over the home menu whenever a menu
+	# panel (Settings / Kingdoms / Multiplayer / Lobby) is open, so those
+	# screens read as a regal parchment-on-dark takeover rather than a popup
+	# floating over the main menu buttons.
+	menu_backdrop = Control.new()
+	menu_backdrop.name = "MenuBackdrop"
+	menu_backdrop.visible = false
+	menu_backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
+	home_overlay.add_child(menu_backdrop)
+	menu_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var vignette := TextureRect.new()
+	vignette.name = "Vignette"
+	vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vignette.texture = _make_radial_gradient_texture(
+		PackedFloat32Array([0.0, 0.55, 1.0]),
+		PackedColorArray([Color("#241813"), Color("#130c08"), Color("#0a0705")]),
+		Vector2(0.5, 0.42),
+		Vector2(1.08, 1.0)
+	)
+	vignette.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	menu_backdrop.add_child(vignette)
+	vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var glow := TextureRect.new()
+	glow.name = "BrassGlow"
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glow.texture = _make_radial_gradient_texture(
+		PackedFloat32Array([0.0, 1.0]),
+		PackedColorArray([Color(0.835, 0.667, 0.314, 0.16), Color(0.835, 0.667, 0.314, 0.0)]),
+		Vector2(0.5, 0.5),
+		Vector2(1.0, 1.0)
+	)
+	glow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	glow.stretch_mode = TextureRect.STRETCH_SCALE
+	menu_backdrop.add_child(glow)
+	glow.anchor_left = 0.5
+	glow.anchor_right = 0.5
+	glow.anchor_top = 0.0
+	glow.anchor_bottom = 0.0
+	glow.offset_left = -440
+	glow.offset_right = 440
+	glow.offset_top = -210
+	glow.offset_bottom = 360
+
+	if noise_texture != null:
+		var grain := _create_noise_rect("MenuBackdropGrain", 0.05)
+		menu_backdrop.add_child(grain)
+		grain.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+
+func _make_radial_gradient_texture(
+	offsets: PackedFloat32Array,
+	colors: PackedColorArray,
+	fill_from: Vector2,
+	fill_to: Vector2
+) -> GradientTexture2D:
+	var gradient := Gradient.new()
+	gradient.offsets = offsets
+	gradient.colors = colors
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.fill = GradientTexture2D.FILL_RADIAL
+	texture.fill_from = fill_from
+	texture.fill_to = fill_to
+	texture.width = 320
+	texture.height = 180
+	return texture
 
 
 func _create_home_panel(panel_name: String, panel_size: Vector2) -> PanelContainer:
@@ -2274,10 +2351,10 @@ func _build_kingdom_browser() -> void:
 	home_kingdoms_panel.anchor_top = 0.5
 	home_kingdoms_panel.anchor_right = 0.5
 	home_kingdoms_panel.anchor_bottom = 0.5
-	home_kingdoms_panel.offset_left = -560
-	home_kingdoms_panel.offset_top = -310
-	home_kingdoms_panel.offset_right = 560
-	home_kingdoms_panel.offset_bottom = 310
+	home_kingdoms_panel.offset_left = -610
+	home_kingdoms_panel.offset_top = -322
+	home_kingdoms_panel.offset_right = 610
+	home_kingdoms_panel.offset_bottom = 322
 
 	var browser_margin := MarginContainer.new()
 	browser_margin.name = "Margin"
@@ -2384,7 +2461,7 @@ func _build_kingdom_browser() -> void:
 
 	var detail_panel := PanelContainer.new()
 	detail_panel.name = "DetailPane"
-	detail_panel.custom_minimum_size = Vector2(250, 0)
+	detail_panel.custom_minimum_size = Vector2(268, 0)
 	detail_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	detail_panel.add_theme_stylebox_override(
 		"panel",
@@ -2500,6 +2577,8 @@ func _set_noise_amount(rect: TextureRect, amount: float) -> void:
 func _show_home_screen(_from_game: bool) -> void:
 	_hide_card_preview()
 	_refresh_home_controls()
+	if not _home_modal_is_visible():
+		_set_menu_overlay_active(false)
 	if home_overlay != null:
 		home_overlay.show()
 
@@ -2569,6 +2648,7 @@ func _show_home_tab(tab_name: String) -> void:
 		home_multiplayer_panel.visible = tab_name == "multiplayer"
 	if home_lobby_panel != null:
 		home_lobby_panel.visible = tab_name == "lobby"
+	_set_menu_overlay_active(true)
 	if tab_name == "kingdoms":
 		_refresh_kingdom_tab()
 	elif tab_name == "lobby":
@@ -2676,7 +2756,7 @@ func _create_kingdom_card_button(card: CardDefinition) -> Button:
 	var type_palette := _get_card_type_palette(card.card_type)
 	var button := Button.new()
 	button.name = "Card_%s" % card.id
-	button.custom_minimum_size = Vector2(88, 112)
+	button.custom_minimum_size = Vector2(116, 150)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.focus_mode = Control.FOCUS_ALL
 	button.set_meta("card_id", card.id)
@@ -3469,6 +3549,30 @@ func _get_hand_card_rotation(index: int, total: int) -> float:
 	return clampf((float(index) - center) * 4.0, -8.0, 8.0)
 
 
+func _get_hand_card_lift(index: int, total: int) -> float:
+	# Cards further from the centre sit lower so the fan reads as an arc
+	# (centre highest), matching the handoff's 0 / 5 / 16px vertical offsets.
+	if total <= 1:
+		return 0.0
+	var center := (float(total) - 1.0) * 0.5
+	var distance := absf(float(index) - center)
+	var span := maxf(center, 1.0)
+	return (distance / span) * 18.0
+
+
+func _apply_hand_fan_offsets() -> void:
+	# Runs on every hand-row layout: re-anchor each card's pivot to its
+	# bottom-centre and push the outer cards down so the hand reads as a fan.
+	var cards := hand_container.get_children()
+	var total := cards.size()
+	for index in range(total):
+		var card := cards[index] as Control
+		if card == null:
+			continue
+		card.pivot_offset = Vector2(card.size.x * 0.5, card.size.y)
+		card.position.y += _get_hand_card_lift(index, total)
+
+
 func _refresh_market() -> void:
 	_clear_container(market_resource_container)
 	_clear_container(market_action_container)
@@ -3696,6 +3800,8 @@ func _create_card_button(
 	button.set_meta("card_group", card.card_group)
 	button.set_meta("card_accent_color", border_color)
 	button.set_meta("supply_count", game_state.get_supply_count(card.id))
+	if is_hand_card:
+		button.set_meta("hand_fan", true)
 	button.tooltip_text = "%s — %s" % [card.card_name, card.description]
 	if visual_state.begins_with("market_"):
 		button.tooltip_text += "\n%d cards remain in this pile." % game_state.get_supply_count(card.id)
@@ -4110,7 +4216,11 @@ func _load_card_texture(card_id: String) -> Texture2D:
 
 
 func _update_card_pivot(button: Button) -> void:
-	button.pivot_offset = button.size * 0.5
+	if button.get_meta("hand_fan", false):
+		# Hand cards fan and lift from a shared base, so pivot at bottom-centre.
+		button.pivot_offset = Vector2(button.size.x * 0.5, button.size.y)
+	else:
+		button.pivot_offset = button.size * 0.5
 
 
 func _on_card_mouse_entered(
@@ -5228,6 +5338,15 @@ func _on_kingdoms_close_pressed() -> void:
 func _close_kingdom_browser() -> void:
 	if home_kingdoms_panel != null:
 		home_kingdoms_panel.hide()
+	if not _home_modal_is_visible():
+		_set_menu_overlay_active(false)
+
+
+func _set_menu_overlay_active(active: bool) -> void:
+	if menu_backdrop != null:
+		menu_backdrop.visible = active
+	if home_menu_root != null:
+		home_menu_root.visible = not active
 
 
 func _input(event: InputEvent) -> void:
@@ -5259,6 +5378,7 @@ func _hide_home_modals() -> void:
 		home_multiplayer_panel.hide()
 	if home_lobby_panel != null:
 		home_lobby_panel.hide()
+	_set_menu_overlay_active(false)
 
 
 func _is_audio_unlock_event(event: InputEvent) -> bool:
