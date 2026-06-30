@@ -7,20 +7,27 @@ const HAND_UNPLAYABLE := "hand_unplayable"
 const MARKET_AFFORDABLE := "market_affordable"
 const MARKET_UNAFFORDABLE := "market_unaffordable"
 const MARKET_NEUTRAL := "market_neutral"
-const CARD_HOVER_SCALE := Vector2(1.025, 1.025)
+const CARD_HOVER_SCALE := Vector2(1.03, 1.03)
 const CARD_NORMAL_SCALE := Vector2.ONE
 const HOVER_ANIMATION_SECONDS := 0.08
 const CARD_MOVE_SECONDS := 0.18
 const CARD_DRAW_SECONDS := 0.16
 const CLEANUP_SECONDS := 0.2
-const CARD_FACE_SIZE := Vector2(172, 214)
-const PLAY_AREA_PANEL_HEIGHT := 48.0
-const PLAY_AREA_CONTENT_HEIGHT := 36.0
-const CARD_ART_HEIGHT := 104.0
-const HUD_LEDGER_WIDTH := 184.0
-const END_TURN_BUTTON_WIDTH := 168.0
-const PREVIEW_SIZE := Vector2(340, 480)
-const PREVIEW_EDGE_MARGIN := 24.0
+const TABLE_SCALE := 0.667
+const TOP_BAR_HEIGHT := 52.0
+const BOTTOM_BAND_HEIGHT := 248.0
+const CARD_FACE_SIZE := Vector2(123, 165)
+const PLAY_AREA_PANEL_HEIGHT := 36.0
+const PLAY_AREA_CONTENT_HEIGHT := 28.0
+const CARD_ART_HEIGHT := 85.0
+const HAND_CARD_ART_HEIGHT := 91.0
+const HUD_LEDGER_WIDTH := 158.0
+const RIGHT_DOCK_WIDTH := 202.0
+const END_TURN_BUTTON_WIDTH := 188.0
+const PILE_FACE_SIZE := Vector2(105, 145)
+const PREVIEW_SIZE := Vector2(320, 540)
+const PREVIEW_ART_HEIGHT := 216.0
+const PREVIEW_EDGE_MARGIN := 16.0
 const SHORT_RULE_BREAK_LIMIT := 72
 const HOME_ART_PATH := "res://assets/cards/sunspire_monument.png"
 const CARD_RULE_SIDE_MARGIN := 9
@@ -30,17 +37,17 @@ const NETWORK_PORT := 27041
 const NETWORK_DEFAULT_ADDRESS := "127.0.0.1"
 const NETWORK_MAX_PLAYERS := 4
 
-const COLOR_PARCHMENT := Color("#ead8ad")
-const COLOR_PARCHMENT_LIGHT := Color("#fff1ca")
-const COLOR_CARD_BROWN := Color("#4a3021")
-const COLOR_CARD_BROWN_LIGHT := Color("#5a3a28")
-const COLOR_RESOURCE_CARD := Color("#68431f")
-const COLOR_ACTION_CARD := Color("#293e52")
-const COLOR_VICTORY_CARD := Color("#552d46")
+const COLOR_PARCHMENT := Color("#ecdcb6")
+const COLOR_PARCHMENT_LIGHT := Color("#f4e6c4")
+const COLOR_CARD_BROWN := Color("#271c12")
+const COLOR_CARD_BROWN_LIGHT := Color("#3c2a14")
+const COLOR_RESOURCE_CARD := Color("#3c2a14")
+const COLOR_ACTION_CARD := Color("#1c2d48")
+const COLOR_VICTORY_CARD := Color("#36182d")
 const COLOR_CURSE_CARD := Color("#32263f")
-const COLOR_WALNUT := Color("#39251b")
-const COLOR_WALNUT_DARK := Color("#19161a")
-const COLOR_BRASS := Color("#d5aa50")
+const COLOR_WALNUT := Color("#271c12")
+const COLOR_WALNUT_DARK := Color("#150e08")
+const COLOR_BRASS := Color("#e8c879")
 const COLOR_FOREST := Color("#3d7d58")
 const COLOR_OXBLOOD := Color("#a64b55")
 const COLOR_SLATE := Color("#5c8fc2")
@@ -50,11 +57,11 @@ const COLOR_TREASURY_CARPET := Color("#682b37")
 const COLOR_BARRACKS_CARPET := Color("#263f5b")
 const COLOR_ESTATES_CARPET := Color("#28503b")
 const COLOR_RESOURCE_ACCENT := Color("#f0bd58")
-const COLOR_ACTION_ACCENT := Color("#76b5e8")
-const COLOR_VICTORY_ACCENT := Color("#df7890")
+const COLOR_ACTION_ACCENT := Color("#7db6e8")
+const COLOR_VICTORY_ACCENT := Color("#e08aa2")
 const COLOR_CURSE_ACCENT := Color("#b49ad9")
 
-const TITLE_FONT_PATH := "res://assets/fonts/Cinzel/static/Cinzel-SemiBold.ttf"
+const TITLE_FONT_PATH := "res://assets/fonts/Cinzel/static/Cinzel-Bold.ttf"
 const BODY_FONT_PATH := "res://assets/fonts/Inter/static/Inter_18pt-Regular.ttf"
 const BODY_BOLD_FONT_PATH := "res://assets/fonts/Inter/static/Inter_18pt-Bold.ttf"
 const UI_ASSET_PATHS := {
@@ -112,6 +119,13 @@ var choice_buttons: Dictionary = {}
 var left_ledger: PanelContainer
 var right_ledger: PanelContainer
 var hand_column: VBoxContainer
+var top_bar: PanelContainer
+var market_helper_label: Label
+var player_status_list: VBoxContainer
+var player_status_rows: Dictionary = {}
+var discard_pile_art: TextureRect
+var discard_pile_scrim: ColorRect
+var bazaar_button: Button
 var treasury_carpet: PanelContainer
 var barracks_carpet: PanelContainer
 var estates_carpet: PanelContainer
@@ -228,6 +242,7 @@ var card_desaturate_material: ShaderMaterial
 func _ready() -> void:
 	_load_optional_assets()
 	_build_bottom_docks()
+	_build_top_bar()
 	_build_market_board()
 	_build_home_screen()
 	_apply_imported_theme()
@@ -298,6 +313,7 @@ func _process(delta: float) -> void:
 	else:
 		turn_manager.tick(delta)
 	_refresh_end_turn_button()
+	_refresh_player_status()
 
 
 func _start_new_game(_is_restart: bool) -> void:
@@ -940,62 +956,84 @@ func _build_bottom_docks() -> void:
 	var coin_stat := coin_label.get_parent().get_parent() as VBoxContainer
 	var action_stat := action_label.get_parent().get_parent() as VBoxContainer
 	var buy_stat := buy_label.get_parent().get_parent() as VBoxContainer
+	var hand_header := hand_count_label.get_parent() as HBoxContainer
+	var root_margin := get_node("Margin") as MarginContainer
+	var main_layout := hud_panel.get_parent() as VBoxContainer
+
+	root_margin.add_theme_constant_override("margin_left", 4)
+	root_margin.add_theme_constant_override("margin_top", 4)
+	root_margin.add_theme_constant_override("margin_right", 4)
+	root_margin.add_theme_constant_override("margin_bottom", 4)
+	main_layout.add_theme_constant_override("separation", 4)
 
 	var left_parts := _create_hud_ledger("LeftDock")
 	left_ledger = left_parts.panel
 	var left_stats: VBoxContainer = left_parts.stats
 	var right_parts := _create_hud_ledger("RightDock")
 	right_ledger = right_parts.panel
+	right_ledger.custom_minimum_size = Vector2(RIGHT_DOCK_WIDTH, 0)
 	var right_stats: VBoxContainer = right_parts.stats
 	hand_column = VBoxContainer.new()
 	hand_column.name = "HandColumn"
 	hand_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hand_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	hand_column.add_theme_constant_override("separation", 2)
+	hand_column.add_theme_constant_override("separation", 4)
 
+	hud_panel.custom_minimum_size = Vector2(0, BOTTOM_BAND_HEIGHT)
+	hud_panel.size_flags_vertical = Control.SIZE_SHRINK_END
 	hud_row.add_theme_constant_override("separation", 8)
+	hud_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	hud_row.add_child(left_ledger)
 	hud_row.add_child(hand_column)
 	hud_row.add_child(right_ledger)
 
 	for stat in [turn_stat, deck_stat, discard_stat, coin_stat, action_stat, buy_stat]:
-		stat.custom_minimum_size = Vector2(0, 38)
 		stat.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	home_button.custom_minimum_size = Vector2(0, 38)
-	end_turn_button.custom_minimum_size = Vector2(END_TURN_BUTTON_WIDTH, 42)
-	end_turn_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	home_button.custom_minimum_size = Vector2(34, 34)
+	end_turn_button.custom_minimum_size = Vector2(END_TURN_BUTTON_WIDTH, 48)
+	end_turn_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	# Left dock: coins / actions / buys, home button, deck pinned to the bottom.
+	# Left dock: compact Coins / Actions / Buys ledger.
 	coin_stat.reparent(left_stats)
 	action_stat.reparent(left_stats)
 	buy_stat.reparent(left_stats)
-	home_button.reparent(left_stats)
+	_configure_stat_row(coin_stat, COLOR_RESOURCE_ACCENT)
+	_configure_stat_row(action_stat, COLOR_ACTION_ACCENT)
+	_configure_stat_row(buy_stat, COLOR_BRASS)
+
+	# Center band: in-play strip above physical draw pile, hand, and discard pile.
+	hand_header.reparent(hand_column)
+	hand_header.visible = false
+	play_area_panel.reparent(hand_column)
+	var pile_hand_row := HBoxContainer.new()
+	pile_hand_row.name = "PileHandRow"
+	pile_hand_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pile_hand_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	pile_hand_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	pile_hand_row.add_theme_constant_override("separation", 8)
+	hand_column.add_child(pile_hand_row)
+
+	deck_stat.reparent(pile_hand_row)
+	hand_panel.reparent(pile_hand_row)
+	discard_stat.reparent(pile_hand_row)
+	_configure_physical_pile(deck_stat, deck_label, false)
+	_configure_physical_pile(discard_stat, discard_label, true)
+
+	hand_panel.custom_minimum_size = Vector2(0, 184)
+	hand_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hand_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	hand_container.add_theme_constant_override("separation", -9)
+	hand_container.alignment = BoxContainer.ALIGNMENT_CENTER
+
+	# Right dock: player/turn tracker with End Turn beneath it.
+	turn_stat.reparent(right_stats)
+	turn_stat.visible = false
 	player_status_label = Label.new()
 	player_status_label.name = "PlayerStatus"
-	player_status_label.custom_minimum_size = Vector2(0, 82)
-	player_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	player_status_label.add_theme_font_size_override("font_size", 12)
-	player_status_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
-	if body_font != null:
-		player_status_label.add_theme_font_override("font", body_font)
-	left_stats.add_child(player_status_label)
-	var left_spacer := Control.new()
-	left_spacer.name = "LeftDockSpacer"
-	left_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	left_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_stats.add_child(left_spacer)
-	deck_stat.reparent(left_stats)
-	# Right dock: turn, end turn button, discard pinned to the bottom.
-	turn_stat.reparent(right_stats)
+	player_status_label.visible = false
+	right_stats.add_child(player_status_label)
+	right_stats.add_child(_create_players_turn_panel())
 	end_turn_button.reparent(right_stats)
-	var right_spacer := Control.new()
-	right_spacer.name = "RightDockSpacer"
-	right_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_stats.add_child(right_spacer)
-	discard_stat.reparent(right_stats)
-	hand_count_label.get_parent().reparent(hand_column)
-	hand_panel.reparent(hand_column)
 	brand.queue_free()
 
 	for obsolete_name in ["Divider", "ZoneDivider", "Spacer"]:
@@ -1006,7 +1044,6 @@ func _build_bottom_docks() -> void:
 	hud_row.move_child(left_ledger, 0)
 	hud_row.move_child(hand_column, 1)
 	hud_row.move_child(right_ledger, 2)
-	var main_layout := hud_panel.get_parent() as VBoxContainer
 	main_layout.move_child(hud_panel, main_layout.get_child_count() - 1)
 	_lock_play_area_height()
 
@@ -1014,6 +1051,8 @@ func _build_bottom_docks() -> void:
 func _lock_play_area_height() -> void:
 	play_area_panel.custom_minimum_size = Vector2(0, PLAY_AREA_PANEL_HEIGHT)
 	play_area_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	play_area_label.custom_minimum_size = Vector2(74, 0)
+	play_area_label.add_theme_font_size_override("font_size", 10)
 	var play_area_scroll := play_area_container.get_parent() as ScrollContainer
 	if play_area_scroll != null:
 		play_area_scroll.custom_minimum_size = Vector2(0, PLAY_AREA_CONTENT_HEIGHT)
@@ -1040,6 +1079,345 @@ func _create_hud_ledger(ledger_name: String) -> Dictionary:
 	stats.add_theme_constant_override("separation", 4)
 	margin.add_child(stats)
 	return {"panel": panel, "stats": stats}
+
+
+func _configure_stat_row(stat: VBoxContainer, accent: Color) -> void:
+	stat.custom_minimum_size = Vector2(0, 66)
+	stat.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	stat.add_theme_constant_override("separation", 0)
+	var title := stat.find_child("Title", true, false) as Label
+	var value := stat.find_child("Value", true, false) as Label
+	var value_row := value.get_parent() as HBoxContainer if value != null else null
+	var icon := stat.find_child("Icon", true, false) as TextureRect
+	if title != null:
+		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		title.add_theme_color_override("font_color", COLOR_BRASS)
+		title.add_theme_font_size_override("font_size", 10)
+		if title_font != null:
+			title.add_theme_font_override("font", title_font)
+	if value_row != null:
+		value_row.alignment = BoxContainer.ALIGNMENT_END
+		value_row.add_theme_constant_override("separation", 6)
+	if icon != null:
+		icon.custom_minimum_size = Vector2(18, 18)
+		icon.modulate = accent
+	if value != null:
+		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		value.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+		value.add_theme_font_size_override("font_size", 30)
+		if title_font != null:
+			value.add_theme_font_override("font", title_font)
+
+
+func _configure_physical_pile(
+	stat: VBoxContainer,
+	value_label: Label,
+	is_discard: bool
+) -> void:
+	stat.custom_minimum_size = Vector2(PILE_FACE_SIZE.x + 16, 0)
+	stat.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	stat.size_flags_vertical = Control.SIZE_SHRINK_END
+	stat.add_theme_constant_override("separation", 3)
+
+	var title := stat.find_child("Title", true, false) as Label
+	var value_row := value_label.get_parent() as HBoxContainer
+	var icon := value_row.find_child("Icon", true, false) as TextureRect
+	if icon != null:
+		icon.hide()
+	value_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	value_row.add_theme_constant_override("separation", 0)
+	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	value_label.add_theme_color_override("font_color", Color("#3a2410"))
+	value_label.add_theme_font_size_override("font_size", 15)
+	if title_font != null:
+		value_label.add_theme_font_override("font", title_font)
+
+	var stack := Control.new()
+	stack.name = "DiscardPileStack" if is_discard else "DrawPileStack"
+	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.custom_minimum_size = Vector2(PILE_FACE_SIZE.x + 12, PILE_FACE_SIZE.y + 10)
+	stat.add_child(stack)
+	stat.move_child(stack, 0)
+
+	for layer_index in range(2):
+		var layer := PanelContainer.new()
+		layer.name = "Layer%d" % (layer_index + 1)
+		layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		layer.position = Vector2(5 - layer_index * 3, 6 - layer_index * 3)
+		layer.size = PILE_FACE_SIZE
+		layer.rotation_degrees = -2.0 + float(layer_index)
+		layer.add_theme_stylebox_override(
+			"panel",
+			_make_card_back_style(Color(0.1, 0.065, 0.035, 0.88))
+		)
+		stack.add_child(layer)
+
+	var face := PanelContainer.new()
+	face.name = "DiscardFace" if is_discard else "DrawFace"
+	face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	face.position = Vector2(2, 2)
+	face.size = PILE_FACE_SIZE
+	face.add_theme_stylebox_override(
+		"panel",
+		_make_discard_pile_style() if is_discard else _make_card_back_style(Color("#20140a"))
+	)
+	stack.add_child(face)
+
+	if is_discard:
+		discard_pile_art = TextureRect.new()
+		discard_pile_art.name = "TopCardArt"
+		discard_pile_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		discard_pile_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		discard_pile_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		face.add_child(discard_pile_art)
+		discard_pile_art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		discard_pile_scrim = ColorRect.new()
+		discard_pile_scrim.name = "DiscardScrim"
+		discard_pile_scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		discard_pile_scrim.color = Color(0, 0, 0, 0.5)
+		face.add_child(discard_pile_scrim)
+		discard_pile_scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	else:
+		var emblem := Label.new()
+		emblem.name = "Sunburst"
+		emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		emblem.text = "*"
+		emblem.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		emblem.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		emblem.add_theme_color_override("font_color", COLOR_BRASS)
+		emblem.add_theme_font_size_override("font_size", 40)
+		if title_font != null:
+			emblem.add_theme_font_override("font", title_font)
+		face.add_child(emblem)
+		emblem.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var count_badge := PanelContainer.new()
+	count_badge.name = "PileCountBadge"
+	count_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	count_badge.position = Vector2((PILE_FACE_SIZE.x - 46.0) * 0.5 + 2, 0)
+	count_badge.size = Vector2(46, 24)
+	count_badge.add_theme_stylebox_override(
+		"panel",
+		_make_count_badge_style()
+	)
+	stack.add_child(count_badge)
+	value_row.reparent(count_badge)
+
+	if title != null:
+		title.text = "DISCARD" if is_discard else "DRAW PILE"
+		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		title.add_theme_color_override("font_color", COLOR_BRASS)
+		title.add_theme_font_size_override("font_size", 10)
+		if title_font != null:
+			title.add_theme_font_override("font", title_font)
+		stat.move_child(title, stat.get_child_count() - 1)
+
+
+func _create_players_turn_panel() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.name = "PlayersTurnPanel"
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	panel.add_theme_stylebox_override(
+		"panel",
+		_make_panel_style(Color("#1d140c"), Color(0.835, 0.667, 0.314, 0.32), 1)
+	)
+
+	var margin := MarginContainer.new()
+	margin.name = "Margin"
+	margin.add_theme_constant_override("margin_left", 9)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 9)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	panel.add_child(margin)
+
+	var layout := VBoxContainer.new()
+	layout.name = "Layout"
+	layout.add_theme_constant_override("separation", 5)
+	margin.add_child(layout)
+
+	var header := Label.new()
+	header.name = "Header"
+	header.text = "TABLE"
+	header.add_theme_color_override("font_color", COLOR_BRASS)
+	header.add_theme_font_size_override("font_size", 10)
+	if title_font != null:
+		header.add_theme_font_override("font", title_font)
+	layout.add_child(header)
+
+	player_status_list = VBoxContainer.new()
+	player_status_list.name = "PlayerRows"
+	player_status_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	player_status_list.add_theme_constant_override("separation", 4)
+	layout.add_child(player_status_list)
+	return panel
+
+
+func _build_top_bar() -> void:
+	var main_layout := hud_panel.get_parent() as VBoxContainer
+	top_bar = PanelContainer.new()
+	top_bar.name = "TopBar"
+	top_bar.custom_minimum_size = Vector2(0, TOP_BAR_HEIGHT)
+	top_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_bar.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	top_bar.add_theme_stylebox_override("panel", _make_top_bar_style())
+
+	var margin := MarginContainer.new()
+	margin.name = "Margin"
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_top", 6)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_bottom", 6)
+	top_bar.add_child(margin)
+
+	var row := HBoxContainer.new()
+	row.name = "Row"
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	margin.add_child(row)
+
+	var brand_row := HBoxContainer.new()
+	brand_row.name = "BrandRow"
+	brand_row.custom_minimum_size = Vector2(370, 0)
+	brand_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	brand_row.add_theme_constant_override("separation", 10)
+	row.add_child(brand_row)
+
+	var star := Label.new()
+	star.name = "Star"
+	star.text = "*"
+	star.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	star.add_theme_color_override("font_color", COLOR_BRASS)
+	star.add_theme_font_size_override("font_size", 24)
+	if title_font != null:
+		star.add_theme_font_override("font", title_font)
+	brand_row.add_child(star)
+
+	var title := Label.new()
+	title.name = "Title"
+	title.text = "CONQUEST CARTES"
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	title.add_theme_font_size_override("font_size", 18)
+	if title_font != null:
+		title.add_theme_font_override("font", title_font)
+	brand_row.add_child(title)
+
+	var base_pill := PanelContainer.new()
+	base_pill.name = "BaseKingdomPill"
+	base_pill.custom_minimum_size = Vector2(112, 26)
+	base_pill.add_theme_stylebox_override(
+		"panel",
+		_make_pill_style(Color(0, 0, 0, 0), Color(0.835, 0.667, 0.314, 0.45), 7)
+	)
+	brand_row.add_child(base_pill)
+	var pill_label := Label.new()
+	pill_label.text = "BASE KINGDOM"
+	pill_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pill_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	pill_label.add_theme_color_override("font_color", COLOR_BRASS)
+	pill_label.add_theme_font_size_override("font_size", 9)
+	if title_font != null:
+		pill_label.add_theme_font_override("font", title_font)
+	base_pill.add_child(pill_label)
+
+	row.add_child(_create_relics_rail())
+
+	var right_row := HBoxContainer.new()
+	right_row.name = "RightActions"
+	right_row.custom_minimum_size = Vector2(250, 0)
+	right_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_row.alignment = BoxContainer.ALIGNMENT_END
+	right_row.add_theme_constant_override("separation", 8)
+	row.add_child(right_row)
+
+	bazaar_button = Button.new()
+	bazaar_button.name = "BazaarButton"
+	bazaar_button.custom_minimum_size = Vector2(156, 38)
+	bazaar_button.text = "THE BAZAAR\nopens between rounds"
+	bazaar_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	bazaar_button.disabled = true
+	bazaar_button.add_theme_font_size_override("font_size", 11)
+	bazaar_button.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	bazaar_button.add_theme_color_override("font_disabled_color", COLOR_PARCHMENT_LIGHT)
+	bazaar_button.add_theme_stylebox_override("normal", _make_top_button_style(false))
+	bazaar_button.add_theme_stylebox_override("disabled", _make_top_button_style(false))
+	right_row.add_child(bazaar_button)
+
+	home_button.reparent(right_row)
+	home_button.name = "SettingsGearButton"
+	home_button.text = "⚙"
+	home_button.tooltip_text = "Settings"
+	home_button.custom_minimum_size = Vector2(38, 38)
+	home_button.add_theme_font_size_override("font_size", 20)
+	home_button.add_theme_color_override("font_color", COLOR_BRASS)
+	home_button.add_theme_stylebox_override("normal", _make_top_button_style(true))
+	home_button.add_theme_stylebox_override("hover", _make_top_button_style(true, true))
+	home_button.add_theme_stylebox_override("pressed", _make_top_button_style(true))
+
+	main_layout.add_child(top_bar)
+	main_layout.move_child(top_bar, 0)
+
+
+func _create_relics_rail() -> PanelContainer:
+	var rail := PanelContainer.new()
+	rail.name = "RelicsRail"
+	rail.custom_minimum_size = Vector2(278, 42)
+	rail.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	rail.add_theme_stylebox_override(
+		"panel",
+		_make_pill_style(Color(0.047, 0.031, 0.02, 0.55), Color(0.835, 0.667, 0.314, 0.24), 13)
+	)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 12)
+	margin.add_theme_constant_override("margin_top", 5)
+	margin.add_theme_constant_override("margin_right", 12)
+	margin.add_theme_constant_override("margin_bottom", 5)
+	rail.add_child(margin)
+
+	var row := HBoxContainer.new()
+	row.name = "Row"
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 8)
+	margin.add_child(row)
+
+	var label := Label.new()
+	label.text = "RELICS"
+	label.add_theme_color_override("font_color", COLOR_BRASS)
+	label.add_theme_font_size_override("font_size", 9)
+	if title_font != null:
+		label.add_theme_font_override("font", title_font)
+	row.add_child(label)
+
+	for index in range(4):
+		row.add_child(_create_relic_slot(index < 2, index))
+	return rail
+
+
+func _create_relic_slot(filled: bool, index: int) -> PanelContainer:
+	var slot := PanelContainer.new()
+	slot.name = "RelicSlot%d" % (index + 1)
+	slot.custom_minimum_size = Vector2(30, 30)
+	slot.add_theme_stylebox_override(
+		"panel",
+		_make_relic_slot_style(filled)
+	)
+	var glyph := Label.new()
+	glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glyph.text = "*" if filled else "+"
+	glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	glyph.add_theme_color_override(
+		"font_color",
+		Color("#3a2410") if filled else Color(0.835, 0.667, 0.314, 0.5)
+	)
+	glyph.add_theme_font_size_override("font_size", 15 if filled else 13)
+	if title_font != null:
+		glyph.add_theme_font_override("font", title_font)
+	slot.add_child(glyph)
+	return slot
 
 
 func _build_home_screen() -> void:
@@ -1739,14 +2117,38 @@ func _node_key(value: String) -> String:
 
 
 func _build_market_board() -> void:
-	market_container.add_theme_constant_override("separation", 4)
+	market_panel.custom_minimum_size = Vector2(0, 382)
+	market_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var market_margin := market_panel.get_node("MarketMargin") as MarginContainer
+	market_margin.add_theme_constant_override("margin_left", 10)
+	market_margin.add_theme_constant_override("margin_top", 8)
+	market_margin.add_theme_constant_override("margin_right", 10)
+	market_margin.add_theme_constant_override("margin_bottom", 6)
+	var market_scroll := market_container.get_parent() as ScrollContainer
+	var market_layout := VBoxContainer.new()
+	market_layout.name = "MarketLayout"
+	market_layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	market_layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	market_layout.add_theme_constant_override("separation", 8)
+	market_margin.add_child(market_layout)
+	market_scroll.reparent(market_layout)
+	market_layout.move_child(market_scroll, 1)
+	market_layout.add_child(_create_market_header())
+	market_layout.move_child(market_layout.get_node("MarketHeader"), 0)
+	market_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	market_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	market_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	market_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+
+	market_container.add_theme_constant_override("separation", 10)
 	market_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	market_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	market_container.alignment = BoxContainer.ALIGNMENT_CENTER
 
 	var treasury := _create_market_carpet(
 		"TreasuryCarpet",
 		1,
-		172.0,
+		CARD_FACE_SIZE.x + 4,
 		COLOR_TREASURY_CARPET,
 		COLOR_BRASS
 	)
@@ -1756,7 +2158,7 @@ func _build_market_board() -> void:
 	var barracks := _create_market_carpet(
 		"BarracksCarpet",
 		5,
-		0.0,
+		CARD_FACE_SIZE.x * 5.0 + 8.0 * 4.0 + 4.0,
 		COLOR_BARRACKS_CARPET,
 		COLOR_SLATE.lightened(0.32)
 	)
@@ -1767,7 +2169,7 @@ func _build_market_board() -> void:
 	var estates := _create_market_carpet(
 		"EstatesCarpet",
 		1,
-		172.0,
+		CARD_FACE_SIZE.x + 4,
 		COLOR_ESTATES_CARPET,
 		COLOR_FOREST.lightened(0.32)
 	)
@@ -1775,8 +2177,55 @@ func _build_market_board() -> void:
 	market_victory_container = estates.cards
 
 	market_container.add_child(treasury_carpet)
+	market_container.add_child(_create_market_separator())
 	market_container.add_child(barracks_carpet)
+	market_container.add_child(_create_market_separator())
 	market_container.add_child(estates_carpet)
+
+
+func _create_market_header() -> HBoxContainer:
+	var header := HBoxContainer.new()
+	header.name = "MarketHeader"
+	header.custom_minimum_size = Vector2(0, 24)
+	header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_theme_constant_override("separation", 10)
+
+	var title := Label.new()
+	title.name = "Title"
+	title.text = "THE MARKET"
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", COLOR_BRASS)
+	title.add_theme_font_size_override("font_size", 10)
+	if title_font != null:
+		title.add_theme_font_override("font", title_font)
+	header.add_child(title)
+
+	var rule := ColorRect.new()
+	rule.name = "Rule"
+	rule.custom_minimum_size = Vector2(0, 1)
+	rule.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rule.color = Color(0.835, 0.667, 0.314, 0.32)
+	header.add_child(rule)
+
+	market_helper_label = Label.new()
+	market_helper_label.name = "Helper"
+	market_helper_label.text = "Outlined cards are affordable. Greyed cards cost more."
+	market_helper_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	market_helper_label.add_theme_color_override("font_color", Color(0.925, 0.863, 0.714, 0.78))
+	market_helper_label.add_theme_font_size_override("font_size", 11)
+	if body_font != null:
+		market_helper_label.add_theme_font_override("font", body_font)
+	header.add_child(market_helper_label)
+	return header
+
+
+func _create_market_separator() -> ColorRect:
+	var separator := ColorRect.new()
+	separator.name = "MarketSeparator"
+	separator.custom_minimum_size = Vector2(1, 0)
+	separator.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	separator.color = Color(0.835, 0.667, 0.314, 0.22)
+	return separator
 
 
 func _create_market_carpet(
@@ -1788,7 +2237,7 @@ func _create_market_carpet(
 ) -> Dictionary:
 	var panel := PanelContainer.new()
 	panel.name = carpet_name
-	panel.custom_minimum_size = Vector2(minimum_width, 432)
+	panel.custom_minimum_size = Vector2(minimum_width, 352)
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	panel.set_meta("carpet_surface", surface_color)
 	panel.set_meta("carpet_accent", accent_color)
@@ -1801,14 +2250,35 @@ func _create_market_carpet(
 	margin.add_theme_constant_override("margin_bottom", 0)
 	panel.add_child(margin)
 
+	var layout := VBoxContainer.new()
+	layout.name = "ZoneLayout"
+	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_theme_constant_override("separation", 5)
+	margin.add_child(layout)
+
+	var label := Label.new()
+	label.name = "ZoneLabel"
+	label.text = (
+		"TREASURY"
+		if carpet_name == "TreasuryCarpet"
+		else "ESTATES" if carpet_name == "EstatesCarpet" else "BARRACKS"
+	)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_color_override("font_color", accent_color)
+	label.add_theme_font_size_override("font_size", 9)
+	if title_font != null:
+		label.add_theme_font_override("font", title_font)
+	layout.add_child(label)
+
 	var cards := GridContainer.new()
 	cards.name = "Cards"
 	cards.columns = columns
 	cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	cards.add_theme_constant_override("h_separation", 4)
-	cards.add_theme_constant_override("v_separation", 4)
-	margin.add_child(cards)
+	cards.add_theme_constant_override("h_separation", 8)
+	cards.add_theme_constant_override("v_separation", 8)
+	layout.add_child(cards)
 
 	return {"panel": panel, "cards": cards}
 
@@ -1834,6 +2304,9 @@ func _apply_imported_theme() -> void:
 
 	if title_font != null:
 		var title_paths := [
+			"Margin/Layout/TopBar/Margin/Row/BrandRow/Star",
+			"Margin/Layout/TopBar/Margin/Row/BrandRow/Title",
+			"Margin/Layout/TopBar/Margin/Row/BrandRow/BaseKingdomPill/Label",
 			"HomeOverlay/MenuMargin/Menu/Title",
 			"Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row/PlayAreaLabel",
 			"CardPreview/Margin/Layout/NameLabel",
@@ -1854,6 +2327,7 @@ func _apply_imported_theme() -> void:
 
 	_apply_original_ui_assets()
 	_apply_scene_colors()
+	_configure_preview_layout()
 
 	_set_hud_icon("CoinStat", "coin", COLOR_BRASS.lightened(0.18))
 	_set_hud_icon("ActionStat", "action", COLOR_SLATE.lightened(0.32))
@@ -1872,25 +2346,21 @@ func _apply_original_ui_assets() -> void:
 	market_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	left_ledger.add_theme_stylebox_override(
 		"panel",
-		_make_panel_style(Color("#182838"), COLOR_SLATE.lightened(0.18), 2)
+		_make_panel_style(Color("#1d140c"), Color(0.835, 0.667, 0.314, 0.32), 1)
 	)
 	right_ledger.add_theme_stylebox_override(
 		"panel",
-		_make_panel_style(Color("#193429"), COLOR_FOREST.lightened(0.24), 2)
+		_make_panel_style(Color("#1d140c"), Color(0.835, 0.667, 0.314, 0.32), 1)
 	)
 	for market_zone in [treasury_carpet, barracks_carpet, estates_carpet]:
 		market_zone.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	hand_panel.add_theme_stylebox_override(
 		"panel",
-		_make_panel_style(
-			Color("#171f27"),
-			COLOR_BRASS.darkened(0.04),
-			2
-		)
+		StyleBoxEmpty.new()
 	)
 	play_area_panel.add_theme_stylebox_override(
 		"panel",
-		_make_panel_style(Color("#17252b"), COLOR_BRASS.darkened(0.08), 2)
+		_make_panel_style(Color(0.09, 0.058, 0.035, 0.52), Color(0.835, 0.667, 0.314, 0.16), 1)
 	)
 	if ui_textures.has("endgame"):
 		end_game_panel.add_theme_stylebox_override(
@@ -1901,12 +2371,23 @@ func _apply_original_ui_assets() -> void:
 			"panel",
 			_make_asset_style(ui_textures["endgame"], 22.0, 18.0)
 		)
-	if ui_textures.has("button"):
-		_apply_button_asset_styles(home_button, ui_textures["button"])
 	if ui_textures.has("button_primary"):
-		_apply_button_asset_styles(end_turn_button, ui_textures["button_primary"])
 		_apply_button_asset_styles(play_again_button, ui_textures["button_primary"])
 		_apply_button_asset_styles(end_game_home_button, ui_textures["button_primary"])
+	end_turn_button.add_theme_stylebox_override("normal", _make_end_turn_style())
+	end_turn_button.add_theme_stylebox_override("hover", _make_end_turn_style(true))
+	end_turn_button.add_theme_stylebox_override("pressed", _make_end_turn_style())
+	end_turn_button.add_theme_stylebox_override("disabled", _make_end_turn_style(false, true))
+	end_turn_button.add_theme_color_override("font_color", Color("#3a2410"))
+	end_turn_button.add_theme_color_override("font_hover_color", Color("#241405"))
+	end_turn_button.add_theme_color_override("font_disabled_color", Color(0.78, 0.72, 0.64, 0.78))
+	end_turn_button.add_theme_font_size_override("font_size", 14)
+	if title_font != null:
+		end_turn_button.add_theme_font_override("font", title_font)
+	if home_button != null:
+		home_button.add_theme_stylebox_override("normal", _make_top_button_style(true))
+		home_button.add_theme_stylebox_override("hover", _make_top_button_style(true, true))
+		home_button.add_theme_stylebox_override("pressed", _make_top_button_style(true))
 
 
 func _apply_scene_colors() -> void:
@@ -1940,6 +2421,27 @@ func _apply_scene_colors() -> void:
 	preview_effect_label.add_theme_color_override("default_color", COLOR_PARCHMENT_LIGHT)
 	choice_prompt_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
 	final_score_label.add_theme_color_override("font_color", COLOR_BRASS.lightened(0.22))
+
+
+func _configure_preview_layout() -> void:
+	card_preview.custom_minimum_size = PREVIEW_SIZE
+	card_preview.size = PREVIEW_SIZE
+	var preview_margin := card_preview.get_node("Margin") as MarginContainer
+	preview_margin.add_theme_constant_override("margin_left", 14)
+	preview_margin.add_theme_constant_override("margin_top", 13)
+	preview_margin.add_theme_constant_override("margin_right", 14)
+	preview_margin.add_theme_constant_override("margin_bottom", 13)
+	var layout := preview_margin.get_node("Layout") as VBoxContainer
+	layout.add_theme_constant_override("separation", 6)
+	preview_name_label.custom_minimum_size = Vector2(0, 44)
+	preview_name_label.add_theme_font_size_override("font_size", 21)
+	preview_meta_label.add_theme_font_size_override("font_size", 11)
+	preview_art_frame.custom_minimum_size = Vector2(0, PREVIEW_ART_HEIGHT)
+	preview_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	preview_effect_label.custom_minimum_size = Vector2(0, 176)
+	preview_effect_label.add_theme_font_size_override("normal_font_size", 13)
+	preview_effect_label.add_theme_font_size_override("bold_font_size", 13)
+	preview_effect_label.scroll_active = false
 
 
 func _apply_body_font_recursive(node: Node) -> void:
@@ -1992,10 +2494,16 @@ func _refresh_ui() -> void:
 	coin_label.text = str(player.coins)
 	action_label.text = str(player.actions)
 	buy_label.text = str(player.buys)
+	if market_helper_label != null:
+		market_helper_label.text = (
+			"Outlined cards are affordable with your %d coins. Greyed cards cost more."
+			% player.coins
+		)
 	hand_count_label.text = "%d card%s" % [
 		player.hand.size(),
 		"" if player.hand.size() == 1 else "s",
 	]
+	_refresh_discard_pile_art()
 	_refresh_end_turn_button()
 	_refresh_player_status()
 	home_button.disabled = false
@@ -2006,27 +2514,145 @@ func _refresh_ui() -> void:
 
 
 func _refresh_player_status() -> void:
-	if player_status_label == null:
+	if player_status_list == null:
 		return
-	var lines: Array[String] = []
+	_clear_container(player_status_list)
 	var you_index := (
 		clampi(local_player_index, 0, game_state.players.size() - 1)
 		if network_enabled and not game_state.players.is_empty()
 		else game_state.active_player_index
 	)
-	lines.append("You: Player %d" % (you_index + 1))
-	if game_state.players.size() > 1:
-		for index in range(game_state.players.size()):
-			if index == you_index:
-				continue
-			var other: PlayerState = game_state.players[index]
-			var status := "ready"
-			if other.pending_choice != null:
-				status = "choosing"
-			elif other.cooldown_remaining > 0.0:
-				status = "%.1fs" % other.cooldown_remaining
-			lines.append("P%d: %s" % [index + 1, status])
-	player_status_label.text = "\n".join(lines)
+	for index in range(game_state.players.size()):
+		player_status_list.add_child(
+			_create_player_status_row(index, game_state.players[index], you_index)
+		)
+
+
+func _refresh_discard_pile_art() -> void:
+	if discard_pile_art == null:
+		return
+	var discard := game_state.player.discard_pile
+	if discard.is_empty():
+		discard_pile_art.texture = null
+		if discard_pile_scrim != null:
+			discard_pile_scrim.color = Color(0, 0, 0, 0.72)
+		return
+	var top_card: CardDefinition = discard[discard.size() - 1]
+	discard_pile_art.texture = _load_card_texture(top_card.art_id)
+	if discard_pile_scrim != null:
+		discard_pile_scrim.color = Color(0, 0, 0, 0.48)
+
+
+func _create_player_status_row(index: int, game_player: PlayerState, you_index: int) -> PanelContainer:
+	var is_active := index == game_state.active_player_index
+	var is_local := index == you_index
+	var status_color := COLOR_BRASS
+	var status_text := "Waiting"
+	if game_player.pending_choice != null:
+		status_color = COLOR_ACTION_ACCENT
+		status_text = "Choosing"
+	elif game_player.cooldown_remaining > 0.0:
+		status_color = COLOR_VICTORY_ACCENT
+		status_text = "Cooldown %.1fs" % game_player.cooldown_remaining
+	elif is_active:
+		status_color = COLOR_RESOURCE_ACCENT
+		status_text = "Your turn" if is_local else "Buying"
+	elif game_player.ending_turn:
+		status_color = COLOR_PARCHMENT.darkened(0.25)
+		status_text = "Ended"
+
+	var row_panel := PanelContainer.new()
+	row_panel.name = "PlayerRow%d" % (index + 1)
+	row_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row_panel.add_theme_stylebox_override(
+		"panel",
+		_make_player_row_style(is_active)
+	)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 7)
+	margin.add_theme_constant_override("margin_top", 5)
+	margin.add_theme_constant_override("margin_right", 7)
+	margin.add_theme_constant_override("margin_bottom", 5)
+	row_panel.add_child(margin)
+
+	var stack := VBoxContainer.new()
+	stack.add_theme_constant_override("separation", 3)
+	margin.add_child(stack)
+
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 5)
+	stack.add_child(top)
+
+	var dot := PanelContainer.new()
+	dot.name = "StatusDot"
+	dot.custom_minimum_size = Vector2(9, 9)
+	dot.add_theme_stylebox_override("panel", _make_dot_style(status_color))
+	top.add_child(dot)
+
+	var name_label := Label.new()
+	name_label.name = "Name"
+	name_label.text = game_player.player_name
+	if is_local and network_is_host:
+		name_label.text += " (host)"
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	name_label.add_theme_font_size_override("font_size", 10)
+	if title_font != null:
+		name_label.add_theme_font_override("font", title_font)
+	top.add_child(name_label)
+
+	var turn_badge := PanelContainer.new()
+	turn_badge.name = "TurnBadge"
+	turn_badge.custom_minimum_size = Vector2(54, 18)
+	turn_badge.add_theme_stylebox_override(
+		"panel",
+		_make_pill_style(Color(0, 0, 0, 0.08), Color(0.835, 0.667, 0.314, 0.44), 5)
+	)
+	top.add_child(turn_badge)
+	var turn_text := Label.new()
+	turn_text.text = "TURN %d" % game_player.turn_number
+	turn_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	turn_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	turn_text.add_theme_color_override("font_color", COLOR_BRASS)
+	turn_text.add_theme_font_size_override("font_size", 8)
+	if title_font != null:
+		turn_text.add_theme_font_override("font", title_font)
+	turn_badge.add_child(turn_text)
+
+	var status_label := Label.new()
+	status_label.name = "Status"
+	status_label.text = status_text
+	status_label.add_theme_color_override("font_color", status_color)
+	status_label.add_theme_font_size_override("font_size", 9)
+	if body_font != null:
+		status_label.add_theme_font_override("font", body_font)
+	stack.add_child(status_label)
+
+	if game_player.cooldown_remaining > 0.0:
+		stack.add_child(_create_cooldown_bar(game_player, status_color))
+	return row_panel
+
+
+func _create_cooldown_bar(game_player: PlayerState, color: Color) -> Control:
+	var track := PanelContainer.new()
+	track.name = "CooldownBar"
+	track.custom_minimum_size = Vector2(0, 5)
+	track.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	track.add_theme_stylebox_override(
+		"panel",
+		_make_pill_style(Color(0, 0, 0, 0.28), Color.TRANSPARENT, 3)
+	)
+	var fill := ColorRect.new()
+	fill.name = "Fill"
+	fill.color = color
+	var duration := maxf(0.001, game_player.cooldown_duration)
+	fill.anchor_left = 0.0
+	fill.anchor_top = 0.0
+	fill.anchor_right = clampf(game_player.cooldown_remaining / duration, 0.0, 1.0)
+	fill.anchor_bottom = 1.0
+	track.add_child(fill)
+	return track
 
 
 func _refresh_end_turn_button() -> void:
@@ -2049,16 +2675,26 @@ func _refresh_end_turn_button() -> void:
 
 func _refresh_hand() -> void:
 	_clear_container(hand_container)
-	for card in game_state.player.hand:
+	var hand_size := game_state.player.hand.size()
+	for index in range(hand_size):
+		var card: CardDefinition = game_state.player.hand[index]
 		var playable := _can_play_card(card)
 		var visual_state := HAND_PLAYABLE if playable else HAND_UNPLAYABLE
 		var button := _create_card_button(card, visual_state)
 		button.disabled = not playable
+		button.rotation_degrees = _get_hand_card_rotation(index, hand_size)
 		button.mouse_default_cursor_shape = (
 			Control.CURSOR_POINTING_HAND if playable else Control.CURSOR_ARROW
 		)
 		button.pressed.connect(_on_hand_card_pressed.bind(card))
 		hand_container.add_child(button)
+
+
+func _get_hand_card_rotation(index: int, total: int) -> float:
+	if total <= 1:
+		return 0.0
+	var center := (float(total) - 1.0) * 0.5
+	return clampf((float(index) - center) * 3.2, -8.0, 8.0)
 
 
 func _refresh_market() -> void:
@@ -2095,14 +2731,9 @@ func _render_market_cards(
 	cards: Array[CardDefinition],
 	container: GridContainer
 ) -> void:
-	# The market stays neutral (full colour, plain frame) until the player has
-	# played a card this turn; only then do affordability cues kick in.
-	var buying_active := not game_state.player.play_area.is_empty()
 	for card in cards:
 		var affordable := _can_buy_card(card)
-		var visual_state := MARKET_NEUTRAL
-		if buying_active:
-			visual_state = MARKET_AFFORDABLE if affordable else MARKET_UNAFFORDABLE
+		var visual_state := MARKET_AFFORDABLE if affordable else MARKET_UNAFFORDABLE
 		var button := _create_card_button(card, visual_state)
 		button.disabled = not affordable
 		button.mouse_default_cursor_shape = (
@@ -2209,14 +2840,14 @@ func _arrange_action_market(
 func _refresh_play_area() -> void:
 	_clear_container(play_area_container)
 	var played_cards := game_state.player.play_area
-	play_area_label.text = "PLAYED THIS TURN  %d" % played_cards.size()
+	play_area_label.text = "IN PLAY  %d" % played_cards.size()
 
 	if played_cards.is_empty():
 		var empty_label := Label.new()
 		empty_label.custom_minimum_size = Vector2(0, PLAY_AREA_CONTENT_HEIGHT)
-		empty_label.text = "Played cards appear here and move to discard when you end the turn."
+		empty_label.text = ""
 		empty_label.add_theme_color_override("font_color", COLOR_PARCHMENT.darkened(0.28))
-		empty_label.add_theme_font_size_override("font_size", 13)
+		empty_label.add_theme_font_size_override("font_size", 9)
 		empty_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		play_area_container.add_child(empty_label)
 		return
@@ -2253,10 +2884,21 @@ func _create_card_button(
 	card: CardDefinition,
 	visual_state: String
 ) -> Button:
-	var palette := _get_card_palette(visual_state)
+	var type_palette := _get_card_type_palette(card.card_type)
 	var card_surface := _get_card_surface_color(card.card_type)
 	var is_market_card := visual_state.begins_with("market_")
-	var outline_width := 4
+	var is_hand_card := visual_state.begins_with("hand_")
+	var is_unavailable := visual_state == MARKET_UNAFFORDABLE
+	var is_disabled_face := visual_state == MARKET_UNAFFORDABLE or visual_state == HAND_UNPLAYABLE
+	var is_affordable_face := (
+		visual_state == MARKET_AFFORDABLE
+		or visual_state == HAND_PLAYABLE
+		or visual_state.begins_with("kingdom_")
+	)
+	var outline_width := 2
+	var border_color: Color = type_palette.accent
+	if is_disabled_face:
+		border_color = Color(0, 0, 0, 0.45)
 	var button := Button.new()
 	button.custom_minimum_size = CARD_FACE_SIZE
 	if is_market_card:
@@ -2267,7 +2909,7 @@ func _create_card_button(
 	button.set_meta("card_base_color", card_surface)
 	button.set_meta("card_type", card.card_type)
 	button.set_meta("card_group", card.card_group)
-	button.set_meta("card_accent_color", palette.border)
+	button.set_meta("card_accent_color", border_color)
 	button.set_meta("supply_count", game_state.get_supply_count(card.id))
 	button.tooltip_text = "%s — %s" % [card.card_name, card.description]
 	if visual_state.begins_with("market_"):
@@ -2280,205 +2922,204 @@ func _create_card_button(
 		button.mouse_exited.connect(_on_card_mouse_exited.bind(button))
 	button.add_theme_stylebox_override(
 		"normal",
-		_make_card_style(card_surface, palette.border, outline_width)
+		_make_card_style(card_surface, border_color, outline_width, is_affordable_face)
 	)
 	button.add_theme_stylebox_override(
 		"hover",
-		_make_card_style(card_surface.lightened(0.14), palette.border.lightened(0.2), outline_width)
+		_make_card_style(
+			card_surface.lightened(0.08),
+			type_palette.hover_border,
+			outline_width,
+			is_affordable_face
+		)
 	)
 	button.add_theme_stylebox_override(
 		"pressed",
-		_make_card_style(card_surface.darkened(0.06), palette.border.lightened(0.08), outline_width)
+		_make_card_style(card_surface.darkened(0.06), type_palette.accent, outline_width, is_affordable_face)
 	)
 	button.add_theme_stylebox_override(
 		"focus",
-		_make_card_style(Color.TRANSPARENT, COLOR_BRASS.lightened(0.3), outline_width)
+		_make_card_style(Color.TRANSPARENT, COLOR_BRASS.lightened(0.12), outline_width, true)
 	)
 	button.add_theme_stylebox_override(
 		"disabled",
-		_make_card_style(card_surface.darkened(0.16), palette.border, outline_width)
+		_make_card_style(card_surface.darkened(0.12), Color(0, 0, 0, 0.45), outline_width, false)
 	)
-
-	if ui_textures.has("card"):
-		var ornament := TextureRect.new()
-		ornament.name = "MedievalFrame"
-		ornament.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		ornament.texture = ui_textures["card"]
-		ornament.modulate = Color(1.18, 1.12, 0.92, 1.0)
-		ornament.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		ornament.stretch_mode = TextureRect.STRETCH_SCALE
-		button.add_child(ornament)
-		ornament.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var content := MarginContainer.new()
 	content.name = "CardContent"
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_theme_constant_override("margin_left", 7 if is_market_card else 9)
-	content.add_theme_constant_override("margin_top", 5)
-	content.add_theme_constant_override("margin_right", 7 if is_market_card else 9)
-	content.add_theme_constant_override("margin_bottom", 5)
+	content.add_theme_constant_override("margin_left", 0)
+	content.add_theme_constant_override("margin_top", 0)
+	content.add_theme_constant_override("margin_right", 0)
+	content.add_theme_constant_override("margin_bottom", 0)
 	button.add_child(content)
 	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var layout := VBoxContainer.new()
 	layout.name = "CardLayout"
 	layout.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layout.add_theme_constant_override("separation", 2)
+	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_theme_constant_override("separation", 0)
 	content.add_child(layout)
+	layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var art_height := HAND_CARD_ART_HEIGHT if is_hand_card else CARD_ART_HEIGHT
+	var art_texture := _load_card_texture(card.art_id)
+	var art_frame := PanelContainer.new()
+	art_frame.name = "ArtFrame"
+	art_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	art_frame.clip_contents = true
+	art_frame.custom_minimum_size = Vector2(0, art_height)
+	art_frame.add_theme_stylebox_override(
+		"panel",
+		_make_card_art_style(card_surface.darkened(0.16))
+	)
+	layout.add_child(art_frame)
+
+	var art_rect := TextureRect.new()
+	art_rect.name = "Art"
+	art_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	art_rect.texture = art_texture
+	art_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	if is_unavailable:
+		art_rect.material = _get_desaturate_material()
+	art_frame.add_child(art_rect)
+	art_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var art_scrim := ColorRect.new()
+	art_scrim.name = "ArtScrim"
+	art_scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	art_scrim.color = type_palette.scrim
+	art_frame.add_child(art_scrim)
+	art_scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var accent_line := ColorRect.new()
+	accent_line.name = "AccentLine"
+	accent_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	accent_line.color = type_palette.accent
+	accent_line.custom_minimum_size = Vector2(0, 2)
+	art_frame.add_child(accent_line)
+	accent_line.anchor_left = 0.0
+	accent_line.anchor_top = 1.0
+	accent_line.anchor_right = 1.0
+	accent_line.anchor_bottom = 1.0
+	accent_line.offset_left = 0
+	accent_line.offset_top = -2
+	accent_line.offset_right = 0
+	accent_line.offset_bottom = 0
 
 	var name_label := Label.new()
 	name_label.name = "NameLabel"
-	name_label.custom_minimum_size = Vector2(0, 30)
+	name_label.custom_minimum_size = Vector2(0, 19)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_label.text = card.card_name
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	name_label.add_theme_color_override("font_color", palette.text)
-	name_label.add_theme_font_size_override("font_size", 12 if is_market_card else 15)
+	name_label.clip_text = true
+	name_label.add_theme_color_override("font_color", type_palette.name_text)
+	name_label.add_theme_font_size_override("font_size", 10)
 	if title_font != null:
 		name_label.add_theme_font_override("font", title_font)
 	layout.add_child(name_label)
 
-	# Card art window: the picture sits in a framed box, like a tabletop card.
-	var art_texture := _load_card_texture(card.art_id)
-	if art_texture != null:
-		var art_frame := PanelContainer.new()
-		art_frame.name = "ArtFrame"
-		art_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		art_frame.clip_contents = true
-		art_frame.custom_minimum_size = Vector2(0, CARD_ART_HEIGHT)
-		var art_style := _make_flat_card_style(
-			COLOR_WALNUT_DARK,
-			_get_card_type_accent(card.card_type),
-			3
-		)
-		if is_market_card:
-			art_style.content_margin_left = 4
-			art_style.content_margin_right = 4
-		art_frame.add_theme_stylebox_override("panel", art_style)
-		var art_rect := TextureRect.new()
-		art_rect.name = "Art"
-		art_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		art_rect.texture = art_texture
-		art_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		art_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		art_rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		art_rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		if visual_state == MARKET_UNAFFORDABLE:
-			art_rect.material = _get_desaturate_material()
-		art_frame.add_child(art_rect)
-		layout.add_child(art_frame)
-
 	var effect_slot := MarginContainer.new()
 	effect_slot.name = "EffectSlot"
-	effect_slot.custom_minimum_size = Vector2(0, 44)
+	effect_slot.custom_minimum_size = Vector2(0, 42 if is_market_card else 36)
 	effect_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	effect_slot.add_theme_constant_override("margin_left", CARD_RULE_SIDE_MARGIN)
-	effect_slot.add_theme_constant_override("margin_top", CARD_RULE_TOP_MARGIN)
-	effect_slot.add_theme_constant_override("margin_right", CARD_RULE_SIDE_MARGIN)
-	effect_slot.add_theme_constant_override("margin_bottom", CARD_RULE_BOTTOM_MARGIN)
+	effect_slot.add_theme_constant_override("margin_left", 7)
+	effect_slot.add_theme_constant_override("margin_top", 0)
+	effect_slot.add_theme_constant_override("margin_right", 7)
+	effect_slot.add_theme_constant_override("margin_bottom", 1)
 	layout.add_child(effect_slot)
 
 	var effect_center := VBoxContainer.new()
 	effect_center.name = "EffectCenter"
 	effect_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	effect_center.alignment = BoxContainer.ALIGNMENT_CENTER
+	effect_center.alignment = BoxContainer.ALIGNMENT_BEGIN
 	effect_center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	effect_center.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	effect_center.add_theme_constant_override("separation", 0)
+	effect_center.add_theme_constant_override("separation", 2)
 	effect_slot.add_child(effect_center)
+
+	var meta_chip := PanelContainer.new()
+	meta_chip.name = "MetaChip"
+	meta_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	meta_chip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	meta_chip.custom_minimum_size = Vector2(0, 13)
+	meta_chip.add_theme_stylebox_override(
+		"panel",
+		_make_meta_chip_style(type_palette.chip_bg)
+	)
+	effect_center.add_child(meta_chip)
+
+	var meta_chip_label := Label.new()
+	meta_chip_label.name = "MetaChipLabel"
+	meta_chip_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	meta_chip_label.text = _get_card_meta_chip_text(card)
+	meta_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	meta_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	meta_chip_label.clip_text = true
+	meta_chip_label.add_theme_color_override("font_color", type_palette.chip_text)
+	meta_chip_label.add_theme_font_size_override("font_size", 7)
+	if title_font != null:
+		meta_chip_label.add_theme_font_override("font", title_font)
+	meta_chip.add_child(meta_chip_label)
 
 	var effect_label := RichTextLabel.new()
 	effect_label.name = "EffectLabel"
 	effect_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	effect_label.bbcode_enabled = true
 	var rules_text := _get_card_rules_text(card.description)
-	var rules_fit_content := card.description.length() <= SHORT_RULE_BREAK_LIMIT
-	effect_label.fit_content = rules_fit_content
+	effect_label.fit_content = false
 	effect_label.scroll_active = false
 	effect_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	effect_label.text = "[center]%s[/center]" % rules_text
+	effect_label.text = rules_text
 	effect_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	effect_label.size_flags_vertical = (
-		Control.SIZE_SHRINK_CENTER if rules_fit_content else Control.SIZE_EXPAND_FILL
-	)
-	effect_label.add_theme_color_override("default_color", palette.text)
-	effect_label.add_theme_font_size_override("normal_font_size", 10 if is_market_card else 12)
-	effect_label.add_theme_font_size_override("bold_font_size", 10 if is_market_card else 12)
+	effect_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	effect_label.add_theme_color_override("default_color", type_palette.description_text)
+	effect_label.add_theme_font_size_override("normal_font_size", 7)
+	effect_label.add_theme_font_size_override("bold_font_size", 7)
 	if body_font != null:
 		effect_label.add_theme_font_override("normal_font", body_font)
 	if body_bold_font != null:
 		effect_label.add_theme_font_override("bold_font", body_bold_font)
 	effect_center.add_child(effect_label)
 
-	# Footer: cost and type along the bottom edge.
 	var meta_row := HBoxContainer.new()
 	meta_row.name = "MetaRow"
-	meta_row.custom_minimum_size = Vector2(0, 18 if is_market_card else 20)
+	meta_row.custom_minimum_size = Vector2(0, 10)
 	meta_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	meta_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	meta_row.add_theme_constant_override("separation", 2 if is_market_card else 4)
+	meta_row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	meta_row.add_theme_constant_override("separation", 4)
 	layout.add_child(meta_row)
 
 	var type_label := Label.new()
 	type_label.name = "TypeLabel"
 	type_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	type_label.custom_minimum_size = Vector2(0, 14 if is_market_card else 18)
-	type_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	type_label.custom_minimum_size = Vector2(0, 10)
+	type_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	type_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	type_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	type_label.text = card.card_type.to_upper()
-	type_label.add_theme_color_override(
-		"font_color",
-		_get_card_type_accent(card.card_type).lightened(0.1)
-	)
-	type_label.add_theme_font_size_override("font_size", 8 if is_market_card else 12)
-	if body_bold_font != null:
-		type_label.add_theme_font_override("font", body_bold_font)
+	type_label.add_theme_color_override("font_color", type_palette.footer_text)
+	type_label.add_theme_font_size_override("font_size", 6)
+	if title_font != null:
+		type_label.add_theme_font_override("font", title_font)
 	meta_row.add_child(type_label)
 
-	if card.victory_points != 0 or card.score_per_cards > 0:
-		if icon_textures.has("victory"):
-			meta_row.add_child(
-				_create_icon(
-					icon_textures["victory"],
-					Vector2(9, 9) if is_market_card else Vector2(14, 14),
-					COLOR_BRASS
-				)
-			)
-		var victory_label := Label.new()
-		victory_label.custom_minimum_size = Vector2(0, 14 if is_market_card else 18)
-		victory_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-		victory_label.text = (
-			"%d VP" % card.victory_points
-			if card.victory_points != 0
-			else "VP / %d" % card.score_per_cards
-		)
-		victory_label.add_theme_color_override(
-			"font_color",
-			COLOR_VICTORY_ACCENT.lightened(0.08)
-		)
-		victory_label.add_theme_font_size_override("font_size", 8 if is_market_card else 12)
-		if body_font != null:
-			victory_label.add_theme_font_override("font", body_font)
-		meta_row.add_child(victory_label)
-
 	if visual_state.begins_with("market_"):
-		var pile_label := Label.new()
-		pile_label.name = "PileLabel"
-		pile_label.text = "×%d" % game_state.get_supply_count(card.id)
-		pile_label.add_theme_color_override(
-			"font_color",
-			COLOR_OXBLOOD if game_state.get_supply_count(card.id) <= 0 else palette.muted
-		)
-		pile_label.add_theme_font_size_override("font_size", 8 if is_market_card else 12)
-		if body_bold_font != null:
-			pile_label.add_theme_font_override("font", body_bold_font)
-		meta_row.add_child(pile_label)
+		button.add_child(_create_pile_badge(game_state.get_supply_count(card.id), type_palette.accent))
 
 	button.add_child(_create_price_badge(game_state.get_effective_cost(card)))
 
 	if visual_state == MARKET_UNAFFORDABLE:
-		button.modulate = Color(0.66, 0.64, 0.63)
+		button.modulate = Color(0.7, 0.7, 0.66, 0.55)
+	elif visual_state == HAND_UNPLAYABLE:
+		button.modulate = Color(0.78, 0.78, 0.74, 0.78)
 
 	return button
 
@@ -2486,10 +3127,10 @@ func _create_card_button(
 func _create_price_badge(cost: int) -> Control:
 	var badge := Control.new()
 	badge.name = "PriceBadge"
-	badge.custom_minimum_size = Vector2(32, 32)
-	badge.size = Vector2(32, 32)
+	badge.custom_minimum_size = Vector2(30, 30)
+	badge.size = Vector2(30, 30)
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	badge.position = Vector2(6, 4)
+	badge.position = Vector2(7, 7)
 	badge.z_index = 4
 
 	var coin_face := PanelContainer.new()
@@ -2497,7 +3138,7 @@ func _create_price_badge(cost: int) -> Control:
 	coin_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	coin_face.add_theme_stylebox_override(
 		"panel",
-		_make_coin_style(COLOR_BRASS.lightened(0.08), COLOR_WALNUT_DARK, 2, 16)
+		_make_coin_style(Color("#7a5418"), Color("#caa044"), 2, 15)
 	)
 	badge.add_child(coin_face)
 	coin_face.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -2505,11 +3146,11 @@ func _create_price_badge(cost: int) -> Control:
 	var inner_ring := PanelContainer.new()
 	inner_ring.name = "InnerRing"
 	inner_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	inner_ring.position = Vector2(4, 4)
+	inner_ring.position = Vector2(3, 3)
 	inner_ring.size = Vector2(24, 24)
 	inner_ring.add_theme_stylebox_override(
 		"panel",
-		_make_coin_style(COLOR_BRASS.lightened(0.22), COLOR_BRASS.darkened(0.34), 2, 12)
+		_make_coin_style(Color("#bf8f37"), Color("#56380f"), 2, 12)
 	)
 	badge.add_child(inner_ring)
 
@@ -2518,9 +3159,9 @@ func _create_price_badge(cost: int) -> Control:
 		stamp.name = "CoinStamp"
 		stamp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		stamp.texture = icon_textures["coin"]
-		stamp.modulate = Color(0.36, 0.22, 0.08, 0.24)
+		stamp.modulate = Color(0.22, 0.12, 0.03, 0.18)
 		stamp.position = Vector2(8, 8)
-		stamp.size = Vector2(16, 16)
+		stamp.size = Vector2(14, 14)
 		stamp.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		stamp.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		badge.add_child(stamp)
@@ -2528,17 +3169,12 @@ func _create_price_badge(cost: int) -> Control:
 	var glint := ColorRect.new()
 	glint.name = "CoinGlint"
 	glint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	glint.color = Color(1.0, 0.92, 0.58, 0.58)
+	glint.color = Color(1.0, 0.94, 0.68, 0.52)
 	glint.position = Vector2(8, 6)
-	glint.size = Vector2(12, 2)
+	glint.size = Vector2(11, 2)
 	badge.add_child(glint)
 
-	for dot_position in [
-		Vector2(15, 4),
-		Vector2(24, 15),
-		Vector2(15, 24),
-		Vector2(4, 15),
-	]:
+	for dot_position in _get_coin_rivet_positions():
 		badge.add_child(_create_coin_rivet(dot_position))
 
 	var cost_label := Label.new()
@@ -2547,10 +3183,10 @@ func _create_price_badge(cost: int) -> Control:
 	cost_label.text = str(cost)
 	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cost_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	cost_label.add_theme_color_override("font_color", COLOR_INK)
-	cost_label.add_theme_color_override("font_shadow_color", COLOR_BRASS.lightened(0.34))
+	cost_label.add_theme_color_override("font_color", Color("#241405"))
+	cost_label.add_theme_color_override("font_shadow_color", Color(1.0, 0.933, 0.769, 0.4))
 	cost_label.add_theme_constant_override("shadow_offset_x", 1)
-	cost_label.add_theme_constant_override("shadow_offset_y", 1)
+	cost_label.add_theme_constant_override("shadow_offset_y", -1)
 	cost_label.add_theme_font_size_override("font_size", 14)
 	if title_font != null:
 		cost_label.add_theme_font_override("font", title_font)
@@ -2558,10 +3194,49 @@ func _create_price_badge(cost: int) -> Control:
 		cost_label.add_theme_font_override("font", body_bold_font)
 	badge.add_child(cost_label)
 	cost_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	cost_label.offset_left = 1
-	cost_label.offset_top = 2
-	cost_label.offset_right = 1
-	cost_label.offset_bottom = 2
+	cost_label.offset_left = 0
+	cost_label.offset_top = 1
+	cost_label.offset_right = 0
+	cost_label.offset_bottom = 1
+	return badge
+
+
+func _create_pile_badge(count: int, accent: Color) -> Control:
+	var badge := PanelContainer.new()
+	badge.name = "PileBadge"
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.custom_minimum_size = Vector2(38, 18)
+	badge.size = Vector2(38, 18)
+	badge.position = Vector2(CARD_FACE_SIZE.x - 45, 8)
+	badge.z_index = 4
+	badge.add_theme_stylebox_override(
+		"panel",
+		_make_pile_badge_style(accent)
+	)
+
+	var row := HBoxContainer.new()
+	row.name = "PileRow"
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 3)
+	badge.add_child(row)
+
+	if icon_textures.has("deck"):
+		var deck_icon := _create_icon(icon_textures["deck"], Vector2(10, 10), accent.lightened(0.28))
+		deck_icon.name = "PileIcon"
+		row.add_child(deck_icon)
+
+	var pile_label := Label.new()
+	pile_label.name = "PileLabel"
+	pile_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pile_label.text = str(count)
+	pile_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pile_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	pile_label.add_theme_color_override("font_color", accent.lightened(0.28))
+	pile_label.add_theme_font_size_override("font_size", 9)
+	if title_font != null:
+		pile_label.add_theme_font_override("font", title_font)
+	row.add_child(pile_label)
 	return badge
 
 
@@ -2584,15 +3259,23 @@ func _make_coin_style(
 	return coin_style
 
 
+func _get_coin_rivet_positions() -> Array[Vector2]:
+	var positions: Array[Vector2] = []
+	for index in range(12):
+		var angle := TAU * float(index) / 12.0
+		positions.append(Vector2(13.5 + cos(angle) * 11.5, 13.5 + sin(angle) * 11.5))
+	return positions
+
+
 func _create_coin_rivet(position: Vector2) -> PanelContainer:
 	var rivet := PanelContainer.new()
 	rivet.name = "CoinRivet"
 	rivet.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rivet.position = position
-	rivet.size = Vector2(3, 3)
+	rivet.position = position - Vector2(1, 1)
+	rivet.size = Vector2(2, 2)
 	rivet.add_theme_stylebox_override(
 		"panel",
-		_make_coin_style(COLOR_BRASS.lightened(0.34), COLOR_BRASS.darkened(0.42), 1, 2)
+		_make_coin_style(COLOR_BRASS.lightened(0.34), COLOR_BRASS.darkened(0.42), 1, 1)
 	)
 	return rivet
 
@@ -2688,33 +3371,31 @@ func _show_card_preview(
 	source_button: Button,
 	visual_state: String
 ) -> void:
-	var palette := _get_card_palette(visual_state)
+	var type_palette := _get_card_type_palette(card.card_type)
 	preview_name_label.text = card.card_name
 	preview_meta_label.text = (
-		"%s  |  COST %d"
-		% [card.card_type.to_upper(), game_state.get_effective_cost(card)]
+		"%s · COST %d COINS · %s"
+		% [card.card_type.to_upper(), game_state.get_effective_cost(card), _get_card_meta_chip_text(card).to_upper()]
 	)
 	if not card.card_group.is_empty():
-		preview_meta_label.text += "  |  %s" % card.card_group.to_upper()
+		preview_meta_label.text += " · %s" % card.card_group.to_upper()
 	if visual_state.begins_with("market_"):
-		preview_meta_label.text += "  |  %d LEFT" % game_state.get_supply_count(card.id)
+		preview_meta_label.text += " · %d LEFT" % game_state.get_supply_count(card.id)
 	card_preview.set_meta("card_type", card.card_type)
 	card_preview.set_meta("card_base_color", _get_card_surface_color(card.card_type))
+	preview_name_label.add_theme_color_override("font_color", type_palette.name_text)
+	preview_meta_label.add_theme_color_override("font_color", type_palette.chip_text)
 	preview_art.texture = _load_card_texture(card.art_id)
 	preview_art_frame.visible = preview_art.texture != null
 	preview_art_frame.add_theme_stylebox_override(
 		"panel",
-		_make_flat_card_style(
-			COLOR_WALNUT_DARK,
-			_get_card_type_accent(card.card_type),
-			4
-		)
+		_make_card_art_style(_get_card_surface_color(card.card_type).darkened(0.14))
 	)
-	preview_effect_label.text = "[center]%s[/center]" % _get_card_rules_text(card.description)
-	preview_effect_label.add_theme_color_override("default_color", COLOR_PARCHMENT_LIGHT)
+	preview_effect_label.text = _get_card_rules_text(card.description)
+	preview_effect_label.add_theme_color_override("default_color", type_palette.description_text)
 	card_preview.add_theme_stylebox_override(
 		"panel",
-		_make_preview_style(_get_card_surface_color(card.card_type), palette.border)
+		_make_preview_style(_get_card_surface_color(card.card_type), type_palette.accent)
 	)
 	card_preview.position = _get_preview_position(source_button)
 	card_preview.show()
@@ -2732,7 +3413,7 @@ func _get_preview_position(source_button: Button) -> Vector2:
 	if source_center.x < viewport_size.x * 0.5:
 		preview_x = viewport_size.x - preview_size.x - PREVIEW_EDGE_MARGIN
 
-	var preview_y := PREVIEW_EDGE_MARGIN + 68.0
+	var preview_y := PREVIEW_EDGE_MARGIN + TOP_BAR_HEIGHT
 	if source_center.y < viewport_size.y * 0.5:
 		preview_y = viewport_size.y - preview_size.y - PREVIEW_EDGE_MARGIN
 
@@ -2783,17 +3464,52 @@ func _get_desaturate_material() -> ShaderMaterial:
 	return card_desaturate_material
 
 
+func _get_card_meta_chip_text(card: CardDefinition) -> String:
+	var parts := PackedStringArray()
+	if card.card_type == "victory":
+		if card.victory_points != 0:
+			parts.append("%d VP" % card.victory_points)
+		elif card.score_per_cards > 0:
+			parts.append("VP / %d" % card.score_per_cards)
+	elif card.card_type == "resource" and card.coin_value > 0:
+		parts.append(_format_card_stat(card.coin_value, "coin", "coins"))
+
+	if card.draw_cards > 0:
+		parts.append(_format_card_stat(card.draw_cards, "card", "cards"))
+	if card.gain_actions > 0:
+		parts.append(_format_card_stat(card.gain_actions, "action", "actions"))
+	if card.gain_buys > 0:
+		parts.append(_format_card_stat(card.gain_buys, "buy", "buys"))
+	if card.gain_coins > 0:
+		parts.append(_format_card_stat(card.gain_coins, "coin", "coins"))
+
+	if parts.is_empty():
+		for effect in card.special_effects:
+			var label := str(effect.get("label", "")).strip_edges()
+			if not label.is_empty():
+				parts.append(label)
+				break
+
+	if parts.is_empty():
+		parts.append(card.card_group if not card.card_group.is_empty() else card.card_type.capitalize())
+	return " · ".join(parts)
+
+
+func _format_card_stat(amount: int, singular: String, plural: String) -> String:
+	return "+%d %s" % [amount, singular if amount == 1 else plural]
+
+
 func _get_card_palette(visual_state: String) -> Dictionary:
 	match visual_state:
 		HAND_PLAYABLE:
 			return {
-				"border": COLOR_SLATE.lightened(0.1),
+				"border": COLOR_ACTION_ACCENT,
 				"text": COLOR_PARCHMENT_LIGHT,
 				"muted": COLOR_PARCHMENT.lightened(0.02),
 			}
 		MARKET_AFFORDABLE:
 			return {
-				"border": Color("#ffd23f"),
+				"border": COLOR_BRASS,
 				"text": COLOR_PARCHMENT_LIGHT,
 				"muted": COLOR_PARCHMENT.lightened(0.02),
 			}
@@ -2823,6 +3539,54 @@ func _get_card_palette(visual_state: String) -> Dictionary:
 			}
 
 
+func _get_card_type_palette(card_type: String) -> Dictionary:
+	match card_type:
+		"resource":
+			return {
+				"accent": COLOR_RESOURCE_ACCENT,
+				"hover_border": Color("#fff0c0"),
+				"name_text": Color("#f4e6c4"),
+				"chip_bg": Color(0.941, 0.741, 0.345, 0.20),
+				"chip_text": Color("#f4cd72"),
+				"description_text": Color(0.957, 0.902, 0.769, 0.84),
+				"footer_text": Color(0.941, 0.741, 0.345, 0.72),
+				"scrim": Color(0.137, 0.082, 0.027, 0.82),
+			}
+		"victory":
+			return {
+				"accent": COLOR_VICTORY_ACCENT,
+				"hover_border": Color("#f6cdd9"),
+				"name_text": Color("#fdebf1"),
+				"chip_bg": Color(0.878, 0.541, 0.635, 0.24),
+				"chip_text": Color("#f3c4d2"),
+				"description_text": Color(0.988, 0.914, 0.941, 0.86),
+				"footer_text": Color(0.878, 0.541, 0.635, 0.74),
+				"scrim": Color(0.122, 0.051, 0.098, 0.84),
+			}
+		"curse":
+			return {
+				"accent": COLOR_CURSE_ACCENT,
+				"hover_border": COLOR_CURSE_ACCENT.lightened(0.25),
+				"name_text": Color("#eee4ff"),
+				"chip_bg": Color(0.706, 0.604, 0.851, 0.22),
+				"chip_text": Color("#dbcdf2"),
+				"description_text": Color(0.91, 0.86, 0.98, 0.84),
+				"footer_text": Color(0.706, 0.604, 0.851, 0.72),
+				"scrim": Color(0.086, 0.061, 0.118, 0.84),
+			}
+		_:
+			return {
+				"accent": COLOR_ACTION_ACCENT,
+				"hover_border": Color("#cfe6fb"),
+				"name_text": Color("#eef5fc"),
+				"chip_bg": Color(0.49, 0.714, 0.91, 0.22),
+				"chip_text": Color("#bfddf8"),
+				"description_text": Color(0.878, 0.925, 0.98, 0.86),
+				"footer_text": Color(0.49, 0.714, 0.91, 0.74),
+				"scrim": Color(0.051, 0.086, 0.149, 0.84),
+			}
+
+
 func _get_card_surface_color(card_type: String) -> Color:
 	match card_type:
 		"resource":
@@ -2847,11 +3611,56 @@ func _get_card_type_accent(card_type: String) -> Color:
 			return COLOR_ACTION_ACCENT
 
 
-func _make_card_style(color: Color, border_color: Color, border_width: int) -> StyleBox:
+func _make_card_style(
+	color: Color,
+	border_color: Color,
+	border_width: int,
+	highlighted: bool = true
+) -> StyleBox:
 	var style := _make_flat_card_style(color, border_color, border_width)
-	style.shadow_color = Color(0, 0, 0, 0.7)
-	style.shadow_size = 10
-	style.shadow_offset = Vector2(0, 5)
+	style.set_corner_radius_all(13)
+	var shadow_color := border_color.lightened(0.1) if highlighted else Color(0, 0, 0, 0.5)
+	shadow_color.a = 0.4 if highlighted else 0.5
+	style.shadow_color = shadow_color
+	style.shadow_size = 16 if highlighted else 10
+	style.shadow_offset = Vector2(0, 8 if highlighted else 5)
+	return style
+
+
+func _make_card_art_style(color: Color) -> StyleBoxFlat:
+	var style := _make_flat_card_style(color, Color(0, 0, 0, 0.0), 0)
+	style.set_corner_radius_all(13)
+	style.shadow_color = Color.TRANSPARENT
+	style.shadow_size = 0
+	return style
+
+
+func _make_meta_chip_style(color: Color) -> StyleBoxFlat:
+	var style := _make_flat_card_style(color, Color.TRANSPARENT, 0)
+	style.set_corner_radius_all(5)
+	style.content_margin_left = 5
+	style.content_margin_top = 1
+	style.content_margin_right = 5
+	style.content_margin_bottom = 1
+	style.shadow_color = Color.TRANSPARENT
+	style.shadow_size = 0
+	return style
+
+
+func _make_pile_badge_style(accent: Color) -> StyleBoxFlat:
+	var style := _make_flat_card_style(
+		Color(0.031, 0.02, 0.012, 0.75),
+		Color(accent.r, accent.g, accent.b, 0.45),
+		1
+	)
+	style.set_corner_radius_all(11)
+	style.content_margin_left = 5
+	style.content_margin_top = 2
+	style.content_margin_right = 5
+	style.content_margin_bottom = 2
+	style.shadow_color = Color(0, 0, 0, 0.45)
+	style.shadow_size = 4
+	style.shadow_offset = Vector2(0, 2)
 	return style
 
 
@@ -2878,18 +3687,136 @@ func _make_panel_style(color: Color, border_color: Color, border_width: int) -> 
 	return style
 
 
+func _make_top_bar_style() -> StyleBoxFlat:
+	var style := _make_flat_card_style(Color(0.11, 0.075, 0.055, 0.86), Color(0.835, 0.667, 0.314, 0.2), 1)
+	style.set_corner_radius_all(0)
+	style.shadow_color = Color(0, 0, 0, 0.22)
+	style.shadow_size = 8
+	return style
+
+
+func _make_pill_style(color: Color, border_color: Color, radius: int) -> StyleBoxFlat:
+	var style := _make_flat_card_style(color, border_color, 1)
+	style.set_corner_radius_all(radius)
+	style.shadow_color = Color.TRANSPARENT
+	style.shadow_size = 0
+	return style
+
+
+func _make_top_button_style(square: bool, hover: bool = false) -> StyleBoxFlat:
+	var style := _make_flat_card_style(
+		Color(0.18, 0.125, 0.08, 0.78) if not hover else Color(0.24, 0.17, 0.105, 0.86),
+		Color(0.835, 0.667, 0.314, 0.5 if hover else 0.34),
+		1
+	)
+	style.set_corner_radius_all(8 if square else 9)
+	style.content_margin_left = 8
+	style.content_margin_top = 3
+	style.content_margin_right = 8
+	style.content_margin_bottom = 3
+	style.shadow_color = Color(0, 0, 0, 0.32)
+	style.shadow_size = 5
+	return style
+
+
+func _make_end_turn_style(hover: bool = false, disabled: bool = false) -> StyleBoxFlat:
+	var base := Color("#f0cf80") if not disabled else Color(0.35, 0.32, 0.28, 0.75)
+	if hover and not disabled:
+		base = Color("#f6dc9b")
+	var style := _make_flat_card_style(
+		base,
+		Color("#9c6f28") if not disabled else Color(0, 0, 0, 0.35),
+		1
+	)
+	style.set_corner_radius_all(9)
+	style.content_margin_left = 10
+	style.content_margin_top = 7
+	style.content_margin_right = 10
+	style.content_margin_bottom = 7
+	style.shadow_color = Color(0, 0, 0, 0.45)
+	style.shadow_size = 8
+	style.shadow_offset = Vector2(0, 4)
+	return style
+
+
+func _make_relic_slot_style(filled: bool) -> StyleBoxFlat:
+	var style := _make_flat_card_style(
+		Color("#b9882f") if filled else Color(0, 0, 0, 0),
+		Color(0.835, 0.667, 0.314, 0.42),
+		1
+	)
+	style.set_corner_radius_all(15)
+	style.shadow_color = Color(0.835, 0.667, 0.314, 0.28) if filled else Color.TRANSPARENT
+	style.shadow_size = 8 if filled else 0
+	return style
+
+
+func _make_card_back_style(color: Color) -> StyleBoxFlat:
+	var style := _make_flat_card_style(color, Color(0.835, 0.667, 0.314, 0.48), 2)
+	style.set_corner_radius_all(8)
+	style.content_margin_left = 8
+	style.content_margin_top = 8
+	style.content_margin_right = 8
+	style.content_margin_bottom = 8
+	style.shadow_color = Color(0, 0, 0, 0.46)
+	style.shadow_size = 7
+	style.shadow_offset = Vector2(0, 4)
+	return style
+
+
+func _make_discard_pile_style() -> StyleBoxFlat:
+	var style := _make_flat_card_style(Color("#1b110a"), Color(0.835, 0.667, 0.314, 0.28), 2)
+	style.set_corner_radius_all(8)
+	style.shadow_color = Color(0, 0, 0, 0.5)
+	style.shadow_size = 7
+	style.shadow_offset = Vector2(0, 4)
+	return style
+
+
+func _make_count_badge_style() -> StyleBoxFlat:
+	var style := _make_flat_card_style(Color("#d5aa50"), Color("#7c5419"), 1)
+	style.set_corner_radius_all(11)
+	style.content_margin_left = 7
+	style.content_margin_top = 2
+	style.content_margin_right = 7
+	style.content_margin_bottom = 2
+	style.shadow_color = Color(0, 0, 0, 0.48)
+	style.shadow_size = 4
+	style.shadow_offset = Vector2(0, 2)
+	return style
+
+
+func _make_player_row_style(active: bool) -> StyleBoxFlat:
+	var style := _make_flat_card_style(
+		Color(0.09, 0.058, 0.035, 0.72) if active else Color(0.055, 0.038, 0.026, 0.42),
+		Color(0.835, 0.667, 0.314, 0.28 if active else 0.14),
+		1
+	)
+	style.set_corner_radius_all(7)
+	style.shadow_color = Color.TRANSPARENT
+	style.shadow_size = 0
+	return style
+
+
+func _make_dot_style(color: Color) -> StyleBoxFlat:
+	var style := _make_flat_card_style(color, Color.TRANSPARENT, 0)
+	style.set_corner_radius_all(5)
+	style.shadow_color = color
+	style.shadow_color.a = 0.35
+	style.shadow_size = 4
+	return style
+
+
 func _make_preview_style(surface_color: Color, border_color: Color) -> StyleBox:
-	if ui_textures.has("preview"):
-		return _make_asset_style(
-			ui_textures["preview"],
-			22.0,
-			18.0,
-			_get_preview_type_modulate(surface_color)
-		)
-	var style := _make_flat_card_style(surface_color, border_color, 5)
-	style.set_corner_radius_all(12)
+	var style := _make_flat_card_style(surface_color.darkened(0.08), border_color, 2)
+	style.set_corner_radius_all(14)
+	style.content_margin_left = 4
+	style.content_margin_top = 4
+	style.content_margin_right = 4
+	style.content_margin_bottom = 4
 	style.shadow_color = Color(0, 0, 0, 0.65)
 	style.shadow_size = 16
+	style.shadow_offset = Vector2(0, 8)
 	return style
 
 

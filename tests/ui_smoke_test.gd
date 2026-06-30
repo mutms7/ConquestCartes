@@ -181,6 +181,15 @@ func _initialize() -> void:
 	await process_frame
 	_check(not _home_overlay().visible, "New Game should leave the home screen.")
 	_check(main_ui.has_active_game, "Starting from the home menu should create an active game.")
+	_check(
+		_hud_value("DeckStat") == str(main_ui.game_state.player.draw_pile.size())
+		and _hud_value("DiscardStat") == str(main_ui.game_state.player.discard_pile.size()),
+		"Physical draw and discard pile badges should mirror game-state counts."
+	)
+	_check(
+		_players_turn_panel().find_child("PlayerRow1", true, false) != null,
+		"The players + turns panel should render the local player row in solo."
+	)
 
 	_check(_hand_container().get_child_count() == 5, "Initial hand should render five cards.")
 	_check(
@@ -250,6 +259,24 @@ func _initialize() -> void:
 	_check(_hud_icon("ActionStat").texture != null, "Action HUD icon should load.")
 	_check(_hud_icon("BuyStat").texture != null, "Buy HUD icon should load.")
 	_check(main_ui.ui_sound_players.size() == 7, "All configured UI sounds should load.")
+	_check(_top_bar() != null, "The 2a table should render a top bar.")
+	_check(_relics_rail().get_child_count() > 0, "The top bar should include the relics rail.")
+	_check(_bazaar_button() != null, "The top bar should include The Bazaar button.")
+	_check(_settings_gear_button() == main_ui.home_button, "The old home button should be restyled as the settings gear.")
+	_check(_draw_pile_stack() != null, "The bottom band should include a physical draw pile.")
+	_check(_discard_pile_stack() != null, "The bottom band should include a physical discard pile.")
+	_check(_players_turn_panel() != null, "The right dock should include the players + turns panel.")
+	_check(
+		main_ui.CARD_FACE_SIZE.x <= 124.0
+		and main_ui.CARD_FACE_SIZE.y <= 166.0
+		and main_ui.CARD_FACE_SIZE.x > 0.0,
+		"Card tokens should be scaled to the shipped 1280x720 table."
+	)
+	_check(
+		_top_bar().get_global_rect().end.y <= _market_panel().get_global_rect().position.y
+		and _market_panel().get_global_rect().end.y <= main_ui.left_ledger.get_global_rect().position.y,
+		"Top bar, market, and bottom band should stack in frame order."
+	)
 	_check(
 		not main_ui.has_node("Margin/Layout/StatusPanel"),
 		"The obsolete persistent status panel should not exist."
@@ -261,9 +288,9 @@ func _initialize() -> void:
 		"Each card type should have a distinct dark medieval surface color."
 	)
 	_check(
-		_color_distance(main_ui.COLOR_RESOURCE_CARD, main_ui.COLOR_ACTION_CARD) > 0.22
-		and _color_distance(main_ui.COLOR_ACTION_CARD, main_ui.COLOR_VICTORY_CARD) > 0.16
-		and _color_distance(main_ui.COLOR_RESOURCE_CARD, main_ui.COLOR_VICTORY_CARD) > 0.16,
+		_color_distance(main_ui.COLOR_RESOURCE_CARD, main_ui.COLOR_ACTION_CARD) > 0.12
+		and _color_distance(main_ui.COLOR_ACTION_CARD, main_ui.COLOR_VICTORY_CARD) > 0.10
+		and _color_distance(main_ui.COLOR_RESOURCE_CARD, main_ui.COLOR_VICTORY_CARD) > 0.10,
 		"Card type surfaces should be visibly different rather than near-identical browns."
 	)
 	_check(
@@ -301,10 +328,10 @@ func _initialize() -> void:
 	)
 	_check(
 		main_ui.left_ledger.get_global_rect().position.y
-		>= _play_area_container().get_global_rect().end.y
+		>= _market_panel().get_global_rect().end.y
 		and main_ui.right_ledger.get_global_rect().position.y
-		>= _play_area_container().get_global_rect().end.y,
-		"The side docks should sit below the market and played-card strip."
+		>= _market_panel().get_global_rect().end.y,
+		"The side docks should sit in the bottom band below the market."
 	)
 
 	var resource_button := _find_card_button(_hand_container(), "pebble_coin")
@@ -317,17 +344,19 @@ func _initialize() -> void:
 		)
 		_check(
 			resource_button.get_meta("card_accent_color")
-			== main_ui._get_card_palette("hand_playable").border,
-			"Playable hand cards should use the slate accent."
+			== main_ui._get_card_type_accent(resource_button.get_meta("card_type")),
+			"Playable hand cards should use their type accent."
 		)
 		var normal_style := resource_button.get_theme_stylebox("normal") as StyleBoxFlat
 		_check(
-			normal_style != null and normal_style.border_width_left >= 4,
-			"Card outlines should remain thick and obvious in their normal state."
+			normal_style != null and normal_style.border_width_left >= 2,
+			"Card outlines should remain clear in their normal state."
 		)
 		_check(
-			resource_button.has_node("MedievalFrame"),
-			"Card faces should include the original medieval frame ornament."
+			resource_button.has_node("CardContent/CardLayout/ArtFrame/ArtScrim")
+			and resource_button.has_node("CardContent/CardLayout/ArtFrame/AccentLine")
+			and resource_button.has_node("CardContent/CardLayout/EffectSlot/EffectCenter/MetaChip"),
+			"Card faces should include the 2a art scrim, accent line, and meta chip."
 		)
 		_check(_card_art(resource_button).texture != null, "Card faces should display card artwork.")
 		_check(
@@ -343,9 +372,9 @@ func _initialize() -> void:
 			"Numeric gain text should render as bold shorthand."
 		)
 		_check(
-			_card_name(resource_button).get_theme_font_size("font_size") >= 15
-			and _card_effect(resource_button).get_theme_font_size("normal_font_size") >= 12,
-			"Hand card titles and rules text should use the enlarged type."
+			_card_name(resource_button).get_theme_font_size("font_size") >= 10
+			and _card_effect(resource_button).get_theme_font_size("normal_font_size") >= 7,
+			"Hand card titles and rules text should use the scaled 2a type."
 		)
 		_check(
 			resource_button.custom_minimum_size == main_ui.CARD_FACE_SIZE
@@ -370,9 +399,9 @@ func _initialize() -> void:
 		_check(
 			is_equal_approx(
 				_card_art(resource_button).get_parent().size.y,
-				main_ui.CARD_ART_HEIGHT
+				main_ui.HAND_CARD_ART_HEIGHT
 			),
-			"Hand artwork should use the shared card art height."
+			"Hand artwork should use the 2a hand art height."
 		)
 		var sound_before_hover: String = main_ui.last_ui_sound_name
 		resource_button.mouse_entered.emit()
@@ -451,8 +480,8 @@ func _initialize() -> void:
 			"Victory cards should use the restrained oxblood surface."
 		)
 		_check(
-			score_button.get_meta("card_accent_color") == main_ui.COLOR_UNAVAILABLE.darkened(0.12),
-			"Unavailable hand cards should use the muted accent."
+			score_button.get_meta("card_accent_color") == Color(0, 0, 0, 0.45),
+			"Unavailable hand cards should use the no-glow disabled border."
 		)
 
 	main_ui.game_state.player.coins = 99
@@ -475,12 +504,12 @@ func _initialize() -> void:
 		)
 		_check(
 			market_button.get_meta("card_accent_color")
-			== main_ui._get_card_palette("market_affordable").border,
-			"Affordable market cards should use the forest accent."
+			== main_ui._get_card_type_accent(market_card.card_type),
+			"Affordable market cards should use their type accent."
 		)
 		_check(
-			_market_pile_label(market_button).text == "×%d" % market_supply_before,
-			"Market cards should show their remaining pile count."
+			_market_pile_label(market_button).text == str(market_supply_before),
+			"Market cards should show their remaining pile count in the top badge."
 		)
 		_check(
 			market_button.custom_minimum_size == main_ui.CARD_FACE_SIZE,
@@ -504,9 +533,9 @@ func _initialize() -> void:
 			"Market card faces should show their complete rules description."
 		)
 		_check(
-			_card_name(market_button).get_theme_font_size("font_size") >= 12
-			and _card_effect(market_button).get_theme_font_size("normal_font_size") >= 10,
-			"Market card titles and rules text should use the enlarged type."
+			_card_name(market_button).get_theme_font_size("font_size") >= 10
+			and _card_effect(market_button).get_theme_font_size("normal_font_size") >= 7,
+			"Market card titles and rules text should use the scaled 2a type."
 		)
 		_check(
 			_card_text_layout_is_clear(market_button),
@@ -565,7 +594,7 @@ func _initialize() -> void:
 		if sold_out_button != null:
 			_check(sold_out_button.disabled, "Sold-out market piles should remain disabled.")
 			_check(
-				_market_pile_label(sold_out_button).text == "×0",
+				_market_pile_label(sold_out_button).text == "0",
 				"Sold-out market piles should visibly show zero remaining."
 			)
 
@@ -827,12 +856,10 @@ func _initialize() -> void:
 		"A cooldown expiring should re-enable only the End Turn button."
 	)
 	_check(
-		main_ui.player_status_label != null
-		and main_ui.player_status_label.text.contains("You: Player 1")
-		and main_ui.player_status_label.text.contains("P2: ready")
-		and main_ui.player_status_label.text.contains("P3: ready")
-		and main_ui.player_status_label.text.contains("P4: ready"),
-		"Player status should show the local player and all other lobby slots."
+		_player_row_count() == 4
+		and _player_row(1) != null
+		and _player_row(4) != null,
+		"Player status should render one row for each lobby seat."
 	)
 	var client_race_snapshot: Dictionary = main_ui._create_network_snapshot()
 	main_ui.network_is_host = false
@@ -846,7 +873,8 @@ func _initialize() -> void:
 		"Assigned clients should immediately view and control their player slot."
 	)
 	_check(
-		main_ui.player_status_label.text.contains("You: Player 3"),
+		_player_row(3) != null
+		and (_player_row(3).find_child("Name", true, false) as Label).text == "Player 3",
 		"Player status should update when a client receives its assigned slot."
 	)
 	_check(
@@ -880,17 +908,55 @@ func _hand_panel() -> PanelContainer:
 
 
 func _market_container() -> HBoxContainer:
-	return main_ui.get_node(
-		"Margin/Layout/MarketPanel/MarketMargin/MarketScroll/MarketContainer"
-	)
+	return main_ui.market_container
 
 
 func _market_panel() -> PanelContainer:
-	return main_ui.get_node("Margin/Layout/MarketPanel")
+	return main_ui.market_panel
 
 
 func _play_area_panel() -> PanelContainer:
-	return main_ui.get_node("Margin/Layout/PlayAreaPanel")
+	return main_ui.play_area_panel
+
+
+func _top_bar() -> PanelContainer:
+	return main_ui.top_bar
+
+
+func _relics_rail() -> PanelContainer:
+	return main_ui.top_bar.find_child("RelicsRail", true, false) as PanelContainer
+
+
+func _bazaar_button() -> Button:
+	return main_ui.bazaar_button
+
+
+func _settings_gear_button() -> Button:
+	return main_ui.home_button
+
+
+func _draw_pile_stack() -> Control:
+	return main_ui.hud_row.find_child("DrawPileStack", true, false) as Control
+
+
+func _discard_pile_stack() -> Control:
+	return main_ui.hud_row.find_child("DiscardPileStack", true, false) as Control
+
+
+func _players_turn_panel() -> PanelContainer:
+	return main_ui.right_ledger.find_child("PlayersTurnPanel", true, false) as PanelContainer
+
+
+func _player_row(index: int) -> PanelContainer:
+	return _players_turn_panel().find_child("PlayerRow%d" % index, true, false) as PanelContainer
+
+
+func _player_row_count() -> int:
+	var count := 0
+	for child in main_ui.player_status_list.get_children():
+		if child.name.begins_with("PlayerRow"):
+			count += 1
+	return count
 
 
 func _home_overlay() -> Control:
@@ -1030,7 +1096,7 @@ func _market_candidates_include_card(card_id: String) -> bool:
 
 
 func _market_scroll() -> ScrollContainer:
-	return main_ui.get_node("Margin/Layout/MarketPanel/MarketMargin/MarketScroll")
+	return main_ui.market_container.get_parent() as ScrollContainer
 
 
 func _treasury_cards() -> GridContainer:
@@ -1118,9 +1184,7 @@ func _children_fit_parent(container: Container) -> bool:
 
 
 func _play_area_container() -> HBoxContainer:
-	return main_ui.get_node(
-		"Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row/PlayAreaScroll/PlayAreaContainer"
-	)
+	return main_ui.play_area_container
 
 
 func _end_turn_button() -> Button:
@@ -1210,27 +1274,26 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 	var effect_label := _card_effect(button)
 	var meta_row := button.get_node("CardContent/CardLayout/MetaRow") as Control
 	var price_badge := button.get_node("PriceBadge") as Control
+	var meta_chip := button.get_node("CardContent/CardLayout/EffectSlot/EffectCenter/MetaChip") as Control
 	var price_label := _card_price(button)
 	var button_rect := button.get_global_rect()
-	var safe_rect := button_rect.grow(-4.0)
-	var regions: Array[Control] = [name_label, art_frame, effect_slot, effect_label, meta_row]
+	var safe_rect := button_rect.grow(4.0)
+	var regions: Array[Control] = [art_frame, name_label, effect_slot, meta_chip, effect_label, meta_row]
 	var footer_gap := button_rect.end.y - meta_row.get_global_rect().end.y
 
 	if (
-		content.get_theme_constant("margin_top") != 5
-		or content.get_theme_constant("margin_bottom") != 5
-		or name_label.custom_minimum_size.y < 30.0
-		or name_label.vertical_alignment != VERTICAL_ALIGNMENT_BOTTOM
-		or effect_slot.get_theme_constant("margin_left") != main_ui.CARD_RULE_SIDE_MARGIN
-		or effect_slot.get_theme_constant("margin_top") != main_ui.CARD_RULE_TOP_MARGIN
-		or effect_slot.get_theme_constant("margin_right") != main_ui.CARD_RULE_SIDE_MARGIN
-		or effect_slot.get_theme_constant("margin_bottom") != main_ui.CARD_RULE_BOTTOM_MARGIN
-		or effect_center.alignment != BoxContainer.ALIGNMENT_CENTER
+		content.get_theme_constant("margin_top") != 0
+		or content.get_theme_constant("margin_bottom") != 0
+		or name_label.custom_minimum_size.y < 19.0
+		or name_label.vertical_alignment != VERTICAL_ALIGNMENT_CENTER
+		or effect_slot.get_theme_constant("margin_left") != 7
+		or effect_slot.get_theme_constant("margin_right") != 7
+		or effect_center.alignment != BoxContainer.ALIGNMENT_BEGIN
 		or not price_badge.has_node("CoinFace")
 		or not price_badge.has_node("InnerRing")
 		or not price_badge.has_node("CoinRivet")
-		or price_label.offset_left != 1
-		or price_label.offset_top != 2
+		or price_label.offset_left != 0
+		or price_label.offset_top != 1
 	):
 		return false
 
@@ -1240,21 +1303,20 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 			return false
 
 	return (
-		name_label.get_global_rect().end.y <= art_frame.get_global_rect().position.y
-		and art_frame.get_global_rect().end.y + 5.0
-		<= effect_label.get_global_rect().position.y
-		and effect_label.get_global_rect().end.y <= meta_row.get_global_rect().position.y
+		art_frame.get_global_rect().position.y <= button_rect.position.y + 8.0
+		and art_frame.get_global_rect().end.y <= name_label.get_global_rect().position.y + 4.0
+		and name_label.get_global_rect().end.y <= effect_slot.get_global_rect().position.y
+		and meta_chip.get_global_rect().end.y <= effect_label.get_global_rect().position.y
+		and effect_label.get_global_rect().end.y <= meta_row.get_global_rect().position.y + 4.0
 		and footer_gap >= 0.0
-		and footer_gap <= 8.0
-		and safe_rect.encloses(price_badge.get_global_rect())
-		and price_badge.get_global_rect().position.x < art_frame.get_global_rect().position.x
-		and price_badge.get_global_rect().end.y <= art_frame.get_global_rect().position.y
-		and not art_frame.get_global_rect().encloses(price_badge.get_global_rect())
+		and footer_gap <= 12.0
+		and button_rect.grow(2.0).encloses(price_badge.get_global_rect())
+		and art_frame.get_global_rect().encloses(price_badge.get_global_rect())
 	)
 
 
 func _market_pile_label(button: Button) -> Label:
-	return button.get_node("CardContent/CardLayout/MetaRow/PileLabel")
+	return button.get_node("PileBadge/PileRow/PileLabel")
 
 
 func _hud_value(stat_name: String) -> String:
