@@ -2740,14 +2740,32 @@ func _render_market_cards(
 ) -> void:
 	for card in cards:
 		var affordable := _can_buy_card(card)
-		var visual_state := MARKET_AFFORDABLE if affordable else MARKET_UNAFFORDABLE
+		var showcase_before_play := _should_showcase_market_before_play(card)
+		var visual_state := (
+			MARKET_AFFORDABLE
+			if affordable or showcase_before_play
+			else MARKET_UNAFFORDABLE
+		)
 		var button := _create_card_button(card, visual_state)
-		button.disabled = not affordable
+		button.disabled = not affordable and not showcase_before_play
 		button.mouse_default_cursor_shape = (
-			Control.CURSOR_POINTING_HAND if affordable else Control.CURSOR_ARROW
+			Control.CURSOR_POINTING_HAND
+			if affordable or showcase_before_play
+			else Control.CURSOR_ARROW
 		)
 		button.pressed.connect(_on_market_card_pressed.bind(card))
 		container.add_child(button)
+
+
+func _should_showcase_market_before_play(card: CardDefinition) -> bool:
+	return (
+		_can_interact_with_local_player()
+		and not turn_manager.game_over
+		and not game_state.has_pending_choice()
+		and game_state.player.play_area.is_empty()
+		and game_state.player.buys > 0
+		and game_state.get_supply_count(card.id) > 0
+	)
 
 
 func _sort_market_cards_descending(
@@ -3124,9 +3142,9 @@ func _create_card_button(
 	button.add_child(_create_price_badge(game_state.get_effective_cost(card)))
 
 	if visual_state == MARKET_UNAFFORDABLE:
-		button.modulate = Color(0.7, 0.7, 0.66, 0.55)
+		button.modulate = Color(0.74, 0.72, 0.66, 1.0)
 	elif visual_state == HAND_UNPLAYABLE:
-		button.modulate = Color(0.78, 0.78, 0.74, 0.78)
+		button.modulate = Color(0.78, 0.78, 0.74, 1.0)
 
 	return button
 
@@ -3453,7 +3471,7 @@ func _get_desaturate_material() -> ShaderMaterial:
 	if card_desaturate_material != null:
 		return card_desaturate_material
 	var shader := Shader.new()
-	shader.code = "shader_type canvas_item;\nuniform float amount : hint_range(0.0, 1.0) = 0.82;\nvoid fragment() {\n\tvec4 tex = texture(TEXTURE, UV);\n\tfloat grey = dot(tex.rgb, vec3(0.299, 0.587, 0.114));\n\ttex.rgb = mix(tex.rgb, vec3(grey), amount);\n\tCOLOR = tex * COLOR;\n}"
+	shader.code = "shader_type canvas_item;\nuniform float amount : hint_range(0.0, 1.0) = 0.42;\nvoid fragment() {\n\tvec4 tex = texture(TEXTURE, UV);\n\tfloat grey = dot(tex.rgb, vec3(0.299, 0.587, 0.114));\n\ttex.rgb = mix(tex.rgb, vec3(grey), amount);\n\tCOLOR = tex * COLOR;\n}"
 	card_desaturate_material = ShaderMaterial.new()
 	card_desaturate_material.shader = shader
 	return card_desaturate_material
@@ -3545,7 +3563,7 @@ func _get_card_type_palette(card_type: String) -> Dictionary:
 				"chip_text": Color("#edc46f"),
 				"description_text": Color(0.957, 0.902, 0.769, 0.84),
 				"footer_text": Color(0.941, 0.741, 0.345, 0.72),
-				"scrim": Color(0.38, 0.19, 0.06, 0.16),
+				"scrim": Color(0.38, 0.19, 0.06, 0.05),
 			}
 		"victory":
 			return {
@@ -3556,7 +3574,7 @@ func _get_card_type_palette(card_type: String) -> Dictionary:
 				"chip_text": Color("#e6a889"),
 				"description_text": Color(0.961, 0.878, 0.827, 0.86),
 				"footer_text": Color(0.788, 0.431, 0.345, 0.74),
-				"scrim": Color(0.36, 0.11, 0.06, 0.17),
+				"scrim": Color(0.36, 0.11, 0.06, 0.05),
 			}
 		"curse":
 			return {
@@ -3567,7 +3585,7 @@ func _get_card_type_palette(card_type: String) -> Dictionary:
 				"chip_text": Color("#dbcdf2"),
 				"description_text": Color(0.91, 0.86, 0.98, 0.84),
 				"footer_text": Color(0.706, 0.604, 0.851, 0.72),
-				"scrim": Color(0.18, 0.10, 0.22, 0.18),
+				"scrim": Color(0.18, 0.10, 0.22, 0.06),
 			}
 		_:
 			return {
@@ -3578,7 +3596,7 @@ func _get_card_type_palette(card_type: String) -> Dictionary:
 				"chip_text": Color("#efbc78"),
 				"description_text": Color(0.953, 0.882, 0.757, 0.86),
 				"footer_text": Color(0.835, 0.541, 0.263, 0.74),
-				"scrim": Color(0.36, 0.18, 0.05, 0.16),
+				"scrim": Color(0.36, 0.18, 0.05, 0.05),
 			}
 
 
@@ -4239,6 +4257,9 @@ func _on_market_card_pressed(card: CardDefinition) -> void:
 		return
 	if _is_network_client():
 		rpc_id(1, "_rpc_request_buy_card", card.id)
+		return
+	if not _can_buy_card(card):
+		push_warning("Card cannot be bought right now: %s" % card.card_name)
 		return
 	var source_button := _find_card_button(market_container, card.id)
 	var ghost: Control = null

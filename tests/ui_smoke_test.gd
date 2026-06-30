@@ -369,7 +369,7 @@ func _initialize() -> void:
 			"Card faces should include the 2a art scrim, accent line, and meta chip."
 		)
 		_check(
-			_card_art_scrim(resource_button).color.a <= 0.2,
+			_card_art_scrim(resource_button).color.a <= 0.06,
 			"Card art scrims should tint the art without covering it."
 		)
 		_check(_card_art(resource_button).texture != null, "Card faces should display card artwork.")
@@ -421,6 +421,28 @@ func _initialize() -> void:
 				main_ui.HAND_CARD_ART_HEIGHT
 			),
 			"Hand artwork should use the 2a hand art height."
+		)
+		var pre_play_market_button := _all_market_buttons()[0]
+		var pre_play_market_card_id: String = pre_play_market_button.get_meta("card_id")
+		var pre_play_market_supply: int = main_ui.game_state.get_supply_count(pre_play_market_card_id)
+		var pre_play_discard_count: int = main_ui.game_state.player.discard_pile.size()
+		_check(
+			pre_play_market_button.get_meta("visual_state") == "market_affordable"
+			and not pre_play_market_button.disabled,
+			"Market cards should display vivid and inspectable before any card has been played."
+		)
+		_check(
+			_card_art(pre_play_market_button).material == null
+			and pre_play_market_button.modulate.a == 1.0
+			and _card_art_scrim(pre_play_market_button).color.a <= 0.06,
+			"Pre-play market art should stay full saturation and unobscured."
+		)
+		pre_play_market_button.pressed.emit()
+		await process_frame
+		_check(
+			main_ui.game_state.get_supply_count(pre_play_market_card_id) == pre_play_market_supply
+			and main_ui.game_state.player.discard_pile.size() == pre_play_discard_count,
+			"Inspectable pre-play market cards should not bypass buy affordability rules."
 		)
 		var sound_before_hover: String = main_ui.last_ui_sound_name
 		resource_button.mouse_entered.emit()
