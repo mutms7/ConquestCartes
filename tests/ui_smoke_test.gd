@@ -19,9 +19,31 @@ func _initialize() -> void:
 		"Home screen should name the active Hinterlands card group."
 	)
 	_check(_home_continue_button().disabled, "Continue should be disabled before a game starts.")
-	_check(not _home_create_lobby_button().disabled, "Create Lobby should be available at startup.")
-	_check(not _home_join_lobby_button().disabled, "Join Lobby should be available at startup.")
-	_check(_home_lobby_address_input().text == "127.0.0.1", "Join Lobby should default to localhost.")
+	_check(not _home_multiplayer_button().disabled, "Multiplayer should be available at startup.")
+	_home_multiplayer_button().pressed.emit()
+	await process_frame
+	_check(
+		_home_multiplayer_panel().visible
+		and not _home_create_lobby_button().disabled
+		and not _home_join_lobby_button().disabled,
+		"Multiplayer should open the local create/join choices."
+	)
+	_home_create_lobby_button().pressed.emit()
+	await process_frame
+	_check(
+		_home_lobby_panel().visible
+		and _home_lobby_address_input().text == "127.0.0.1:27041",
+		"Create local should route into the lobby with a host address."
+	)
+	_home_lobby_attack_toggle().toggled.emit(false)
+	await process_frame
+	_check(
+		not main_ui.game_state.attack_cards_enabled
+		and _home_lobby_rules_summary().text.contains("attacks off"),
+		"Lobby attack toggle should update the actual market rules summary."
+	)
+	_home_lobby_attack_toggle().toggled.emit(true)
+	await process_frame
 	_home_settings_button().pressed.emit()
 	await process_frame
 	_check(_home_settings_panel().visible, "Settings should open from the home menu.")
@@ -112,9 +134,9 @@ func _initialize() -> void:
 	_check(
 		is_equal_approx(_home_kingdoms_panel().anchor_left, 0.5)
 		and is_equal_approx(_home_kingdoms_panel().anchor_right, 0.5)
-		and _home_kingdoms_panel().offset_left == -450
-		and _home_kingdoms_panel().offset_right == 450,
-		"Kingdoms browser should be centered at a fixed width."
+		and _home_kingdoms_panel().offset_left == -560
+		and _home_kingdoms_panel().offset_right == 560,
+		"Kingdoms browser should be centered at the wide handoff width."
 	)
 	_kingdoms_close_button().pressed.emit()
 	await process_frame
@@ -240,7 +262,7 @@ func _initialize() -> void:
 	_check(
 		_market_container().find_child("Title", true, false) == null
 		and _market_container().find_child("Subtitle", true, false) == null,
-		"The art-first market should not reserve space for section titles."
+		"The handoff market should not reserve obsolete scene section titles."
 	)
 	_check(
 		is_equal_approx(_play_area_panel().custom_minimum_size.y, main_ui.PLAY_AREA_PANEL_HEIGHT)
@@ -291,18 +313,18 @@ func _initialize() -> void:
 		_color_distance(main_ui.COLOR_RESOURCE_CARD, main_ui.COLOR_ACTION_CARD) > 0.06
 		and _color_distance(main_ui.COLOR_ACTION_CARD, main_ui.COLOR_VICTORY_CARD) > 0.06
 		and _color_distance(main_ui.COLOR_RESOURCE_CARD, main_ui.COLOR_VICTORY_CARD) > 0.08,
-		"Card type surfaces should stay distinct within the warm table palette."
+		"Card type surfaces should stay distinct within the handoff palette."
 	)
 	_check(
 		main_ui._get_card_type_accent("resource") != main_ui._get_card_type_accent("action")
 		and main_ui._get_card_type_accent("action")
 		!= main_ui._get_card_type_accent("victory"),
-		"Each card type should also have a distinct warm inner accent."
+		"Each card type should also have a distinct type accent."
 	)
 	_check(
-		main_ui.COLOR_ACTION_CARD.r > main_ui.COLOR_ACTION_CARD.b
-		and main_ui.COLOR_ACTION_ACCENT.r > main_ui.COLOR_ACTION_ACCENT.b,
-		"Action cards should read warm instead of blue/neon."
+		main_ui.COLOR_ACTION_CARD.b > main_ui.COLOR_ACTION_CARD.r
+		and main_ui.COLOR_ACTION_ACCENT.b > main_ui.COLOR_ACTION_ACCENT.r,
+		"Action cards should use the handoff midnight-blue palette."
 	)
 	_check(
 		_table_background().modulate.r > _table_background().modulate.b
@@ -315,7 +337,7 @@ func _initialize() -> void:
 	)
 	_check(
 		_market_panel().get_global_rect().end.y <= root.get_visible_rect().end.y,
-		"The complete art-first market should remain inside the viewport."
+		"The complete handoff market should remain inside the viewport."
 	)
 	_check(
 		_children_fit_parent(_treasury_cards())
@@ -365,13 +387,19 @@ func _initialize() -> void:
 		_check(
 			resource_button.has_node("CardContent/CardLayout/ArtFrame/ArtScrim")
 			and resource_button.has_node("CardContent/CardLayout/ArtFrame/AccentLine")
+			and resource_button.has_node("CardContent/CardLayout/TextScrim")
 			and resource_button.has_node("CardContent/CardLayout/EffectSlot/EffectCenter/MetaChip"),
-			"Card faces should include the 2a art scrim, accent line, and meta chip."
+			"Card faces should include the art scrim, text scrim, accent line, and meta chip."
 		)
 		_check(
 			_card_art(resource_button).modulate.a >= 0.9
-			and _card_art_scrim(resource_button).color.a <= 0.02,
-			"Card art scrims should tint the art without covering it."
+			and _card_art_scrim(resource_button).color.a <= 0.24,
+			"Card art scrims should tint the top art band without covering it."
+		)
+		_check(
+			is_equal_approx(_card_art_coverage(resource_button), main_ui.HAND_CARD_ART_HEIGHT / main_ui.CARD_FACE_SIZE.y)
+			and _card_text_scrim(resource_button).color.a <= 0.96,
+			"Card art should occupy the top band with a distinct rules body below."
 		)
 		_check(_card_art(resource_button).texture != null, "Card faces should display card artwork.")
 		_check(
@@ -428,16 +456,20 @@ func _initialize() -> void:
 		var pre_play_market_supply: int = main_ui.game_state.get_supply_count(pre_play_market_card_id)
 		var pre_play_discard_count: int = main_ui.game_state.player.discard_pile.size()
 		_check(
-			pre_play_market_button.get_meta("visual_state") == "market_affordable"
+			pre_play_market_button.get_meta("visual_state") == "market_unaffordable"
 			and not pre_play_market_button.disabled,
-			"Market cards should display vivid and inspectable before any card has been played."
+			"Pre-play market cards should stay inspectable but show unaffordable treatment."
 		)
 		_check(
-			_card_art(pre_play_market_button).material == null
+			_card_art(pre_play_market_button).material != null
 			and _card_art(pre_play_market_button).modulate.a >= 0.9
-			and pre_play_market_button.modulate.a == 1.0
-			and _card_art_scrim(pre_play_market_button).color.a <= 0.02,
-			"Pre-play market art should stay full saturation and unobscured."
+			and pre_play_market_button.modulate.a < 1.0
+			and _card_art_scrim(pre_play_market_button).color.a <= 0.24,
+			"Unaffordable market art should be dimmed while remaining readable."
+		)
+		_check(
+			is_equal_approx(_card_art_coverage(pre_play_market_button), main_ui.CARD_ART_HEIGHT / main_ui.CARD_FACE_SIZE.y),
+			"Market art should use the handoff top art band."
 		)
 		pre_play_market_button.pressed.emit()
 		await process_frame
@@ -627,7 +659,13 @@ func _initialize() -> void:
 		)
 		_check(_hud_value("BuyStat") == "0", "Buy HUD should update after a purchase.")
 		for button in _all_market_buttons():
-			_check(button.disabled, "Market cards should be unavailable with no buys remaining.")
+			var button_card: CardDefinition = main_ui.game_state.card_catalog[str(button.get_meta("card_id"))]
+			_check(
+				not button.disabled
+				and button.get_meta("visual_state") == "market_unaffordable"
+				and not main_ui._can_buy_card(button_card),
+				"Market cards should remain inspectable but visually unavailable with no buys remaining."
+			)
 		main_ui.game_state.player.buys = 1
 		main_ui.game_state.player.coins = 99
 		main_ui.game_state.set_supply_count(market_card_id, 0)
@@ -828,12 +866,16 @@ func _initialize() -> void:
 		not main_ui.has_active_game and _home_continue_button().disabled,
 		"End-game Home should leave no completed game available to continue."
 	)
+	_home_multiplayer_button().pressed.emit()
+	await process_frame
 	_home_create_lobby_button().pressed.emit()
+	await process_frame
+	_lobby_start_button().pressed.emit()
 	await process_frame
 	_check(
 		main_ui.game_state.multiplayer_enabled
 		and main_ui.game_state.get_player_count() == 4,
-		"Create Lobby should start a four-player table."
+		"Lobby Start Game should start a four-player table."
 	)
 	_click_control(_end_turn_button())
 	await process_frame
@@ -1022,16 +1064,36 @@ func _home_continue_button() -> Button:
 	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/ContinueButton")
 
 
+func _home_multiplayer_button() -> Button:
+	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/MultiplayerButton")
+
+
+func _home_multiplayer_panel() -> PanelContainer:
+	return main_ui.get_node("HomeOverlay/MultiplayerPanel")
+
+
+func _home_lobby_panel() -> PanelContainer:
+	return main_ui.get_node("HomeOverlay/LobbyPanel")
+
+
+func _home_lobby_attack_toggle() -> CheckButton:
+	return main_ui.home_lobby_attack_toggle
+
+
+func _home_lobby_rules_summary() -> Label:
+	return main_ui.home_lobby_rules_summary
+
+
 func _home_create_lobby_button() -> Button:
-	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/CreateLobbyButton")
+	return main_ui.get_node("HomeOverlay/MultiplayerPanel/Margin/Layout/Options/CreateLocalButton")
 
 
 func _home_lobby_address_input() -> LineEdit:
-	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/LobbyAddress")
+	return main_ui.home_lobby_address_input
 
 
 func _home_join_lobby_button() -> Button:
-	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/JoinLobbyButton")
+	return main_ui.get_node("HomeOverlay/MultiplayerPanel/Margin/Layout/Options/JoinLocalButton")
 
 
 func _home_settings_button() -> Button:
@@ -1042,8 +1104,8 @@ func _home_kingdoms_button() -> Button:
 	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/Buttons/KingdomsButton")
 
 
-func _home_settings_panel() -> VBoxContainer:
-	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/SettingsPanel")
+func _home_settings_panel() -> PanelContainer:
+	return main_ui.get_node("HomeOverlay/SettingsPanel")
 
 
 func _home_kingdoms_panel() -> PanelContainer:
@@ -1051,11 +1113,11 @@ func _home_kingdoms_panel() -> PanelContainer:
 
 
 func _home_audio_toggle() -> CheckButton:
-	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/SettingsPanel/AudioToggle")
+	return main_ui.home_audio_toggle
 
 
 func _home_motion_toggle() -> CheckButton:
-	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/SettingsPanel/MotionToggle")
+	return main_ui.home_motion_toggle
 
 
 func _home_noise_slider() -> HSlider:
@@ -1068,6 +1130,10 @@ func _table_noise_slider() -> HSlider:
 
 func _action_speed_slider() -> HSlider:
 	return main_ui.action_animation_speed_slider
+
+
+func _lobby_start_button() -> Button:
+	return main_ui.home_lobby_start_button
 
 
 func _home_noise_overlay() -> TextureRect:
@@ -1308,6 +1374,16 @@ func _card_art_scrim(button: Button) -> ColorRect:
 	return button.get_node("CardContent/CardLayout/ArtFrame/ArtScrim")
 
 
+func _card_text_scrim(button: Button) -> ColorRect:
+	return button.get_node("CardContent/CardLayout/TextScrim")
+
+
+func _card_art_coverage(button: Button) -> float:
+	var art_frame := _card_art(button).get_parent() as Control
+	var art_rect := _card_art(button)
+	return minf(art_frame.size.y, art_rect.size.y) / button.custom_minimum_size.y
+
+
 func _card_name(button: Button) -> Label:
 	return button.get_node("CardContent/CardLayout/NameLabel")
 
@@ -1330,20 +1406,32 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 	var meta_row := button.get_node("CardContent/CardLayout/MetaRow") as Control
 	var price_badge := button.get_node("PriceBadge") as Control
 	var meta_chip := button.get_node("CardContent/CardLayout/EffectSlot/EffectCenter/MetaChip") as Control
+	var text_scrim := _card_text_scrim(button)
 	var price_label := _card_price(button)
 	var button_rect := button.get_global_rect()
 	var safe_rect := button_rect.grow(4.0)
-	var regions: Array[Control] = [art_frame, name_label, effect_slot, meta_chip, effect_label, meta_row]
+	var regions: Array[Control] = [
+		art_frame,
+		text_scrim,
+		name_label,
+		effect_slot,
+		meta_chip,
+		effect_label,
+		meta_row,
+	]
 	var footer_gap := button_rect.end.y - meta_row.get_global_rect().end.y
 
 	if (
 		content.get_theme_constant("margin_top") != 0
 		or content.get_theme_constant("margin_bottom") != 0
-		or name_label.custom_minimum_size.y < 19.0
+		or name_label.custom_minimum_size.y < main_ui.CARD_NAME_HEIGHT
 		or name_label.vertical_alignment != VERTICAL_ALIGNMENT_CENTER
 		or effect_slot.get_theme_constant("margin_left") != 7
 		or effect_slot.get_theme_constant("margin_right") != 7
 		or effect_center.alignment != BoxContainer.ALIGNMENT_BEGIN
+		or _card_art_coverage(button) < 0.48
+		or _card_art_coverage(button) > 0.58
+		or text_scrim.color.a > 0.96
 		or not price_badge.has_node("CoinFace")
 		or not price_badge.has_node("InnerRing")
 		or not price_badge.has_node("CoinRivet")
@@ -1359,8 +1447,9 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 
 	return (
 		art_frame.get_global_rect().position.y <= button_rect.position.y + 8.0
-		and art_frame.get_global_rect().end.y <= name_label.get_global_rect().position.y + 4.0
-		and name_label.get_global_rect().end.y <= effect_slot.get_global_rect().position.y
+		and art_frame.get_global_rect().end.y <= text_scrim.get_global_rect().position.y + 1.0
+		and text_scrim.get_global_rect().position.y <= name_label.get_global_rect().position.y
+		and name_label.get_global_rect().end.y <= effect_slot.get_global_rect().position.y + 1.0
 		and meta_chip.get_global_rect().end.y <= effect_label.get_global_rect().position.y
 		and effect_label.get_global_rect().end.y <= meta_row.get_global_rect().position.y + 4.0
 		and footer_gap >= 0.0

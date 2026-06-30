@@ -14,20 +14,27 @@ const CARD_MOVE_SECONDS := 0.18
 const CARD_DRAW_SECONDS := 0.16
 const CLEANUP_SECONDS := 0.2
 const TABLE_SCALE := 0.667
-const TOP_BAR_HEIGHT := 52.0
-const BOTTOM_BAND_HEIGHT := 248.0
+const TOP_BAR_HEIGHT := 55.0
+const BOTTOM_BAND_HEIGHT := 252.0
 const CARD_FACE_SIZE := Vector2(123, 165)
 const PLAY_AREA_PANEL_HEIGHT := 36.0
 const PLAY_AREA_CONTENT_HEIGHT := 28.0
 const CARD_ART_HEIGHT := 85.0
 const HAND_CARD_ART_HEIGHT := 91.0
-const CARD_ART_OPACITY := 0.92
+const CARD_ART_OPACITY := 1.0
+const CARD_TEXT_SCRIM_Y := 85.0
+const CARD_NAME_Y := 88.0
+const CARD_NAME_HEIGHT := 20.0
+const CARD_EFFECT_Y := 110.0
+const CARD_EFFECT_HEIGHT := 42.0
+const CARD_META_Y := 153.0
+const CARD_META_HEIGHT := 10.0
 const HUD_LEDGER_WIDTH := 158.0
 const RIGHT_DOCK_WIDTH := 202.0
 const END_TURN_BUTTON_WIDTH := 188.0
 const PILE_FACE_SIZE := Vector2(105, 145)
 const PREVIEW_SIZE := Vector2(320, 540)
-const PREVIEW_ART_HEIGHT := 216.0
+const PREVIEW_ART_HEIGHT := 215.0
 const PREVIEW_EDGE_MARGIN := 16.0
 const SHORT_RULE_BREAK_LIMIT := 72
 const HOME_ART_PATH := "res://assets/cards/sunspire_monument.png"
@@ -43,9 +50,9 @@ const COLOR_PARCHMENT_LIGHT := Color("#f4e6c4")
 const COLOR_CARD_BROWN := Color("#271c12")
 const COLOR_CARD_BROWN_LIGHT := Color("#3c2a14")
 const COLOR_RESOURCE_CARD := Color("#3c2a14")
-const COLOR_ACTION_CARD := Color("#332116")
-const COLOR_VICTORY_CARD := Color("#3b1d18")
-const COLOR_CURSE_CARD := Color("#2c2030")
+const COLOR_ACTION_CARD := Color("#1c2d48")
+const COLOR_VICTORY_CARD := Color("#36182d")
+const COLOR_CURSE_CARD := Color("#32263f")
 const COLOR_WALNUT := Color("#271c12")
 const COLOR_WALNUT_DARK := Color("#150e08")
 const COLOR_BRASS := Color("#e8c879")
@@ -58,9 +65,14 @@ const COLOR_TREASURY_CARPET := Color("#5c3018")
 const COLOR_BARRACKS_CARPET := Color("#3e2819")
 const COLOR_ESTATES_CARPET := Color("#304027")
 const COLOR_RESOURCE_ACCENT := Color("#f0bd58")
-const COLOR_ACTION_ACCENT := Color("#d58a43")
-const COLOR_VICTORY_ACCENT := Color("#c96e58")
-const COLOR_CURSE_ACCENT := Color("#9d83b8")
+const COLOR_ACTION_ACCENT := Color("#7db6e8")
+const COLOR_VICTORY_ACCENT := Color("#e08aa2")
+const COLOR_CURSE_ACCENT := Color("#b49ad9")
+const COLOR_PARCHMENT_PANEL := Color("#f5e6c0")
+const COLOR_PARCHMENT_PANEL_DARK := Color("#e3cb94")
+const COLOR_PARCHMENT_INK := Color("#2c1d0c")
+const COLOR_PARCHMENT_BODY := Color("#3a2a16")
+const COLOR_PARCHMENT_MUTED := Color("#6e4f24")
 
 const TITLE_FONT_PATH := "res://assets/fonts/Cinzel/static/Cinzel-Bold.ttf"
 const BODY_FONT_PATH := "res://assets/fonts/Inter/static/Inter_18pt-Regular.ttf"
@@ -142,7 +154,13 @@ var home_join_lobby_button: Button
 var home_lobby_address_input: LineEdit
 var home_lobby_status_label: Label
 var player_status_label: Label
-var home_settings_panel: VBoxContainer
+var home_settings_panel: PanelContainer
+var home_multiplayer_panel: PanelContainer
+var home_lobby_panel: PanelContainer
+var home_lobby_seat_list: VBoxContainer
+var home_lobby_rules_summary: Label
+var home_lobby_start_button: Button
+var home_lobby_attack_toggle: CheckButton
 var home_kingdoms_panel: PanelContainer
 var home_kingdom_tab_list: VBoxContainer
 var home_kingdom_title_label: Label
@@ -161,9 +179,15 @@ var table_noise_overlay: TextureRect
 var home_noise_slider: HSlider
 var table_noise_slider: HSlider
 var action_animation_speed_slider: HSlider
+var background_music_slider: HSlider
+var end_turn_cooldown_slider: HSlider
 var home_audio_toggle: CheckButton
 var home_motion_toggle: CheckButton
+var fullscreen_toggle: CheckButton
 var noise_texture: Texture2D
+var lobby_pending_mode := "host"
+var lobby_max_players := NETWORK_MAX_PLAYERS
+var background_music_volume := 1.0
 
 @onready var turn_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/TurnStat/Value
 @onready var deck_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/DeckStat/ValueRow/Value
@@ -367,7 +391,8 @@ func _host_network_lobby() -> void:
 		return
 	_disconnect_network()
 	var peer := ENetMultiplayerPeer.new()
-	var error := peer.create_server(NETWORK_PORT, NETWORK_MAX_PLAYERS - 1)
+	var max_players := clampi(lobby_max_players, 2, NETWORK_MAX_PLAYERS)
+	var error := peer.create_server(NETWORK_PORT, max_players - 1)
 	if error != OK:
 		_set_lobby_status("Could not host lobby on port %d." % NETWORK_PORT)
 		return
@@ -376,7 +401,7 @@ func _host_network_lobby() -> void:
 	network_is_host = true
 	local_player_index = 0
 	network_peer_to_player = {1: 0}
-	_start_lobby_game(NETWORK_MAX_PLAYERS)
+	_start_lobby_game(max_players)
 	_set_lobby_status("Hosting on port %d. Give players your IP address." % NETWORK_PORT)
 	_queue_network_ui_refresh()
 	_broadcast_network_snapshot()
@@ -390,6 +415,8 @@ func _join_network_lobby() -> void:
 	var address := NETWORK_DEFAULT_ADDRESS
 	if home_lobby_address_input != null:
 		address = home_lobby_address_input.text.strip_edges()
+		if address.contains(":"):
+			address = address.get_slice(":", 0)
 	if address.is_empty():
 		address = NETWORK_DEFAULT_ADDRESS
 	var peer := ENetMultiplayerPeer.new()
@@ -675,6 +702,8 @@ func _create_network_snapshot() -> Dictionary:
 		"players": player_snapshots,
 		"active_player_index": local_player_index,
 		"multiplayer_enabled": game_state.multiplayer_enabled,
+		"end_turn_cooldown_seconds": game_state.end_turn_cooldown_seconds,
+		"attack_cards_enabled": game_state.attack_cards_enabled,
 		"market": _card_ids_from_zone(game_state.market),
 		"supply": game_state.supply_piles.duplicate(true),
 		"turn": {
@@ -771,6 +800,12 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 	game_state.turn_flags = game_state.player.turn_flags
 	game_state.cleanup_in_progress = game_state.player.cleanup_in_progress
 	game_state.multiplayer_enabled = bool(snapshot.get("multiplayer_enabled", true))
+	game_state.end_turn_cooldown_seconds = float(
+		snapshot.get("end_turn_cooldown_seconds", game_state.end_turn_cooldown_seconds)
+	)
+	game_state.attack_cards_enabled = bool(
+		snapshot.get("attack_cards_enabled", game_state.attack_cards_enabled)
+	)
 	game_state.market = _cards_from_ids(snapshot.get("market", []))
 	game_state.supply_piles = snapshot.get("supply", {}).duplicate(true)
 	game_state.pending_choice = game_state.player.pending_choice
@@ -961,10 +996,10 @@ func _build_bottom_docks() -> void:
 	var root_margin := get_node("Margin") as MarginContainer
 	var main_layout := hud_panel.get_parent() as VBoxContainer
 
-	root_margin.add_theme_constant_override("margin_left", 4)
-	root_margin.add_theme_constant_override("margin_top", 4)
-	root_margin.add_theme_constant_override("margin_right", 4)
-	root_margin.add_theme_constant_override("margin_bottom", 4)
+	root_margin.add_theme_constant_override("margin_left", 8)
+	root_margin.add_theme_constant_override("margin_top", 3)
+	root_margin.add_theme_constant_override("margin_right", 8)
+	root_margin.add_theme_constant_override("margin_bottom", 3)
 	main_layout.add_theme_constant_override("separation", 4)
 
 	var left_parts := _create_hud_ledger("LeftDock")
@@ -1011,7 +1046,7 @@ func _build_bottom_docks() -> void:
 	pile_hand_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	pile_hand_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	pile_hand_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	pile_hand_row.add_theme_constant_override("separation", 8)
+	pile_hand_row.add_theme_constant_override("separation", 10)
 	hand_column.add_child(pile_hand_row)
 
 	deck_stat.reparent(pile_hand_row)
@@ -1020,10 +1055,10 @@ func _build_bottom_docks() -> void:
 	_configure_physical_pile(deck_stat, deck_label, false)
 	_configure_physical_pile(discard_stat, discard_label, true)
 
-	hand_panel.custom_minimum_size = Vector2(0, 184)
+	hand_panel.custom_minimum_size = Vector2(0, 188)
 	hand_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hand_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	hand_container.add_theme_constant_override("separation", -9)
+	hand_container.add_theme_constant_override("separation", -12)
 	hand_container.alignment = BoxContainer.ALIGNMENT_CENTER
 
 	# Right dock: player/turn tracker with End Turn beneath it.
@@ -1069,21 +1104,21 @@ func _create_hud_ledger(ledger_name: String) -> Dictionary:
 
 	var margin := MarginContainer.new()
 	margin.name = "Margin"
-	margin.add_theme_constant_override("margin_left", 7)
-	margin.add_theme_constant_override("margin_top", 5)
-	margin.add_theme_constant_override("margin_right", 7)
-	margin.add_theme_constant_override("margin_bottom", 5)
+	margin.add_theme_constant_override("margin_left", 9)
+	margin.add_theme_constant_override("margin_top", 7)
+	margin.add_theme_constant_override("margin_right", 9)
+	margin.add_theme_constant_override("margin_bottom", 7)
 	panel.add_child(margin)
 
 	var stats := VBoxContainer.new()
 	stats.name = "Stats"
-	stats.add_theme_constant_override("separation", 4)
+	stats.add_theme_constant_override("separation", 5)
 	margin.add_child(stats)
 	return {"panel": panel, "stats": stats}
 
 
 func _configure_stat_row(stat: VBoxContainer, accent: Color) -> void:
-	stat.custom_minimum_size = Vector2(0, 66)
+	stat.custom_minimum_size = Vector2(0, 70)
 	stat.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	stat.add_theme_constant_override("separation", 0)
 	var title := stat.find_child("Title", true, false) as Label
@@ -1093,19 +1128,19 @@ func _configure_stat_row(stat: VBoxContainer, accent: Color) -> void:
 	if title != null:
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		title.add_theme_color_override("font_color", COLOR_BRASS)
-		title.add_theme_font_size_override("font_size", 10)
+		title.add_theme_font_size_override("font_size", 11)
 		if title_font != null:
 			title.add_theme_font_override("font", title_font)
 	if value_row != null:
 		value_row.alignment = BoxContainer.ALIGNMENT_END
 		value_row.add_theme_constant_override("separation", 6)
 	if icon != null:
-		icon.custom_minimum_size = Vector2(18, 18)
+		icon.custom_minimum_size = Vector2(20, 20)
 		icon.modulate = accent
 	if value != null:
 		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		value.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
-		value.add_theme_font_size_override("font_size", 30)
+		value.add_theme_font_size_override("font_size", 34)
 		if title_font != null:
 			value.add_theme_font_override("font", title_font)
 
@@ -1118,7 +1153,7 @@ func _configure_physical_pile(
 	stat.custom_minimum_size = Vector2(PILE_FACE_SIZE.x + 16, 0)
 	stat.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	stat.size_flags_vertical = Control.SIZE_SHRINK_END
-	stat.add_theme_constant_override("separation", 3)
+	stat.add_theme_constant_override("separation", 4)
 
 	var title := stat.find_child("Title", true, false) as Label
 	var value_row := value_label.get_parent() as HBoxContainer
@@ -1130,7 +1165,7 @@ func _configure_physical_pile(
 	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	value_label.add_theme_color_override("font_color", Color("#3a2410"))
-	value_label.add_theme_font_size_override("font_size", 15)
+	value_label.add_theme_font_size_override("font_size", 18)
 	if title_font != null:
 		value_label.add_theme_font_override("font", title_font)
 
@@ -1531,39 +1566,24 @@ func _build_home_screen() -> void:
 	home_continue_button.pressed.connect(_on_home_continue_pressed)
 	button_stack.add_child(home_continue_button)
 
-	home_create_lobby_button = _create_home_menu_button("CREATE LOBBY")
-	home_create_lobby_button.name = "CreateLobbyButton"
-	home_create_lobby_button.pressed.connect(_on_home_create_lobby_pressed)
-	button_stack.add_child(home_create_lobby_button)
-
-	home_lobby_address_input = LineEdit.new()
-	home_lobby_address_input.name = "LobbyAddress"
-	home_lobby_address_input.text = NETWORK_DEFAULT_ADDRESS
-	home_lobby_address_input.placeholder_text = "Host IP address"
-	home_lobby_address_input.custom_minimum_size = Vector2(310, 38)
-	home_lobby_address_input.add_theme_font_size_override("font_size", 14)
-	if body_font != null:
-		home_lobby_address_input.add_theme_font_override("font", body_font)
-	button_stack.add_child(home_lobby_address_input)
-
-	home_join_lobby_button = _create_home_menu_button("JOIN LOBBY")
-	home_join_lobby_button.name = "JoinLobbyButton"
-	home_join_lobby_button.pressed.connect(_on_home_join_lobby_pressed)
-	button_stack.add_child(home_join_lobby_button)
-
-	var settings_button := _create_home_menu_button("SETTINGS")
-	settings_button.name = "SettingsButton"
-	settings_button.pressed.connect(_on_home_settings_pressed)
-	button_stack.add_child(settings_button)
+	var multiplayer_button := _create_home_menu_button("MULTIPLAYER")
+	multiplayer_button.name = "MultiplayerButton"
+	multiplayer_button.pressed.connect(_on_home_multiplayer_pressed)
+	button_stack.add_child(multiplayer_button)
 
 	var kingdoms_button := _create_home_menu_button("KINGDOMS")
 	kingdoms_button.name = "KingdomsButton"
 	kingdoms_button.pressed.connect(_on_home_kingdoms_pressed)
 	button_stack.add_child(kingdoms_button)
 
+	var settings_button := _create_home_menu_button("SETTINGS")
+	settings_button.name = "SettingsButton"
+	settings_button.pressed.connect(_on_home_settings_pressed)
+	button_stack.add_child(settings_button)
+
 	home_lobby_status_label = Label.new()
 	home_lobby_status_label.name = "LobbyStatus"
-	home_lobby_status_label.text = "Host or join a direct-IP 2-player table."
+	home_lobby_status_label.text = "Choose Multiplayer to host or join a direct-IP table."
 	home_lobby_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	home_lobby_status_label.add_theme_color_override("font_color", COLOR_PARCHMENT.darkened(0.08))
 	home_lobby_status_label.add_theme_font_size_override("font_size", 12)
@@ -1571,65 +1591,673 @@ func _build_home_screen() -> void:
 		home_lobby_status_label.add_theme_font_override("font", body_font)
 	button_stack.add_child(home_lobby_status_label)
 
-	home_settings_panel = VBoxContainer.new()
-	home_settings_panel.name = "SettingsPanel"
-	home_settings_panel.visible = false
-	home_settings_panel.custom_minimum_size = Vector2(310, 0)
-	home_settings_panel.add_theme_constant_override("separation", 6)
-	menu_layout.add_child(home_settings_panel)
-
-	home_audio_toggle = CheckButton.new()
-	home_audio_toggle.name = "AudioToggle"
-	home_audio_toggle.text = "AUDIO"
-	home_audio_toggle.button_pressed = audio_enabled
-	home_audio_toggle.toggled.connect(_on_home_audio_toggled)
-	_style_home_toggle(home_audio_toggle)
-	home_settings_panel.add_child(home_audio_toggle)
-
-	home_motion_toggle = CheckButton.new()
-	home_motion_toggle.name = "MotionToggle"
-	home_motion_toggle.text = "ACTION MOTION"
-	home_motion_toggle.button_pressed = motion_enabled
-	home_motion_toggle.toggled.connect(_on_home_motion_toggled)
-	_style_home_toggle(home_motion_toggle)
-	home_settings_panel.add_child(home_motion_toggle)
-
-	home_noise_slider = _create_home_slider(
-		"HOME NOISE",
-		home_noise_amount,
-		0.0,
-		0.35,
-		0.01
-	)
-	home_noise_slider.value_changed.connect(_on_home_noise_changed)
-	home_settings_panel.add_child(home_noise_slider.get_parent())
-
-	table_noise_slider = _create_home_slider(
-		"TABLE NOISE",
-		table_noise_amount,
-		0.0,
-		0.24,
-		0.01
-	)
-	table_noise_slider.value_changed.connect(_on_table_noise_changed)
-	home_settings_panel.add_child(table_noise_slider.get_parent())
-
-	action_animation_speed_slider = _create_home_slider(
-		"ACTION SPEED",
-		action_animation_speed,
-		0.5,
-		2.0,
-		0.1
-	)
-	action_animation_speed_slider.value_changed.connect(_on_action_animation_speed_changed)
-	home_settings_panel.add_child(action_animation_speed_slider.get_parent())
-
 	var spacer_fill := Control.new()
 	spacer_fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	menu_layout.add_child(spacer_fill)
 
+	_build_settings_panel()
 	_build_kingdom_browser()
+	_build_multiplayer_panel()
+	_build_lobby_panel()
 	_refresh_home_controls()
+
+
+func _create_home_panel(panel_name: String, panel_size: Vector2) -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.name = panel_name
+	panel.visible = false
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel.add_theme_stylebox_override("panel", _make_parchment_panel_style())
+	home_overlay.add_child(panel)
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_bottom = 0.5
+	panel.offset_left = -panel_size.x * 0.5
+	panel.offset_top = -panel_size.y * 0.5
+	panel.offset_right = panel_size.x * 0.5
+	panel.offset_bottom = panel_size.y * 0.5
+	return panel
+
+
+func _build_settings_panel() -> void:
+	home_settings_panel = _create_home_panel("SettingsPanel", Vector2(470, 610))
+	var margin := MarginContainer.new()
+	margin.name = "Margin"
+	margin.add_theme_constant_override("margin_left", 34)
+	margin.add_theme_constant_override("margin_top", 28)
+	margin.add_theme_constant_override("margin_right", 34)
+	margin.add_theme_constant_override("margin_bottom", 28)
+	home_settings_panel.add_child(margin)
+
+	var layout := VBoxContainer.new()
+	layout.name = "Layout"
+	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_theme_constant_override("separation", 11)
+	margin.add_child(layout)
+
+	layout.add_child(_create_parchment_title("Settings", "Tune the table without leaving the match."))
+	layout.add_child(_create_parchment_rule())
+	layout.add_child(_create_settings_section_label("Audio"))
+
+	home_audio_toggle = _create_parchment_toggle("AudioToggle", audio_enabled)
+	home_audio_toggle.toggled.connect(_on_home_audio_toggled)
+	layout.add_child(_create_settings_toggle_row("Sound effects", home_audio_toggle))
+
+	background_music_slider = _create_settings_slider_row(
+		layout,
+		"Background music",
+		"BackgroundMusic",
+		background_music_volume,
+		0.0,
+		1.0,
+		0.05,
+		"pct"
+	)
+	background_music_slider.value_changed.connect(_on_background_music_changed)
+
+	layout.add_child(_create_settings_section_label("Gameplay"))
+	home_motion_toggle = _create_parchment_toggle("MotionToggle", motion_enabled)
+	home_motion_toggle.toggled.connect(_on_home_motion_toggled)
+	layout.add_child(_create_settings_toggle_row("Action animations", home_motion_toggle))
+
+	action_animation_speed_slider = _create_settings_slider_row(
+		layout,
+		"Animation speed",
+		"ActionSpeed",
+		action_animation_speed,
+		0.5,
+		2.0,
+		0.1,
+		"x"
+	)
+	action_animation_speed_slider.value_changed.connect(_on_action_animation_speed_changed)
+
+	end_turn_cooldown_slider = _create_settings_slider_row(
+		layout,
+		"End-turn cooldown",
+		"EndTurnCooldown",
+		game_state.end_turn_cooldown_seconds,
+		0.5,
+		10.0,
+		0.5,
+		"s"
+	)
+	end_turn_cooldown_slider.value_changed.connect(_on_end_turn_cooldown_changed)
+
+	layout.add_child(_create_settings_section_label("Atmosphere and display"))
+	table_noise_slider = _create_settings_slider_row(
+		layout,
+		"Table grain",
+		"TableNoise",
+		table_noise_amount,
+		0.0,
+		0.24,
+		0.01,
+		"pct"
+	)
+	table_noise_slider.value_changed.connect(_on_table_noise_changed)
+
+	home_noise_slider = _create_settings_slider_row(
+		layout,
+		"Menu grain",
+		"HomeNoise",
+		home_noise_amount,
+		0.0,
+		0.35,
+		0.01,
+		"pct"
+	)
+	home_noise_slider.value_changed.connect(_on_home_noise_changed)
+
+	fullscreen_toggle = _create_parchment_toggle("FullscreenToggle", false)
+	fullscreen_toggle.toggled.connect(_on_fullscreen_toggled)
+	layout.add_child(_create_settings_toggle_row("Fullscreen", fullscreen_toggle))
+
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_child(spacer)
+
+	var footer := HBoxContainer.new()
+	footer.name = "Footer"
+	footer.alignment = BoxContainer.ALIGNMENT_END
+	footer.add_theme_constant_override("separation", 10)
+	layout.add_child(footer)
+	var back_button := _create_parchment_button("BackButton", "<- BACK", false)
+	back_button.pressed.connect(_on_home_back_pressed)
+	footer.add_child(back_button)
+	var done_button := _create_parchment_button("DoneButton", "DONE", true)
+	done_button.pressed.connect(_on_home_back_pressed)
+	footer.add_child(done_button)
+
+
+func _build_multiplayer_panel() -> void:
+	home_multiplayer_panel = _create_home_panel("MultiplayerPanel", Vector2(548, 430))
+	var margin := MarginContainer.new()
+	margin.name = "Margin"
+	margin.add_theme_constant_override("margin_left", 34)
+	margin.add_theme_constant_override("margin_top", 30)
+	margin.add_theme_constant_override("margin_right", 34)
+	margin.add_theme_constant_override("margin_bottom", 28)
+	home_multiplayer_panel.add_child(margin)
+
+	var layout := VBoxContainer.new()
+	layout.name = "Layout"
+	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_theme_constant_override("separation", 14)
+	margin.add_child(layout)
+
+	layout.add_child(_create_parchment_title("Multiplayer", "Gather a local table or prepare an online room."))
+	layout.add_child(_create_parchment_rule())
+
+	var options := GridContainer.new()
+	options.name = "Options"
+	options.columns = 2
+	options.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	options.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	options.add_theme_constant_override("h_separation", 14)
+	options.add_theme_constant_override("v_separation", 14)
+	layout.add_child(options)
+
+	home_create_lobby_button = _create_multiplayer_option_button(
+		"CreateLocalButton",
+		"Create local",
+		"Host a table on your network.",
+		true
+	)
+	home_create_lobby_button.pressed.connect(_on_home_create_lobby_pressed)
+	options.add_child(home_create_lobby_button)
+
+	home_join_lobby_button = _create_multiplayer_option_button(
+		"JoinLocalButton",
+		"Join local",
+		"Enter a host IP to join.",
+		true
+	)
+	home_join_lobby_button.pressed.connect(_on_home_join_lobby_pressed)
+	options.add_child(home_join_lobby_button)
+
+	var create_online := _create_multiplayer_option_button(
+		"CreateOnlineButton",
+		"Create online",
+		"Coming soon.",
+		false
+	)
+	options.add_child(create_online)
+
+	var join_online := _create_multiplayer_option_button(
+		"JoinOnlineButton",
+		"Join online",
+		"Coming soon.",
+		false
+	)
+	options.add_child(join_online)
+
+	var footer := HBoxContainer.new()
+	footer.name = "Footer"
+	footer.alignment = BoxContainer.ALIGNMENT_CENTER
+	layout.add_child(footer)
+	var back_button := _create_parchment_button("BackButton", "<- BACK", false)
+	back_button.pressed.connect(_on_home_back_pressed)
+	footer.add_child(back_button)
+
+
+func _build_lobby_panel() -> void:
+	home_lobby_panel = _create_home_panel("LobbyPanel", Vector2(790, 560))
+	var margin := MarginContainer.new()
+	margin.name = "Margin"
+	margin.add_theme_constant_override("margin_left", 30)
+	margin.add_theme_constant_override("margin_top", 28)
+	margin.add_theme_constant_override("margin_right", 30)
+	margin.add_theme_constant_override("margin_bottom", 26)
+	home_lobby_panel.add_child(margin)
+
+	var columns := HBoxContainer.new()
+	columns.name = "Columns"
+	columns.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	columns.add_theme_constant_override("separation", 20)
+	margin.add_child(columns)
+
+	var left := VBoxContainer.new()
+	left.name = "SeatsColumn"
+	left.custom_minimum_size = Vector2(420, 0)
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left.add_theme_constant_override("separation", 12)
+	columns.add_child(left)
+	left.add_child(_create_parchment_title("Lobby", "Seat players before opening the table."))
+	left.add_child(_create_parchment_rule())
+
+	home_lobby_seat_list = VBoxContainer.new()
+	home_lobby_seat_list.name = "SeatList"
+	home_lobby_seat_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	home_lobby_seat_list.add_theme_constant_override("separation", 8)
+	left.add_child(home_lobby_seat_list)
+
+	var invite_row := HBoxContainer.new()
+	invite_row.name = "InviteRow"
+	invite_row.add_theme_constant_override("separation", 8)
+	left.add_child(invite_row)
+	home_lobby_address_input = LineEdit.new()
+	home_lobby_address_input.name = "LobbyAddress"
+	home_lobby_address_input.text = "%s:%d" % [NETWORK_DEFAULT_ADDRESS, NETWORK_PORT]
+	home_lobby_address_input.placeholder_text = "Host address"
+	home_lobby_address_input.custom_minimum_size = Vector2(0, 34)
+	home_lobby_address_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	home_lobby_address_input.add_theme_stylebox_override("normal", _make_parchment_input_style())
+	home_lobby_address_input.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	if body_font != null:
+		home_lobby_address_input.add_theme_font_override("font", body_font)
+	invite_row.add_child(home_lobby_address_input)
+	var copy_button := _create_parchment_button("CopyButton", "COPY", false)
+	copy_button.pressed.connect(_on_lobby_copy_pressed)
+	invite_row.add_child(copy_button)
+
+	var right := VBoxContainer.new()
+	right.name = "RulesColumn"
+	right.custom_minimum_size = Vector2(280, 0)
+	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right.add_theme_constant_override("separation", 12)
+	columns.add_child(right)
+	var rules_title := Label.new()
+	rules_title.name = "RulesTitle"
+	rules_title.text = "Table rules"
+	rules_title.add_theme_color_override("font_color", COLOR_PARCHMENT_INK)
+	rules_title.add_theme_font_size_override("font_size", 24)
+	if title_font != null:
+		rules_title.add_theme_font_override("font", title_font)
+	right.add_child(rules_title)
+
+	var lobby_cooldown_slider := _create_settings_slider_row(
+		right,
+		"Turn cooldown",
+		"LobbyCooldown",
+		game_state.end_turn_cooldown_seconds,
+		0.5,
+		10.0,
+		0.5,
+		"s"
+	)
+	lobby_cooldown_slider.value_changed.connect(_on_end_turn_cooldown_changed)
+
+	right.add_child(_create_lobby_max_players_row())
+
+	home_lobby_attack_toggle = _create_parchment_toggle(
+		"AttackCardsToggle",
+		game_state.attack_cards_enabled
+	)
+	home_lobby_attack_toggle.toggled.connect(_on_lobby_attack_cards_toggled)
+	right.add_child(_create_settings_toggle_row("Attack cards", home_lobby_attack_toggle))
+
+	var kingdom_row := HBoxContainer.new()
+	kingdom_row.name = "KingdomRow"
+	kingdom_row.add_theme_constant_override("separation", 8)
+	right.add_child(kingdom_row)
+	var kingdom_label := Label.new()
+	kingdom_label.text = "Kingdom: Base Kingdom"
+	kingdom_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	kingdom_label.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	kingdom_label.add_theme_font_size_override("font_size", 14)
+	if body_font != null:
+		kingdom_label.add_theme_font_override("font", body_font)
+	kingdom_row.add_child(kingdom_label)
+	var edit_kingdom := _create_parchment_button("EditKingdomButton", "EDIT", false)
+	edit_kingdom.pressed.connect(_on_home_kingdoms_pressed)
+	kingdom_row.add_child(edit_kingdom)
+
+	home_lobby_rules_summary = Label.new()
+	home_lobby_rules_summary.name = "RulesSummary"
+	home_lobby_rules_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	home_lobby_rules_summary.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
+	home_lobby_rules_summary.add_theme_font_size_override("font_size", 13)
+	if body_font != null:
+		home_lobby_rules_summary.add_theme_font_override("font", body_font)
+	right.add_child(home_lobby_rules_summary)
+
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right.add_child(spacer)
+
+	var footer := HBoxContainer.new()
+	footer.name = "Footer"
+	footer.alignment = BoxContainer.ALIGNMENT_END
+	footer.add_theme_constant_override("separation", 10)
+	right.add_child(footer)
+	var leave_button := _create_parchment_button("LeaveButton", "<- LEAVE", false)
+	leave_button.pressed.connect(_on_lobby_leave_pressed)
+	footer.add_child(leave_button)
+	home_lobby_start_button = _create_parchment_button("StartGameButton", "START GAME", true)
+	home_lobby_start_button.pressed.connect(_on_lobby_start_pressed)
+	footer.add_child(home_lobby_start_button)
+
+
+func _create_parchment_title(title_text: String, subtitle: String) -> VBoxContainer:
+	var stack := VBoxContainer.new()
+	stack.name = "%sTitleBlock" % _node_key(title_text)
+	stack.add_theme_constant_override("separation", 3)
+	var crest := Label.new()
+	crest.text = "*"
+	crest.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	crest.add_theme_color_override("font_color", Color("#9c6f28"))
+	crest.add_theme_font_size_override("font_size", 18)
+	if title_font != null:
+		crest.add_theme_font_override("font", title_font)
+	stack.add_child(crest)
+	var title := Label.new()
+	title.name = "Title"
+	title.text = title_text
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", COLOR_PARCHMENT_INK)
+	title.add_theme_font_size_override("font_size", 36)
+	if title_font != null:
+		title.add_theme_font_override("font", title_font)
+	stack.add_child(title)
+	var sub := Label.new()
+	sub.name = "Subtitle"
+	sub.text = subtitle
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sub.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
+	sub.add_theme_font_size_override("font_size", 14)
+	if body_font != null:
+		sub.add_theme_font_override("font", body_font)
+	stack.add_child(sub)
+	return stack
+
+
+func _create_parchment_rule() -> ColorRect:
+	var rule := ColorRect.new()
+	rule.name = "GoldRule"
+	rule.custom_minimum_size = Vector2(0, 2)
+	rule.color = Color(0.612, 0.435, 0.157, 0.44)
+	return rule
+
+
+func _create_settings_section_label(text: String) -> Label:
+	var label := Label.new()
+	label.name = "%sSection" % _node_key(text)
+	label.text = text.to_upper()
+	label.add_theme_color_override("font_color", Color("#9c6f28"))
+	label.add_theme_font_size_override("font_size", 12)
+	if title_font != null:
+		label.add_theme_font_override("font", title_font)
+	return label
+
+
+func _create_settings_toggle_row(label_text: String, toggle: CheckButton) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = "%sRow" % _node_key(label_text)
+	row.custom_minimum_size = Vector2(0, 34)
+	row.add_theme_constant_override("separation", 12)
+	var label := Label.new()
+	label.text = label_text
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	label.add_theme_font_size_override("font_size", 15)
+	if body_font != null:
+		label.add_theme_font_override("font", body_font)
+	row.add_child(label)
+	row.add_child(toggle)
+	return row
+
+
+func _create_settings_slider_row(
+	parent: Container,
+	label_text: String,
+	node_name: String,
+	value: float,
+	minimum: float,
+	maximum: float,
+	step: float,
+	display_mode: String
+) -> HSlider:
+	var row := HBoxContainer.new()
+	row.name = "%sRow" % node_name
+	row.custom_minimum_size = Vector2(0, 38)
+	row.add_theme_constant_override("separation", 10)
+	parent.add_child(row)
+
+	var label := Label.new()
+	label.text = label_text
+	label.custom_minimum_size = Vector2(150, 0)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	label.add_theme_font_size_override("font_size", 15)
+	if body_font != null:
+		label.add_theme_font_override("font", body_font)
+	row.add_child(label)
+
+	var slider := HSlider.new()
+	slider.name = "%sSlider" % node_name
+	slider.min_value = minimum
+	slider.max_value = maximum
+	slider.step = step
+	slider.value = value
+	slider.custom_minimum_size = Vector2(0, 24)
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(slider)
+
+	var value_label := Label.new()
+	value_label.name = "%sValue" % node_name
+	value_label.custom_minimum_size = Vector2(44, 0)
+	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	value_label.add_theme_color_override("font_color", Color("#9c6f28"))
+	value_label.add_theme_font_size_override("font_size", 13)
+	if body_bold_font != null:
+		value_label.add_theme_font_override("font", body_bold_font)
+	row.add_child(value_label)
+	_update_settings_slider_value(value, value_label, display_mode)
+	slider.value_changed.connect(_on_settings_slider_value_changed.bind(value_label, display_mode))
+	return slider
+
+
+func _create_parchment_toggle(toggle_name: String, pressed: bool) -> CheckButton:
+	var toggle := CheckButton.new()
+	toggle.name = toggle_name
+	toggle.text = ""
+	toggle.button_pressed = pressed
+	toggle.custom_minimum_size = Vector2(58, 31)
+	toggle.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	toggle.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	return toggle
+
+
+func _create_parchment_button(button_name: String, label: String, primary: bool) -> Button:
+	var button := Button.new()
+	button.name = button_name
+	button.text = label
+	var button_width := 116 if primary else 92
+	button.custom_minimum_size = Vector2(button_width, 36)
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var font_color := Color("#3a2410") if primary else Color("#9c6f28")
+	button.add_theme_color_override("font_color", font_color)
+	button.add_theme_color_override(
+		"font_disabled_color",
+		Color(0.42, 0.34, 0.22, 0.58)
+	)
+	button.add_theme_font_size_override("font_size", 13)
+	if title_font != null:
+		button.add_theme_font_override("font", title_font)
+	button.add_theme_stylebox_override("normal", _make_parchment_button_style(primary))
+	button.add_theme_stylebox_override("hover", _make_parchment_button_style(primary, true))
+	button.add_theme_stylebox_override("pressed", _make_parchment_button_style(primary))
+	button.add_theme_stylebox_override("disabled", _make_parchment_button_style(primary, false, true))
+	return button
+
+
+func _create_multiplayer_option_button(
+	button_name: String,
+	title: String,
+	description: String,
+	enabled: bool
+) -> Button:
+	var button := Button.new()
+	button.name = button_name
+	button.text = "%s\n%s" % [title, description]
+	button.custom_minimum_size = Vector2(230, 118)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	button.disabled = not enabled
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if enabled else Control.CURSOR_ARROW
+	button.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	button.add_theme_color_override("font_disabled_color", COLOR_PARCHMENT_MUTED)
+	button.add_theme_font_size_override("font_size", 15)
+	if body_bold_font != null:
+		button.add_theme_font_override("font", body_bold_font)
+	button.add_theme_stylebox_override("normal", _make_parchment_button_style(false))
+	button.add_theme_stylebox_override("hover", _make_parchment_button_style(false, true))
+	button.add_theme_stylebox_override("disabled", _make_parchment_button_style(false, false, true))
+	return button
+
+
+func _create_lobby_max_players_row() -> VBoxContainer:
+	var stack := VBoxContainer.new()
+	stack.name = "MaxPlayersRow"
+	stack.add_theme_constant_override("separation", 5)
+	var label := Label.new()
+	label.text = "Max players"
+	label.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	label.add_theme_font_size_override("font_size", 15)
+	if body_font != null:
+		label.add_theme_font_override("font", body_font)
+	stack.add_child(label)
+	var segments := HBoxContainer.new()
+	segments.name = "Segments"
+	segments.add_theme_constant_override("separation", 6)
+	stack.add_child(segments)
+	for count in [2, 3, 4]:
+		var button := _create_parchment_button("Max%dButton" % count, str(count), count == lobby_max_players)
+		button.toggle_mode = true
+		button.button_pressed = count == lobby_max_players
+		button.custom_minimum_size = Vector2(54, 32)
+		button.pressed.connect(_on_lobby_max_players_pressed.bind(count))
+		segments.add_child(button)
+	return stack
+
+
+func _refresh_lobby_panel() -> void:
+	if home_lobby_seat_list == null:
+		return
+	_clear_container(home_lobby_seat_list)
+	var filled_count := game_state.players.size() if has_active_game else 1
+	filled_count = clampi(filled_count, 1, lobby_max_players)
+	for index in range(lobby_max_players):
+		var is_filled := index < filled_count
+		home_lobby_seat_list.add_child(_create_lobby_seat_row(index, is_filled))
+	if home_lobby_rules_summary != null:
+		var attack_status := "attacks on" if game_state.attack_cards_enabled else "attacks off"
+		home_lobby_rules_summary.text = (
+			"Starts when all seated players are ready. Cooldown %.1fs, up to %d players, %s."
+			% [game_state.end_turn_cooldown_seconds, lobby_max_players, attack_status]
+		)
+	if home_lobby_start_button != null:
+		home_lobby_start_button.disabled = not game_state.has_enough_market_candidates()
+	if home_lobby_address_input != null:
+		home_lobby_address_input.editable = lobby_pending_mode == "join" and not network_enabled
+		if lobby_pending_mode == "host":
+			home_lobby_address_input.text = "%s:%d" % [NETWORK_DEFAULT_ADDRESS, NETWORK_PORT]
+	if home_lobby_attack_toggle != null:
+		home_lobby_attack_toggle.set_pressed_no_signal(game_state.attack_cards_enabled)
+
+
+func _create_lobby_seat_row(index: int, filled: bool) -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.name = "Seat%d" % (index + 1)
+	panel.custom_minimum_size = Vector2(0, 62)
+	var seat_bg := Color(0.975, 0.902, 0.706, 0.52) if filled else Color(0.5, 0.39, 0.22, 0.12)
+	var seat_border_alpha := 0.34 if filled else 0.24
+	panel.add_theme_stylebox_override(
+		"panel",
+		_make_pill_style(
+			seat_bg,
+			Color(0.612, 0.435, 0.157, seat_border_alpha),
+			10
+		)
+	)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_top", 7)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_bottom", 7)
+	panel.add_child(margin)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	margin.add_child(row)
+	var avatar := PanelContainer.new()
+	avatar.custom_minimum_size = Vector2(38, 38)
+	avatar.add_theme_stylebox_override(
+		"panel",
+		_make_pill_style(Color("#9c6f28"), Color("#6e4a16"), 19)
+	)
+	row.add_child(avatar)
+	var avatar_label := Label.new()
+	if not filled:
+		avatar_label.text = str(index + 1)
+	elif index == local_player_index:
+		avatar_label.text = "Y"
+	else:
+		avatar_label.text = "P"
+	avatar_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	avatar_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	avatar_label.add_theme_color_override("font_color", Color("#f5e6c0"))
+	avatar_label.add_theme_font_size_override("font_size", 16)
+	if title_font != null:
+		avatar_label.add_theme_font_override("font", title_font)
+	avatar.add_child(avatar_label)
+
+	var names := VBoxContainer.new()
+	names.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	names.add_theme_constant_override("separation", 1)
+	row.add_child(names)
+	var title := Label.new()
+	if filled:
+		title.text = "You" if index == local_player_index else "Player %d" % (index + 1)
+		if index == 0:
+			title.text += " - host"
+	else:
+		title.text = "Open seat %d" % (index + 1)
+	title.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY if filled else COLOR_PARCHMENT_MUTED)
+	title.add_theme_font_size_override("font_size", 15)
+	if body_bold_font != null:
+		title.add_theme_font_override("font", body_bold_font)
+	names.add_child(title)
+	var sub := Label.new()
+	sub.text = "Starting deck ready" if filled else "Waiting for a player"
+	sub.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
+	sub.add_theme_font_size_override("font_size", 12)
+	if body_font != null:
+		sub.add_theme_font_override("font", body_font)
+	names.add_child(sub)
+
+	var pill := PanelContainer.new()
+	pill.custom_minimum_size = Vector2(74, 24)
+	var ready_bg := Color("#3d7d58") if filled else Color(0.46, 0.34, 0.16, 0.18)
+	var ready_border := Color("#2f6949") if filled else Color(0.46, 0.34, 0.16, 0.26)
+	pill.add_theme_stylebox_override(
+		"panel",
+		_make_pill_style(
+			ready_bg,
+			ready_border,
+			8
+		)
+	)
+	row.add_child(pill)
+	var pill_label := Label.new()
+	pill_label.text = "READY" if filled else "WAITING"
+	pill_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pill_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var pill_text_color := Color("#f5e6c0") if filled else COLOR_PARCHMENT_MUTED
+	pill_label.add_theme_color_override("font_color", pill_text_color)
+	pill_label.add_theme_font_size_override("font_size", 10)
+	if title_font != null:
+		pill_label.add_theme_font_override("font", title_font)
+	pill.add_child(pill_label)
+	return panel
 
 
 func _build_kingdom_browser() -> void:
@@ -1639,31 +2267,31 @@ func _build_kingdom_browser() -> void:
 	home_kingdoms_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	home_kingdoms_panel.add_theme_stylebox_override(
 		"panel",
-		_make_panel_style(Color(0.055, 0.07, 0.068, 0.92), COLOR_BRASS.darkened(0.08), 2)
+		_make_parchment_panel_style()
 	)
 	home_overlay.add_child(home_kingdoms_panel)
 	home_kingdoms_panel.anchor_left = 0.5
 	home_kingdoms_panel.anchor_top = 0.5
 	home_kingdoms_panel.anchor_right = 0.5
 	home_kingdoms_panel.anchor_bottom = 0.5
-	home_kingdoms_panel.offset_left = -450
-	home_kingdoms_panel.offset_top = -304
-	home_kingdoms_panel.offset_right = 450
-	home_kingdoms_panel.offset_bottom = 304
+	home_kingdoms_panel.offset_left = -560
+	home_kingdoms_panel.offset_top = -310
+	home_kingdoms_panel.offset_right = 560
+	home_kingdoms_panel.offset_bottom = 310
 
 	var browser_margin := MarginContainer.new()
 	browser_margin.name = "Margin"
-	browser_margin.add_theme_constant_override("margin_left", 12)
-	browser_margin.add_theme_constant_override("margin_top", 10)
-	browser_margin.add_theme_constant_override("margin_right", 12)
-	browser_margin.add_theme_constant_override("margin_bottom", 12)
+	browser_margin.add_theme_constant_override("margin_left", 24)
+	browser_margin.add_theme_constant_override("margin_top", 20)
+	browser_margin.add_theme_constant_override("margin_right", 24)
+	browser_margin.add_theme_constant_override("margin_bottom", 20)
 	home_kingdoms_panel.add_child(browser_margin)
 
 	var outer_layout := VBoxContainer.new()
 	outer_layout.name = "Layout"
 	outer_layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	outer_layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	outer_layout.add_theme_constant_override("separation", 8)
+	outer_layout.add_theme_constant_override("separation", 12)
 	browser_margin.add_child(outer_layout)
 
 	var header := HBoxContainer.new()
@@ -1674,27 +2302,28 @@ func _build_kingdom_browser() -> void:
 
 	var heading := Label.new()
 	heading.name = "Title"
-	heading.text = "KINGDOMS"
+	heading.text = "Kingdoms"
 	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	heading.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	heading.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
-	heading.add_theme_font_size_override("font_size", 18)
+	heading.add_theme_color_override("font_color", COLOR_PARCHMENT_INK)
+	heading.add_theme_font_size_override("font_size", 34)
 	if title_font != null:
 		heading.add_theme_font_override("font", title_font)
 	header.add_child(heading)
 
 	var close_button := Button.new()
 	close_button.name = "CloseButton"
-	close_button.text = "X"
-	close_button.custom_minimum_size = Vector2(34, 30)
+	close_button.text = "<- BACK"
+	close_button.custom_minimum_size = Vector2(92, 34)
 	close_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	close_button.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
-	close_button.add_theme_color_override("font_hover_color", Color.WHITE)
-	close_button.add_theme_font_size_override("font_size", 14)
+	close_button.add_theme_color_override("font_color", Color("#9c6f28"))
+	close_button.add_theme_color_override("font_hover_color", COLOR_PARCHMENT_BODY)
+	close_button.add_theme_font_size_override("font_size", 12)
 	if body_bold_font != null:
 		close_button.add_theme_font_override("font", body_bold_font)
-	if ui_textures.has("button"):
-		_apply_button_asset_styles(close_button, ui_textures["button"])
+	close_button.add_theme_stylebox_override("normal", _make_parchment_button_style(false))
+	close_button.add_theme_stylebox_override("hover", _make_parchment_button_style(false, true))
+	close_button.add_theme_stylebox_override("pressed", _make_parchment_button_style(false))
 	close_button.pressed.connect(_on_kingdoms_close_pressed)
 	header.add_child(close_button)
 
@@ -1702,12 +2331,12 @@ func _build_kingdom_browser() -> void:
 	browser.name = "Browser"
 	browser.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	browser.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	browser.add_theme_constant_override("separation", 12)
+	browser.add_theme_constant_override("separation", 18)
 	outer_layout.add_child(browser)
 
 	home_kingdom_tab_list = VBoxContainer.new()
 	home_kingdom_tab_list.name = "KingdomTabs"
-	home_kingdom_tab_list.custom_minimum_size = Vector2(154, 0)
+	home_kingdom_tab_list.custom_minimum_size = Vector2(170, 0)
 	home_kingdom_tab_list.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	home_kingdom_tab_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	home_kingdom_tab_list.add_theme_constant_override("separation", 8)
@@ -1715,7 +2344,7 @@ func _build_kingdom_browser() -> void:
 
 	var cards_pane := VBoxContainer.new()
 	cards_pane.name = "CardsPane"
-	cards_pane.custom_minimum_size = Vector2(368, 0)
+	cards_pane.custom_minimum_size = Vector2(600, 0)
 	cards_pane.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cards_pane.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	cards_pane.add_theme_constant_override("separation", 8)
@@ -1723,15 +2352,15 @@ func _build_kingdom_browser() -> void:
 
 	home_kingdom_title_label = Label.new()
 	home_kingdom_title_label.name = "KingdomTitle"
-	home_kingdom_title_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
-	home_kingdom_title_label.add_theme_font_size_override("font_size", 20)
+	home_kingdom_title_label.add_theme_color_override("font_color", COLOR_PARCHMENT_INK)
+	home_kingdom_title_label.add_theme_font_size_override("font_size", 24)
 	if title_font != null:
 		home_kingdom_title_label.add_theme_font_override("font", title_font)
 	cards_pane.add_child(home_kingdom_title_label)
 
 	home_kingdom_summary_label = Label.new()
 	home_kingdom_summary_label.name = "KingdomSummary"
-	home_kingdom_summary_label.add_theme_color_override("font_color", COLOR_PARCHMENT.darkened(0.1))
+	home_kingdom_summary_label.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
 	home_kingdom_summary_label.add_theme_font_size_override("font_size", 12)
 	if body_bold_font != null:
 		home_kingdom_summary_label.add_theme_font_override("font", body_bold_font)
@@ -1747,19 +2376,19 @@ func _build_kingdom_browser() -> void:
 
 	home_kingdom_card_grid = GridContainer.new()
 	home_kingdom_card_grid.name = "CardGrid"
-	home_kingdom_card_grid.columns = 2
+	home_kingdom_card_grid.columns = 6
 	home_kingdom_card_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	home_kingdom_card_grid.add_theme_constant_override("h_separation", 10)
-	home_kingdom_card_grid.add_theme_constant_override("v_separation", 10)
+	home_kingdom_card_grid.add_theme_constant_override("h_separation", 8)
+	home_kingdom_card_grid.add_theme_constant_override("v_separation", 8)
 	card_scroll.add_child(home_kingdom_card_grid)
 
 	var detail_panel := PanelContainer.new()
 	detail_panel.name = "DetailPane"
-	detail_panel.custom_minimum_size = Vector2(230, 0)
+	detail_panel.custom_minimum_size = Vector2(250, 0)
 	detail_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	detail_panel.add_theme_stylebox_override(
 		"panel",
-		_make_panel_style(Color(0.075, 0.09, 0.085, 0.86), COLOR_SLATE.lightened(0.16), 1)
+			_make_pill_style(Color(0.965, 0.878, 0.69, 0.38), Color(0.612, 0.435, 0.157, 0.38), 14)
 	)
 	browser.add_child(detail_panel)
 
@@ -1894,7 +2523,7 @@ func _refresh_home_controls() -> void:
 	if home_join_lobby_button != null:
 		home_join_lobby_button.disabled = not can_start or network_enabled
 	if home_lobby_address_input != null:
-		home_lobby_address_input.editable = not network_enabled
+		home_lobby_address_input.editable = lobby_pending_mode == "join" and not network_enabled
 	if home_lobby_status_label != null:
 		if network_enabled and network_is_host:
 			home_lobby_status_label.text = (
@@ -1920,6 +2549,15 @@ func _refresh_home_controls() -> void:
 		table_noise_slider.set_value_no_signal(table_noise_amount)
 	if action_animation_speed_slider != null:
 		action_animation_speed_slider.set_value_no_signal(action_animation_speed)
+	if background_music_slider != null:
+		background_music_slider.set_value_no_signal(background_music_volume)
+	if end_turn_cooldown_slider != null:
+		end_turn_cooldown_slider.set_value_no_signal(game_state.end_turn_cooldown_seconds)
+	if fullscreen_toggle != null:
+		fullscreen_toggle.set_pressed_no_signal(
+			DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+		)
+	_refresh_lobby_panel()
 
 
 func _show_home_tab(tab_name: String) -> void:
@@ -1927,8 +2565,14 @@ func _show_home_tab(tab_name: String) -> void:
 		home_settings_panel.visible = tab_name == "settings"
 	if home_kingdoms_panel != null:
 		home_kingdoms_panel.visible = tab_name == "kingdoms"
+	if home_multiplayer_panel != null:
+		home_multiplayer_panel.visible = tab_name == "multiplayer"
+	if home_lobby_panel != null:
+		home_lobby_panel.visible = tab_name == "lobby"
 	if tab_name == "kingdoms":
 		_refresh_kingdom_tab()
+	elif tab_name == "lobby":
+		_refresh_lobby_panel()
 
 
 func _refresh_kingdom_tab() -> void:
@@ -1972,13 +2616,23 @@ func _create_kingdom_tab_section(kingdom: String) -> VBoxContainer:
 	tab_button.custom_minimum_size = Vector2(0, 42)
 	tab_button.clip_text = true
 	tab_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	tab_button.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
-	tab_button.add_theme_color_override("font_pressed_color", COLOR_BRASS.lightened(0.25))
-	tab_button.add_theme_font_size_override("font_size", 13)
-	if body_bold_font != null:
-		tab_button.add_theme_font_override("font", body_bold_font)
-	if ui_textures.has("button"):
-		_apply_button_asset_styles(tab_button, ui_textures["button"])
+	tab_button.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	tab_button.add_theme_color_override("font_pressed_color", Color("#3a2410"))
+	tab_button.add_theme_font_size_override("font_size", 12)
+	if title_font != null:
+		tab_button.add_theme_font_override("font", title_font)
+	tab_button.add_theme_stylebox_override(
+		"normal",
+		_make_parchment_button_style(kingdom == selected_home_kingdom)
+	)
+	tab_button.add_theme_stylebox_override(
+		"hover",
+		_make_parchment_button_style(kingdom == selected_home_kingdom, true)
+	)
+	tab_button.add_theme_stylebox_override(
+		"pressed",
+		_make_parchment_button_style(true)
+	)
 	tab_button.pressed.connect(_on_kingdom_tab_pressed.bind(kingdom))
 	section.add_child(tab_button)
 
@@ -1989,6 +2643,7 @@ func _create_kingdom_tab_section(kingdom: String) -> VBoxContainer:
 	kingdom_toggle.disabled = kingdom == GameState.BASE_KINGDOM
 	kingdom_toggle.toggled.connect(_on_kingdom_toggled.bind(kingdom))
 	_style_home_toggle(kingdom_toggle)
+	kingdom_toggle.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
 	section.add_child(kingdom_toggle)
 	return section
 
@@ -1996,7 +2651,7 @@ func _create_kingdom_tab_section(kingdom: String) -> VBoxContainer:
 func _refresh_kingdom_cards() -> void:
 	_clear_container(home_kingdom_card_grid)
 	var cards := game_state.get_cards_for_kingdom(selected_home_kingdom)
-	home_kingdom_title_label.text = selected_home_kingdom.to_upper()
+	home_kingdom_title_label.text = selected_home_kingdom
 	home_kingdom_summary_label.text = _get_kingdom_summary_text(cards)
 	for card in cards:
 		home_kingdom_card_grid.add_child(_create_kingdom_card_button(card))
@@ -2014,12 +2669,21 @@ func _get_kingdom_summary_text(cards: Array[CardDefinition]) -> String:
 			and game_state.is_card_enabled_for_market(card.id)
 		):
 			active_count += 1
-	return "%d CARDS    %d / %d MARKET" % [cards.size(), active_count, market_count]
+	return "%d cards - %d / %d enabled for random markets" % [cards.size(), active_count, market_count]
 
 
 func _create_kingdom_card_button(card: CardDefinition) -> Button:
-	var button := _create_card_button(card, "kingdom_browser")
+	var type_palette := _get_card_type_palette(card.card_type)
+	var button := Button.new()
 	button.name = "Card_%s" % card.id
+	button.custom_minimum_size = Vector2(88, 112)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.focus_mode = Control.FOCUS_ALL
+	button.set_meta("card_id", card.id)
+	button.set_meta("card_type", card.card_type)
+	button.set_meta("card_base_color", _get_card_surface_color(card.card_type))
+	button.set_meta("card_accent_color", type_palette.accent)
+	button.tooltip_text = "%s - %s" % [card.card_name, card.description]
 	var kingdom_enabled := game_state.is_kingdom_enabled(game_state.get_card_kingdom(card))
 	var card_enabled := game_state.is_card_enabled_for_market(card.id)
 	var can_toggle := (
@@ -2033,19 +2697,110 @@ func _create_kingdom_card_button(card: CardDefinition) -> Button:
 	button.disabled = false
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	button.modulate = Color.WHITE if kingdom_enabled and card_enabled else Color(0.48, 0.48, 0.48, 1.0)
+	var border_color: Color = type_palette.accent
+	if selected_home_kingdom_card_id == card.id:
+		border_color = COLOR_BRASS.lightened(0.18)
+	button.add_theme_stylebox_override(
+		"normal",
+		_make_flat_card_style(Color("#241813"), border_color, 1)
+	)
+	button.add_theme_stylebox_override(
+		"hover",
+		_make_flat_card_style(_get_card_surface_color(card.card_type), type_palette.hover_border, 2)
+	)
+	button.add_theme_stylebox_override(
+		"pressed",
+		_make_flat_card_style(_get_card_surface_color(card.card_type).darkened(0.08), type_palette.accent, 2)
+	)
+
+	var content := Control.new()
+	content.name = "TileContent"
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.clip_contents = true
+	button.add_child(content)
+	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var art := TextureRect.new()
+	art.name = "Art"
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	art.texture = _load_card_texture(card.art_id)
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	content.add_child(art)
+	art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var scrim := ColorRect.new()
+	scrim.name = "TileScrim"
+	scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scrim.color = Color(0, 0, 0, 0.36)
+	content.add_child(scrim)
+	scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var accent := ColorRect.new()
+	accent.name = "AccentLine"
+	accent.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	accent.color = type_palette.accent
+	accent.anchor_left = 0.0
+	accent.anchor_top = 1.0
+	accent.anchor_right = 1.0
+	accent.anchor_bottom = 1.0
+	accent.offset_top = -3
+	content.add_child(accent)
+
+	var cost := _create_price_badge(game_state.get_effective_cost(card))
+	cost.scale = Vector2(0.78, 0.78)
+	content.add_child(cost)
+
+	var status := Label.new()
+	status.name = "Status"
+	status.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if game_state.is_required_card(card.id):
+		status.text = "LOCK"
+	elif card_enabled:
+		status.text = "OK"
+	else:
+		status.text = "OFF"
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	var status_color := Color("#d8f0c8") if card_enabled else Color(0.85, 0.78, 0.64, 0.7)
+	status.add_theme_color_override("font_color", status_color)
+	status.add_theme_font_size_override("font_size", 8)
+	if title_font != null:
+		status.add_theme_font_override("font", title_font)
+	status.anchor_left = 0.0
+	status.anchor_top = 0.0
+	status.anchor_right = 1.0
+	status.anchor_bottom = 0.0
+	status.offset_left = 4
+	status.offset_top = 7
+	status.offset_right = -6
+	status.offset_bottom = 19
+	content.add_child(status)
+
+	var name_label := Label.new()
+	name_label.name = "NameLabel"
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_label.text = card.card_name
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_label.add_theme_color_override("font_color", type_palette.name_text)
+	name_label.add_theme_font_size_override("font_size", 9)
+	if title_font != null:
+		name_label.add_theme_font_override("font", title_font)
+	name_label.anchor_left = 0.0
+	name_label.anchor_top = 1.0
+	name_label.anchor_right = 1.0
+	name_label.anchor_bottom = 1.0
+	name_label.offset_left = 5
+	name_label.offset_top = -34
+	name_label.offset_right = -5
+	name_label.offset_bottom = -7
+	content.add_child(name_label)
+	button.mouse_entered.connect(_on_kingdom_card_hovered.bind(card.id))
 	if can_toggle:
 		button.toggled.connect(_on_kingdom_card_toggled.bind(card.id))
 	else:
 		button.pressed.connect(_on_kingdom_card_selected.bind(card.id))
-	if selected_home_kingdom_card_id == card.id:
-		button.add_theme_stylebox_override(
-			"normal",
-			_make_card_style(
-				_get_card_surface_color(card.card_type).lightened(0.08),
-				COLOR_BRASS.lightened(0.26),
-				5
-			)
-		)
 	return button
 
 
@@ -2068,7 +2823,7 @@ func _refresh_kingdom_detail() -> void:
 	meta_label.text = "%s    COST %d" % [card.card_type.to_upper(), card.cost]
 	if not card.card_group.is_empty():
 		meta_label.text += "    %s" % card.card_group.to_upper()
-	meta_label.add_theme_color_override("font_color", COLOR_BRASS.lightened(0.18))
+	meta_label.add_theme_color_override("font_color", Color("#9c6f28"))
 	meta_label.add_theme_font_size_override("font_size", 12)
 	if body_bold_font != null:
 		meta_label.add_theme_font_override("font", body_bold_font)
@@ -2086,6 +2841,7 @@ func _refresh_kingdom_detail() -> void:
 		or GameState.STARTING_CARD_COUNTS.has(card.id)
 	)
 	_style_home_toggle(card_toggle)
+	card_toggle.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
 	card_toggle.toggled.connect(_on_kingdom_card_toggled.bind(card.id))
 	home_kingdom_detail_host.add_child(card_toggle)
 
@@ -2099,7 +2855,7 @@ func _refresh_kingdom_detail() -> void:
 	rules_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rules_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	rules_label.text = "[center]%s[/center]" % _get_card_rules_text(card.description)
-	rules_label.add_theme_color_override("default_color", COLOR_PARCHMENT_LIGHT)
+	rules_label.add_theme_color_override("default_color", COLOR_PARCHMENT_BODY)
 	rules_label.add_theme_font_size_override("normal_font_size", 13)
 	rules_label.add_theme_font_size_override("bold_font_size", 13)
 	if body_font != null:
@@ -2118,7 +2874,7 @@ func _node_key(value: String) -> String:
 
 
 func _build_market_board() -> void:
-	market_panel.custom_minimum_size = Vector2(0, 382)
+	market_panel.custom_minimum_size = Vector2(0, 388)
 	market_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var market_margin := market_panel.get_node("MarketMargin") as MarginContainer
 	market_margin.add_theme_constant_override("margin_left", 10)
@@ -2141,7 +2897,7 @@ func _build_market_board() -> void:
 	market_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	market_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 
-	market_container.add_theme_constant_override("separation", 10)
+	market_container.add_theme_constant_override("separation", 16)
 	market_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	market_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	market_container.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -2159,9 +2915,9 @@ func _build_market_board() -> void:
 	var barracks := _create_market_carpet(
 		"BarracksCarpet",
 		5,
-		CARD_FACE_SIZE.x * 5.0 + 8.0 * 4.0 + 4.0,
+		CARD_FACE_SIZE.x * 5.0 + 12.0 * 4.0 + 4.0,
 		COLOR_BARRACKS_CARPET,
-		COLOR_SLATE.lightened(0.32)
+		COLOR_ACTION_ACCENT
 	)
 	barracks_carpet = barracks.panel
 	barracks_carpet.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2172,7 +2928,7 @@ func _build_market_board() -> void:
 		1,
 		CARD_FACE_SIZE.x + 4,
 		COLOR_ESTATES_CARPET,
-		COLOR_FOREST.lightened(0.32)
+		COLOR_VICTORY_ACCENT
 	)
 	estates_carpet = estates.panel
 	market_victory_container = estates.cards
@@ -2277,7 +3033,7 @@ func _create_market_carpet(
 	cards.columns = columns
 	cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	cards.add_theme_constant_override("h_separation", 8)
+	cards.add_theme_constant_override("h_separation", 12)
 	cards.add_theme_constant_override("v_separation", 8)
 	layout.add_child(cards)
 
@@ -2394,10 +3150,10 @@ func _apply_original_ui_assets() -> void:
 func _apply_scene_colors() -> void:
 	var table_background := get_node_or_null("Background") as TextureRect
 	if table_background != null:
-		table_background.modulate = Color("#d59a55")
+		table_background.modulate = Color("#241813")
 	var table_vignette := get_node_or_null("TableVignette") as ColorRect
 	if table_vignette != null:
-		table_vignette.color = Color(0.18, 0.075, 0.02, 0.32)
+		table_vignette.color = Color(0.047, 0.031, 0.024, 0.56)
 
 	var cream_paths := [
 		"Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row/PlayAreaLabel",
@@ -2454,9 +3210,13 @@ func _configure_preview_layout() -> void:
 
 func _apply_body_font_recursive(node: Node) -> void:
 	if node is Label:
-		(node as Label).add_theme_font_override("font", body_font)
+		var label := node as Label
+		if not label.has_theme_font_override("font"):
+			label.add_theme_font_override("font", body_font)
 	elif node is Button:
-		(node as Button).add_theme_font_override("font", body_font)
+		var button := node as Button
+		if not button.has_theme_font_override("font"):
+			button.add_theme_font_override("font", body_font)
 	for child in node.get_children():
 		_apply_body_font_recursive(child)
 
@@ -2524,6 +3284,10 @@ func _refresh_ui() -> void:
 func _refresh_player_status() -> void:
 	if player_status_list == null:
 		return
+	var panel := player_status_list.get_parent().get_parent().get_parent() as PanelContainer
+	var header := panel.find_child("Header", true, false) as Label if panel != null else null
+	if header != null:
+		header.text = "TABLE - %d PLAYERS" % maxi(1, game_state.players.size())
 	_clear_container(player_status_list)
 	var you_index := (
 		clampi(local_player_index, 0, game_state.players.size() - 1)
@@ -2702,7 +3466,7 @@ func _get_hand_card_rotation(index: int, total: int) -> float:
 	if total <= 1:
 		return 0.0
 	var center := (float(total) - 1.0) * 0.5
-	return clampf((float(index) - center) * 3.2, -8.0, 8.0)
+	return clampf((float(index) - center) * 4.0, -8.0, 8.0)
 
 
 func _refresh_market() -> void:
@@ -2741,17 +3505,12 @@ func _render_market_cards(
 ) -> void:
 	for card in cards:
 		var affordable := _can_buy_card(card)
-		var showcase_before_play := _should_showcase_market_before_play(card)
-		var visual_state := (
-			MARKET_AFFORDABLE
-			if affordable or showcase_before_play
-			else MARKET_UNAFFORDABLE
-		)
+		var visual_state := MARKET_AFFORDABLE if affordable else MARKET_UNAFFORDABLE
 		var button := _create_card_button(card, visual_state)
-		button.disabled = not affordable and not showcase_before_play
+		button.disabled = game_state.get_supply_count(card.id) <= 0
 		button.mouse_default_cursor_shape = (
 			Control.CURSOR_POINTING_HAND
-			if affordable or showcase_before_play
+			if affordable
 			else Control.CURSOR_ARROW
 		)
 		button.pressed.connect(_on_market_card_pressed.bind(card))
@@ -2982,27 +3741,42 @@ func _create_card_button(
 	button.add_child(content)
 	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	var layout := VBoxContainer.new()
+	var layout := Control.new()
 	layout.name = "CardLayout"
 	layout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layout.clip_contents = true
+	layout.custom_minimum_size = CARD_FACE_SIZE
 	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	layout.add_theme_constant_override("separation", 0)
 	content.add_child(layout)
 	layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var art_height := HAND_CARD_ART_HEIGHT if is_hand_card else CARD_ART_HEIGHT
+	var text_scrim_y := art_height
+	var name_y := text_scrim_y + 3.0
+	var effect_y := name_y + CARD_NAME_HEIGHT + 2.0
+	var meta_y := CARD_META_Y
+	var effect_height := maxf(24.0, meta_y - effect_y - 1.0)
 	var art_texture := _load_card_texture(card.art_id)
-	var art_frame := PanelContainer.new()
+	var art_frame := Panel.new()
 	art_frame.name = "ArtFrame"
 	art_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	art_frame.clip_contents = true
-	art_frame.custom_minimum_size = Vector2(0, art_height)
+	art_frame.custom_minimum_size = Vector2(CARD_FACE_SIZE.x, art_height)
+	art_frame.size = Vector2(CARD_FACE_SIZE.x, art_height)
 	art_frame.add_theme_stylebox_override(
 		"panel",
 		_make_card_art_style(card_surface.darkened(0.16))
 	)
 	layout.add_child(art_frame)
+	art_frame.anchor_left = 0.0
+	art_frame.anchor_top = 0.0
+	art_frame.anchor_right = 1.0
+	art_frame.anchor_bottom = 0.0
+	art_frame.offset_left = 0.0
+	art_frame.offset_top = 0.0
+	art_frame.offset_right = 0.0
+	art_frame.offset_bottom = art_height
 
 	var art_rect := TextureRect.new()
 	art_rect.name = "Art"
@@ -3023,6 +3797,14 @@ func _create_card_button(
 	art_frame.add_child(art_scrim)
 	art_scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
+	var text_scrim := ColorRect.new()
+	text_scrim.name = "TextScrim"
+	text_scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	text_scrim.color = Color(card_surface.r, card_surface.g, card_surface.b, 0.94)
+	text_scrim.position = Vector2(0, text_scrim_y)
+	text_scrim.size = Vector2(CARD_FACE_SIZE.x, CARD_FACE_SIZE.y - text_scrim_y)
+	layout.add_child(text_scrim)
+
 	var accent_line := ColorRect.new()
 	accent_line.name = "AccentLine"
 	accent_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -3040,7 +3822,9 @@ func _create_card_button(
 
 	var name_label := Label.new()
 	name_label.name = "NameLabel"
-	name_label.custom_minimum_size = Vector2(0, 19)
+	name_label.position = Vector2(0, name_y)
+	name_label.custom_minimum_size = Vector2(CARD_FACE_SIZE.x, CARD_NAME_HEIGHT)
+	name_label.size = Vector2(CARD_FACE_SIZE.x, CARD_NAME_HEIGHT)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_label.text = card.card_name
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -3048,14 +3832,16 @@ func _create_card_button(
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.clip_text = true
 	name_label.add_theme_color_override("font_color", type_palette.name_text)
-	name_label.add_theme_font_size_override("font_size", 10)
+	name_label.add_theme_font_size_override("font_size", 11)
 	if title_font != null:
 		name_label.add_theme_font_override("font", title_font)
 	layout.add_child(name_label)
 
 	var effect_slot := MarginContainer.new()
 	effect_slot.name = "EffectSlot"
-	effect_slot.custom_minimum_size = Vector2(0, 42 if is_market_card else 36)
+	effect_slot.position = Vector2(0, effect_y)
+	effect_slot.custom_minimum_size = Vector2(CARD_FACE_SIZE.x, effect_height)
+	effect_slot.size = Vector2(CARD_FACE_SIZE.x, effect_height)
 	effect_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	effect_slot.add_theme_constant_override("margin_left", 7)
 	effect_slot.add_theme_constant_override("margin_top", 0)
@@ -3076,7 +3862,7 @@ func _create_card_button(
 	meta_chip.name = "MetaChip"
 	meta_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	meta_chip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	meta_chip.custom_minimum_size = Vector2(0, 13)
+	meta_chip.custom_minimum_size = Vector2(0, 14)
 	meta_chip.add_theme_stylebox_override(
 		"panel",
 		_make_meta_chip_style(type_palette.chip_bg)
@@ -3108,8 +3894,8 @@ func _create_card_button(
 	effect_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	effect_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	effect_label.add_theme_color_override("default_color", type_palette.description_text)
-	effect_label.add_theme_font_size_override("normal_font_size", 7)
-	effect_label.add_theme_font_size_override("bold_font_size", 7)
+	effect_label.add_theme_font_size_override("normal_font_size", 8)
+	effect_label.add_theme_font_size_override("bold_font_size", 8)
 	if body_font != null:
 		effect_label.add_theme_font_override("normal_font", body_font)
 	if body_bold_font != null:
@@ -3118,7 +3904,9 @@ func _create_card_button(
 
 	var meta_row := HBoxContainer.new()
 	meta_row.name = "MetaRow"
-	meta_row.custom_minimum_size = Vector2(0, 10)
+	meta_row.position = Vector2(0, meta_y)
+	meta_row.custom_minimum_size = Vector2(CARD_FACE_SIZE.x, CARD_META_HEIGHT)
+	meta_row.size = Vector2(CARD_FACE_SIZE.x, CARD_META_HEIGHT)
 	meta_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	meta_row.alignment = BoxContainer.ALIGNMENT_BEGIN
 	meta_row.add_theme_constant_override("separation", 4)
@@ -3144,7 +3932,7 @@ func _create_card_button(
 	button.add_child(_create_price_badge(game_state.get_effective_cost(card)))
 
 	if visual_state == MARKET_UNAFFORDABLE:
-		button.modulate = Color(0.74, 0.72, 0.66, 1.0)
+		button.modulate = Color(0.74, 0.72, 0.66, 0.62)
 	elif visual_state == HAND_UNPLAYABLE:
 		button.modulate = Color(0.78, 0.78, 0.74, 1.0)
 
@@ -3330,8 +4118,9 @@ func _on_card_mouse_entered(
 	button: Button,
 	visual_state: String
 ) -> void:
-	_animate_card_scale(button, CARD_HOVER_SCALE)
-	button.z_index = 10
+	if visual_state != MARKET_UNAFFORDABLE:
+		_animate_card_scale(button, CARD_HOVER_SCALE)
+		button.z_index = 10
 	_show_card_preview(card, button, visual_state)
 
 
@@ -3563,21 +4352,21 @@ func _get_card_type_palette(card_type: String) -> Dictionary:
 				"hover_border": Color("#ffe0a0"),
 				"name_text": Color("#f4e6c4"),
 				"chip_bg": Color(0.941, 0.741, 0.345, 0.18),
-				"chip_text": Color("#edc46f"),
-				"description_text": Color(0.957, 0.902, 0.769, 0.84),
+				"chip_text": Color("#f4cd72"),
+				"description_text": Color(0.957, 0.902, 0.769, 0.80),
 				"footer_text": Color(0.941, 0.741, 0.345, 0.72),
-				"scrim": Color(0.38, 0.19, 0.06, 0.01),
+				"scrim": Color(0.137, 0.082, 0.027, 0.18),
 			}
 		"victory":
 			return {
 				"accent": COLOR_VICTORY_ACCENT,
-				"hover_border": Color("#e9ad8e"),
-				"name_text": Color("#f7e0d2"),
-				"chip_bg": Color(0.788, 0.431, 0.345, 0.20),
-				"chip_text": Color("#e6a889"),
-				"description_text": Color(0.961, 0.878, 0.827, 0.86),
-				"footer_text": Color(0.788, 0.431, 0.345, 0.74),
-				"scrim": Color(0.36, 0.11, 0.06, 0.01),
+				"hover_border": Color("#f3c4d2"),
+				"name_text": Color("#fdebf1"),
+				"chip_bg": Color(0.878, 0.541, 0.635, 0.20),
+				"chip_text": Color("#f3c4d2"),
+				"description_text": Color(0.992, 0.922, 0.945, 0.82),
+				"footer_text": Color(0.878, 0.541, 0.635, 0.74),
+				"scrim": Color(0.122, 0.051, 0.098, 0.20),
 			}
 		"curse":
 			return {
@@ -3586,20 +4375,20 @@ func _get_card_type_palette(card_type: String) -> Dictionary:
 				"name_text": Color("#eee4ff"),
 				"chip_bg": Color(0.706, 0.604, 0.851, 0.22),
 				"chip_text": Color("#dbcdf2"),
-				"description_text": Color(0.91, 0.86, 0.98, 0.84),
+				"description_text": Color(0.91, 0.86, 0.98, 0.82),
 				"footer_text": Color(0.706, 0.604, 0.851, 0.72),
-				"scrim": Color(0.18, 0.10, 0.22, 0.01),
+				"scrim": Color(0.118, 0.086, 0.16, 0.20),
 			}
 		_:
 			return {
 				"accent": COLOR_ACTION_ACCENT,
-				"hover_border": Color("#f0b56f"),
-				"name_text": Color("#f7e4c6"),
-				"chip_bg": Color(0.835, 0.541, 0.263, 0.20),
-				"chip_text": Color("#efbc78"),
-				"description_text": Color(0.953, 0.882, 0.757, 0.86),
-				"footer_text": Color(0.835, 0.541, 0.263, 0.74),
-				"scrim": Color(0.36, 0.18, 0.05, 0.01),
+				"hover_border": Color("#bfddf8"),
+				"name_text": Color("#eef5fc"),
+				"chip_bg": Color(0.49, 0.714, 0.91, 0.18),
+				"chip_text": Color("#bfddf8"),
+				"description_text": Color(0.863, 0.91, 0.969, 0.82),
+				"footer_text": Color(0.49, 0.714, 0.91, 0.74),
+				"scrim": Color(0.051, 0.086, 0.149, 0.20),
 			}
 
 
@@ -3697,9 +4486,10 @@ func _make_flat_card_style(
 
 func _make_panel_style(color: Color, border_color: Color, border_width: int) -> StyleBoxFlat:
 	var style := _make_flat_card_style(color, border_color, border_width)
-	style.set_corner_radius_all(10)
-	style.shadow_color = Color(0, 0, 0, 0.38)
-	style.shadow_size = 7
+	style.set_corner_radius_all(15)
+	style.shadow_color = Color(0, 0, 0, 0.5)
+	style.shadow_size = 12
+	style.shadow_offset = Vector2(0, 6)
 	return style
 
 
@@ -3833,6 +4623,56 @@ func _make_preview_style(surface_color: Color, border_color: Color) -> StyleBox:
 	style.shadow_color = Color(0, 0, 0, 0.65)
 	style.shadow_size = 16
 	style.shadow_offset = Vector2(0, 8)
+	return style
+
+
+func _make_parchment_panel_style() -> StyleBoxFlat:
+	var style := _make_flat_card_style(COLOR_PARCHMENT_PANEL, Color("#b89a5e"), 2)
+	style.bg_color = COLOR_PARCHMENT_PANEL
+	style.set_corner_radius_all(22)
+	style.content_margin_left = 8
+	style.content_margin_top = 8
+	style.content_margin_right = 8
+	style.content_margin_bottom = 8
+	style.shadow_color = Color(0, 0, 0, 0.58)
+	style.shadow_size = 24
+	style.shadow_offset = Vector2(0, 12)
+	return style
+
+
+func _make_parchment_button_style(
+	primary: bool,
+	hover: bool = false,
+	disabled: bool = false
+) -> StyleBoxFlat:
+	var bg := Color("#f0cf80") if primary else Color(0.965, 0.878, 0.69, 0.52)
+	var border := Color("#9c6f28")
+	if hover and not disabled:
+		bg = Color("#f6dc9b") if primary else Color(0.988, 0.922, 0.745, 0.74)
+	if disabled:
+		bg = Color(0.58, 0.49, 0.34, 0.24)
+		border = Color(0.46, 0.34, 0.16, 0.26)
+	var style := _make_flat_card_style(bg, border, 1)
+	style.set_corner_radius_all(9)
+	style.content_margin_left = 12
+	style.content_margin_top = 7
+	style.content_margin_right = 12
+	style.content_margin_bottom = 7
+	style.shadow_color = Color(0, 0, 0, 0.18)
+	style.shadow_size = 5
+	style.shadow_offset = Vector2(0, 2)
+	return style
+
+
+func _make_parchment_input_style() -> StyleBoxFlat:
+	var style := _make_flat_card_style(Color(0.94, 0.84, 0.62, 0.62), Color("#9c6f28"), 1)
+	style.set_corner_radius_all(8)
+	style.content_margin_left = 10
+	style.content_margin_top = 6
+	style.content_margin_right = 10
+	style.content_margin_bottom = 6
+	style.shadow_color = Color.TRANSPARENT
+	style.shadow_size = 0
 	return style
 
 
@@ -4066,6 +4906,7 @@ func _refresh_background_music() -> void:
 	if background_music_player == null:
 		return
 	if audio_enabled:
+		background_music_player.volume_db = linear_to_db(maxf(0.001, background_music_volume))
 		if not background_music_player.playing:
 			background_music_player.play()
 	else:
@@ -4347,14 +5188,21 @@ func _on_home_continue_pressed() -> void:
 	_hide_home_screen()
 
 
+func _on_home_multiplayer_pressed() -> void:
+	_play_ui_sound("button_click")
+	_show_home_tab("multiplayer")
+
+
 func _on_home_create_lobby_pressed() -> void:
 	_play_ui_sound("button_click")
-	_host_network_lobby()
+	lobby_pending_mode = "host"
+	_show_home_tab("lobby")
 
 
 func _on_home_join_lobby_pressed() -> void:
 	_play_ui_sound("button_click")
-	_join_network_lobby()
+	lobby_pending_mode = "join"
+	_show_home_tab("lobby")
 
 
 func _on_home_settings_pressed() -> void:
@@ -4365,6 +5213,11 @@ func _on_home_settings_pressed() -> void:
 func _on_home_kingdoms_pressed() -> void:
 	_play_ui_sound("button_click")
 	_show_home_tab("kingdoms")
+
+
+func _on_home_back_pressed() -> void:
+	_play_ui_sound("button_click")
+	_hide_home_modals()
 
 
 func _on_kingdoms_close_pressed() -> void:
@@ -4383,9 +5236,29 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel") and home_kingdoms_panel != null and home_kingdoms_panel.visible:
-		_close_kingdom_browser()
+	if event.is_action_pressed("ui_cancel") and _home_modal_is_visible():
+		_hide_home_modals()
 		get_viewport().set_input_as_handled()
+
+
+func _home_modal_is_visible() -> bool:
+	return (
+		(home_settings_panel != null and home_settings_panel.visible)
+		or (home_kingdoms_panel != null and home_kingdoms_panel.visible)
+		or (home_multiplayer_panel != null and home_multiplayer_panel.visible)
+		or (home_lobby_panel != null and home_lobby_panel.visible)
+	)
+
+
+func _hide_home_modals() -> void:
+	if home_settings_panel != null:
+		home_settings_panel.hide()
+	if home_kingdoms_panel != null:
+		home_kingdoms_panel.hide()
+	if home_multiplayer_panel != null:
+		home_multiplayer_panel.hide()
+	if home_lobby_panel != null:
+		home_lobby_panel.hide()
 
 
 func _is_audio_unlock_event(event: InputEvent) -> bool:
@@ -4426,6 +5299,81 @@ func _on_action_animation_speed_changed(value: float) -> void:
 	action_animation_speed = value
 
 
+func _on_background_music_changed(value: float) -> void:
+	background_music_volume = clampf(value, 0.0, 1.0)
+	if background_music_player != null:
+		background_music_player.volume_db = linear_to_db(maxf(0.001, background_music_volume))
+
+
+func _on_end_turn_cooldown_changed(value: float) -> void:
+	game_state.end_turn_cooldown_seconds = clampf(value, 0.5, 10.0)
+	if end_turn_cooldown_slider != null:
+		end_turn_cooldown_slider.set_value_no_signal(game_state.end_turn_cooldown_seconds)
+	_refresh_lobby_panel()
+
+
+func _on_fullscreen_toggled(enabled: bool) -> void:
+	DisplayServer.window_set_mode(
+		DisplayServer.WINDOW_MODE_FULLSCREEN if enabled else DisplayServer.WINDOW_MODE_WINDOWED
+	)
+
+
+func _on_settings_slider_value_changed(
+	value: float,
+	value_label: Label,
+	display_mode: String
+) -> void:
+	_update_settings_slider_value(value, value_label, display_mode)
+
+
+func _update_settings_slider_value(
+	value: float,
+	value_label: Label,
+	display_mode: String
+) -> void:
+	if value_label == null:
+		return
+	match display_mode:
+		"pct":
+			value_label.text = "%d%%" % roundi(value * 100.0)
+		"x":
+			value_label.text = "%.1fx" % value
+		"s":
+			value_label.text = "%.1fs" % value
+		_:
+			value_label.text = "%.1f" % value
+
+
+func _on_lobby_copy_pressed() -> void:
+	if home_lobby_address_input != null:
+		DisplayServer.clipboard_set(home_lobby_address_input.text)
+	_play_ui_sound("button_click")
+
+
+func _on_lobby_leave_pressed() -> void:
+	_play_ui_sound("button_click")
+	lobby_pending_mode = "host"
+	_show_home_tab("multiplayer")
+
+
+func _on_lobby_start_pressed() -> void:
+	_play_ui_sound("button_click")
+	if lobby_pending_mode == "join":
+		_join_network_lobby()
+	else:
+		_host_network_lobby()
+
+
+func _on_lobby_max_players_pressed(count: int) -> void:
+	lobby_max_players = clampi(count, 2, NETWORK_MAX_PLAYERS)
+	_refresh_lobby_panel()
+
+
+func _on_lobby_attack_cards_toggled(enabled: bool) -> void:
+	game_state.attack_cards_enabled = enabled
+	_refresh_home_controls()
+
+
 func _on_kingdom_tab_pressed(kingdom: String) -> void:
 	selected_home_kingdom = kingdom
 	selected_home_kingdom_card_id = ""
@@ -4447,6 +5395,11 @@ func _on_kingdom_card_selected(card_id: String) -> void:
 		selected_home_kingdom = game_state.get_card_kingdom(card)
 	_play_ui_sound("button_click")
 	_refresh_kingdom_tab()
+
+
+func _on_kingdom_card_hovered(card_id: String) -> void:
+	selected_home_kingdom_card_id = card_id
+	_refresh_kingdom_detail()
 
 
 func _on_kingdom_card_toggled(enabled: bool, card_id: String) -> void:

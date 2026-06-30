@@ -59,6 +59,8 @@ var next_choice_id: int = 1
 var cleanup_in_progress: bool = false
 var disabled_kingdoms: Dictionary = {}
 var disabled_market_card_ids: Dictionary = {}
+var end_turn_cooldown_seconds: float = DEFAULT_END_TURN_COOLDOWN_SECONDS
+var attack_cards_enabled: bool = true
 
 
 func load_cards(path: String) -> bool:
@@ -175,7 +177,7 @@ func get_end_turn_cooldown_seconds() -> float:
 		return 0.0
 	return maxf(
 		0.5,
-		DEFAULT_END_TURN_COOLDOWN_SECONDS - player.end_turn_cooldown_reduction
+		end_turn_cooldown_seconds - player.end_turn_cooldown_reduction
 	)
 
 
@@ -210,8 +212,38 @@ func get_market_candidates() -> Array[CardDefinition]:
 			continue
 		if not is_card_enabled_for_market(card.id):
 			continue
+		if not attack_cards_enabled and card_has_attack_effect(card):
+			continue
 		candidates.append(card)
 	return candidates
+
+
+func card_has_attack_effect(card: CardDefinition) -> bool:
+	if card == null:
+		return false
+	for effect in card.special_effects:
+		if _effect_contains_attack(effect):
+			return true
+	return false
+
+
+func _effect_contains_attack(value: Variant) -> bool:
+	match typeof(value):
+		TYPE_DICTIONARY:
+			var data: Dictionary = value
+			var kind := str(data.get("kind", ""))
+			if kind == "attack" or kind == "register_gain_attack":
+				return true
+			if data.has("attack") and typeof(data["attack"]) == TYPE_DICTIONARY:
+				return true
+			for nested_value in data.values():
+				if _effect_contains_attack(nested_value):
+					return true
+		TYPE_ARRAY:
+			for nested_value in value:
+				if _effect_contains_attack(nested_value):
+					return true
+	return false
 
 
 func get_card_kingdom(card: CardDefinition) -> String:
