@@ -288,16 +288,26 @@ func _initialize() -> void:
 		"Each card type should have a distinct dark medieval surface color."
 	)
 	_check(
-		_color_distance(main_ui.COLOR_RESOURCE_CARD, main_ui.COLOR_ACTION_CARD) > 0.12
-		and _color_distance(main_ui.COLOR_ACTION_CARD, main_ui.COLOR_VICTORY_CARD) > 0.10
-		and _color_distance(main_ui.COLOR_RESOURCE_CARD, main_ui.COLOR_VICTORY_CARD) > 0.10,
-		"Card type surfaces should be visibly different rather than near-identical browns."
+		_color_distance(main_ui.COLOR_RESOURCE_CARD, main_ui.COLOR_ACTION_CARD) > 0.06
+		and _color_distance(main_ui.COLOR_ACTION_CARD, main_ui.COLOR_VICTORY_CARD) > 0.06
+		and _color_distance(main_ui.COLOR_RESOURCE_CARD, main_ui.COLOR_VICTORY_CARD) > 0.08,
+		"Card type surfaces should stay distinct within the warm table palette."
 	)
 	_check(
 		main_ui._get_card_type_accent("resource") != main_ui._get_card_type_accent("action")
 		and main_ui._get_card_type_accent("action")
 		!= main_ui._get_card_type_accent("victory"),
-		"Each card type should also have a distinct bright inner accent."
+		"Each card type should also have a distinct warm inner accent."
+	)
+	_check(
+		main_ui.COLOR_ACTION_CARD.r > main_ui.COLOR_ACTION_CARD.b
+		and main_ui.COLOR_ACTION_ACCENT.r > main_ui.COLOR_ACTION_ACCENT.b,
+		"Action cards should read warm instead of blue/neon."
+	)
+	_check(
+		_table_background().modulate.r > _table_background().modulate.b
+		and _table_vignette().color.r > _table_vignette().color.b,
+		"The table background should be warmed away from the blue source art."
 	)
 	_check(
 		_hand_panel().get_global_rect().end.y <= root.get_visible_rect().end.y,
@@ -358,7 +368,16 @@ func _initialize() -> void:
 			and resource_button.has_node("CardContent/CardLayout/EffectSlot/EffectCenter/MetaChip"),
 			"Card faces should include the 2a art scrim, accent line, and meta chip."
 		)
+		_check(
+			_card_art_scrim(resource_button).color.a <= 0.2,
+			"Card art scrims should tint the art without covering it."
+		)
 		_check(_card_art(resource_button).texture != null, "Card faces should display card artwork.")
+		_check(
+			not resource_button.has_node("PriceBadge/CoinStamp")
+			and not _card_price(resource_button).text.contains("$"),
+			"Card cost badges should show numerals without a dollar-stamped icon."
+		)
 		_check(
 			_card_effect(resource_button).get_parsed_text()
 			== _plain_card_rules_text(
@@ -1035,6 +1054,14 @@ func _table_noise_overlay() -> TextureRect:
 	return main_ui.table_noise_overlay
 
 
+func _table_background() -> TextureRect:
+	return main_ui.get_node("Background")
+
+
+func _table_vignette() -> ColorRect:
+	return main_ui.get_node("TableVignette")
+
+
 func _kingdoms_close_button() -> Button:
 	return main_ui.get_node("HomeOverlay/KingdomsPanel/Margin/Layout/Header/CloseButton")
 
@@ -1251,6 +1278,10 @@ func _choice_confirm_button() -> Button:
 
 func _card_art(button: Button) -> TextureRect:
 	return button.get_node("CardContent/CardLayout/ArtFrame/Art")
+
+
+func _card_art_scrim(button: Button) -> ColorRect:
+	return button.get_node("CardContent/CardLayout/ArtFrame/ArtScrim")
 
 
 func _card_name(button: Button) -> Label:

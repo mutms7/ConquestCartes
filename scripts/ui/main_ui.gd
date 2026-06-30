@@ -42,24 +42,24 @@ const COLOR_PARCHMENT_LIGHT := Color("#f4e6c4")
 const COLOR_CARD_BROWN := Color("#271c12")
 const COLOR_CARD_BROWN_LIGHT := Color("#3c2a14")
 const COLOR_RESOURCE_CARD := Color("#3c2a14")
-const COLOR_ACTION_CARD := Color("#1c2d48")
-const COLOR_VICTORY_CARD := Color("#36182d")
-const COLOR_CURSE_CARD := Color("#32263f")
+const COLOR_ACTION_CARD := Color("#332116")
+const COLOR_VICTORY_CARD := Color("#3b1d18")
+const COLOR_CURSE_CARD := Color("#2c2030")
 const COLOR_WALNUT := Color("#271c12")
 const COLOR_WALNUT_DARK := Color("#150e08")
 const COLOR_BRASS := Color("#e8c879")
 const COLOR_FOREST := Color("#3d7d58")
 const COLOR_OXBLOOD := Color("#a64b55")
-const COLOR_SLATE := Color("#5c8fc2")
+const COLOR_SLATE := Color("#a87845")
 const COLOR_INK := Color("#30251d")
 const COLOR_UNAVAILABLE := Color("#77756f")
-const COLOR_TREASURY_CARPET := Color("#682b37")
-const COLOR_BARRACKS_CARPET := Color("#263f5b")
-const COLOR_ESTATES_CARPET := Color("#28503b")
+const COLOR_TREASURY_CARPET := Color("#5c3018")
+const COLOR_BARRACKS_CARPET := Color("#3e2819")
+const COLOR_ESTATES_CARPET := Color("#304027")
 const COLOR_RESOURCE_ACCENT := Color("#f0bd58")
-const COLOR_ACTION_ACCENT := Color("#7db6e8")
-const COLOR_VICTORY_ACCENT := Color("#e08aa2")
-const COLOR_CURSE_ACCENT := Color("#b49ad9")
+const COLOR_ACTION_ACCENT := Color("#d58a43")
+const COLOR_VICTORY_ACCENT := Color("#c96e58")
+const COLOR_CURSE_ACCENT := Color("#9d83b8")
 
 const TITLE_FONT_PATH := "res://assets/fonts/Cinzel/static/Cinzel-Bold.ttf"
 const BODY_FONT_PATH := "res://assets/fonts/Inter/static/Inter_18pt-Regular.ttf"
@@ -2391,6 +2391,13 @@ func _apply_original_ui_assets() -> void:
 
 
 func _apply_scene_colors() -> void:
+	var table_background := get_node_or_null("Background") as TextureRect
+	if table_background != null:
+		table_background.modulate = Color("#d59a55")
+	var table_vignette := get_node_or_null("TableVignette") as ColorRect
+	if table_vignette != null:
+		table_vignette.color = Color(0.18, 0.075, 0.02, 0.32)
+
 	var cream_paths := [
 		"Margin/Layout/PlayAreaPanel/PlayAreaMargin/Row/PlayAreaLabel",
 		"ChoiceOverlay/Center/Panel/Margin/Layout/Title",
@@ -3154,18 +3161,6 @@ func _create_price_badge(cost: int) -> Control:
 	)
 	badge.add_child(inner_ring)
 
-	if icon_textures.has("coin"):
-		var stamp := TextureRect.new()
-		stamp.name = "CoinStamp"
-		stamp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		stamp.texture = icon_textures["coin"]
-		stamp.modulate = Color(0.22, 0.12, 0.03, 0.18)
-		stamp.position = Vector2(8, 8)
-		stamp.size = Vector2(14, 14)
-		stamp.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		stamp.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		badge.add_child(stamp)
-
 	var glint := ColorRect.new()
 	glint.name = "CoinGlint"
 	glint.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -3544,24 +3539,24 @@ func _get_card_type_palette(card_type: String) -> Dictionary:
 		"resource":
 			return {
 				"accent": COLOR_RESOURCE_ACCENT,
-				"hover_border": Color("#fff0c0"),
+				"hover_border": Color("#ffe0a0"),
 				"name_text": Color("#f4e6c4"),
-				"chip_bg": Color(0.941, 0.741, 0.345, 0.20),
-				"chip_text": Color("#f4cd72"),
+				"chip_bg": Color(0.941, 0.741, 0.345, 0.18),
+				"chip_text": Color("#edc46f"),
 				"description_text": Color(0.957, 0.902, 0.769, 0.84),
 				"footer_text": Color(0.941, 0.741, 0.345, 0.72),
-				"scrim": Color(0.137, 0.082, 0.027, 0.82),
+				"scrim": Color(0.38, 0.19, 0.06, 0.16),
 			}
 		"victory":
 			return {
 				"accent": COLOR_VICTORY_ACCENT,
-				"hover_border": Color("#f6cdd9"),
-				"name_text": Color("#fdebf1"),
-				"chip_bg": Color(0.878, 0.541, 0.635, 0.24),
-				"chip_text": Color("#f3c4d2"),
-				"description_text": Color(0.988, 0.914, 0.941, 0.86),
-				"footer_text": Color(0.878, 0.541, 0.635, 0.74),
-				"scrim": Color(0.122, 0.051, 0.098, 0.84),
+				"hover_border": Color("#e9ad8e"),
+				"name_text": Color("#f7e0d2"),
+				"chip_bg": Color(0.788, 0.431, 0.345, 0.20),
+				"chip_text": Color("#e6a889"),
+				"description_text": Color(0.961, 0.878, 0.827, 0.86),
+				"footer_text": Color(0.788, 0.431, 0.345, 0.74),
+				"scrim": Color(0.36, 0.11, 0.06, 0.17),
 			}
 		"curse":
 			return {
@@ -3572,18 +3567,18 @@ func _get_card_type_palette(card_type: String) -> Dictionary:
 				"chip_text": Color("#dbcdf2"),
 				"description_text": Color(0.91, 0.86, 0.98, 0.84),
 				"footer_text": Color(0.706, 0.604, 0.851, 0.72),
-				"scrim": Color(0.086, 0.061, 0.118, 0.84),
+				"scrim": Color(0.18, 0.10, 0.22, 0.18),
 			}
 		_:
 			return {
 				"accent": COLOR_ACTION_ACCENT,
-				"hover_border": Color("#cfe6fb"),
-				"name_text": Color("#eef5fc"),
-				"chip_bg": Color(0.49, 0.714, 0.91, 0.22),
-				"chip_text": Color("#bfddf8"),
-				"description_text": Color(0.878, 0.925, 0.98, 0.86),
-				"footer_text": Color(0.49, 0.714, 0.91, 0.74),
-				"scrim": Color(0.051, 0.086, 0.149, 0.84),
+				"hover_border": Color("#f0b56f"),
+				"name_text": Color("#f7e4c6"),
+				"chip_bg": Color(0.835, 0.541, 0.263, 0.20),
+				"chip_text": Color("#efbc78"),
+				"description_text": Color(0.953, 0.882, 0.757, 0.86),
+				"footer_text": Color(0.835, 0.541, 0.263, 0.74),
+				"scrim": Color(0.36, 0.18, 0.05, 0.16),
 			}
 
 
