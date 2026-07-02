@@ -58,6 +58,16 @@ func _run() -> void:
 	await _wait(20)
 	await _shot(main, "06_table")
 
+	# Relic draft overlay and the filled relic rail
+	main.game_state.generate_relic_offer(main.game_state.player)
+	main._refresh_ui()
+	await _wait(8)
+	await _shot(main, "06b_relic_draft")
+	if not main.game_state.player.pending_relic_offer.is_empty():
+		main._on_relic_option_pressed(main.game_state.player.pending_relic_offer[0])
+	await _wait(6)
+	await _shot(main, "06c_relic_rail")
+
 	# Turn-based local game (2 players, no timer)
 	main.game_state.turn_based_enabled = true
 	main.lobby_max_players = 2

@@ -87,6 +87,7 @@ func _initialize() -> void:
 	_test_turn_cooldown()
 	_test_turn_based_mode()
 	_test_multiplayer_only_timer_cards()
+	_test_relic_system()
 	_test_multiplayer_lobby_attacks()
 	_test_multiplayer_game_end()
 	_test_special_effects()
@@ -1253,6 +1254,144 @@ func _test_random_market_setup() -> void:
 		not _same_card_ids(first_market, game_state.get_market_card_ids()),
 		"An immediate new game should choose a different action row."
 	)
+
+
+func _test_relic_system() -> void:
+	# Draft cadence: solo games offer a relic between every 5 turns.
+	var solo := _empty_game()
+	solo.player.turn_number = 3
+	solo.maybe_offer_turn_relic(solo.player)
+	_check(
+		solo.player.pending_relic_offer.is_empty(),
+		"No relic offer should appear outside the 5-turn cadence."
+	)
+	solo.player.turn_number = 6
+	solo.maybe_offer_turn_relic(solo.player)
+	_check(
+		solo.player.pending_relic_offer.size() == 3,
+		"A solo relic offer should present 3 relics before turn 6."
+	)
+	_check(
+		not solo.player.pending_relic_offer.has("swift_hourglass"),
+		"Untimed games should never offer the cooldown relic."
+	)
+	_check(
+		not solo.choose_relic(solo.player, "not_a_relic"),
+		"Choosing a relic outside the offer should be rejected."
+	)
+	var chosen: String = solo.player.pending_relic_offer[0]
+	_check(solo.choose_relic(solo.player, chosen), "Choosing an offered relic should work.")
+	_check(
+		solo.player.relics.has(chosen) and solo.player.pending_relic_offer.is_empty(),
+		"A claimed relic should join the player's relics and clear the offer."
+	)
+	solo.player.turn_number = 11
+	solo.maybe_offer_turn_relic(solo.player)
+	_check(solo.choose_relic(solo.player, ""), "Declining a relic offer should be allowed.")
+	_check(
+		solo.player.pending_relic_offer.is_empty() and solo.player.relics.size() == 1,
+		"Declining should clear the offer without claiming a relic."
+	)
+
+	# Timed multiplayer uses the host timer, not the turn cadence, and may
+	# offer the cooldown relic.
+	var timed := _empty_game()
+	timed.multiplayer_enabled = true
+	timed.player.turn_number = 6
+	timed.maybe_offer_turn_relic(timed.player)
+	_check(
+		timed.player.pending_relic_offer.is_empty(),
+		"Timed multiplayer should not use the turn-based relic cadence."
+	)
+	_check(timed.generate_relic_offer(timed.player), "The host timer should generate offers.")
+	timed.player.pending_relic_offer = ["swift_hourglass"] as Array[String]
+	_check(
+		timed.choose_relic(timed.player, "swift_hourglass"),
+		"Claiming the cooldown relic should work in timed games."
+	)
+	_check(
+		is_equal_approx(timed.get_end_turn_cooldown_seconds(), 4.0),
+		"Swift Hourglass should cut the end-turn cooldown by 1 second."
+	)
+	timed.reset_turn_resources()
+	_check(
+		is_equal_approx(timed.get_end_turn_cooldown_seconds(), 4.0),
+		"The Swift Hourglass reduction should persist across turns."
+	)
+
+	# Relic cap: a full rail stops producing offers.
+	var full := _empty_game()
+	full.player.relics = [
+		"victory_levy", "seekers_compass", "dawn_banner", "gilded_purse",
+	] as Array[String]
+	_check(
+		not full.generate_relic_offer(full.player),
+		"A player at the relic cap should get no further offers."
+	)
+
+	# Turn-start bonuses and the extra draw.
+	var boons := _empty_game()
+	boons.player.relics = ["gilded_purse", "marching_orders", "dawn_banner"] as Array[String]
+	boons.reset_turn_resources()
+	_check(
+		boons.player.coins == 1 and boons.player.actions == 2,
+		"Gilded Purse and Marching Orders should grant turn-start bonuses."
+	)
+	_check(
+		boons.get_turn_draw_count(boons.player) == 6,
+		"Dawn Banner should raise the turn draw count to 6."
+	)
+
+	# Victory Levy: fires once per turn when nothing in hand is playable.
+	var levy := _empty_game()
+	levy.player.relics = ["victory_levy"] as Array[String]
+	levy.player.hand.append(levy.card_catalog["homestead"])
+	levy.player.hand.append(levy.card_catalog["homestead"])
+	var coins_before: int = levy.player.coins
+	levy.check_idle_relics()
+	_check(
+		levy.player.coins == coins_before + 2,
+		"Victory Levy should grant a coin per victory card when stuck."
+	)
+	levy.check_idle_relics()
+	_check(
+		levy.player.coins == coins_before + 2,
+		"Victory Levy should only trigger once per turn."
+	)
+	var levy_blocked := _empty_game()
+	levy_blocked.player.relics = ["victory_levy"] as Array[String]
+	levy_blocked.player.hand.append(levy_blocked.card_catalog["homestead"])
+	levy_blocked.player.hand.append(levy_blocked.card_catalog["pebble_coin"])
+	levy_blocked.check_idle_relics()
+	_check(
+		levy_blocked.player.coins == 0,
+		"Victory Levy should stay quiet while a resource is still playable."
+	)
+
+	# Seeker's Compass: a shuffle during drawing pauses for a pre-draw pick.
+	var compass := _empty_game()
+	compass.player.relics = ["seekers_compass"] as Array[String]
+	for _index in range(4):
+		compass.player.discard_pile.append(compass.card_catalog["pebble_coin"])
+	compass.player.discard_pile.append(compass.card_catalog["homestead"])
+	compass.draw_cards(3)
+	_check(
+		compass.has_pending_choice()
+		and compass.pending_choice.resolver == "relic_predraw",
+		"Seeker's Compass should pause a shuffle-draw with a pre-draw choice."
+	)
+	if compass.has_pending_choice():
+		var predraw_token: Array[String] = [
+			str(compass.pending_choice.candidates[0]["token"]),
+		]
+		_check(
+			compass.resolve_choice(predraw_token),
+			"The Seeker's Compass pick should resolve."
+		)
+		_check(
+			compass.player.hand.size() == 3,
+			"The compass pick plus remaining draws should fill the requested hand."
+		)
 
 
 func _empty_game() -> GameState:

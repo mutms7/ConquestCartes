@@ -1,6 +1,8 @@
 class_name GameState
 extends RefCounted
 
+const RelicCatalog := preload("res://scripts/core/relic_catalog.gd")
+
 signal choice_requested(choice: CardChoice)
 signal choice_resolved(choice_id: int)
 signal cleanup_completed
@@ -44,6 +46,10 @@ const CURSE_CARD_ID := "briar_hex"
 const SIX_VP_CARD_ID := "royal_charter"
 const SUPPLY_EMPTY_END_COUNT := 3
 const DEFAULT_END_TURN_COOLDOWN_SECONDS := 5.0
+const BASE_TURN_DRAW_COUNT := 5
+# Solo and pass-and-play games offer a relic draft between every 5 turns.
+# Timed network lobbies use a 45-second cadence driven by the host instead.
+const RELIC_TURN_INTERVAL := 5
 
 var player := PlayerState.new()
 var players: Array[PlayerState] = []
@@ -170,7 +176,7 @@ func start_all_players() -> void:
 		game_player.reset_turn_resources()
 		if game_player.hand.is_empty():
 			_set_active_player(index, false)
-			draw_cards(5)
+			draw_cards(get_turn_draw_count(game_player))
 	_set_active_player(starting_index, false)
 
 
@@ -499,11 +505,117 @@ func _has_same_card_ids(cards: Array[CardDefinition], card_ids: Array[String]) -
 func reset_turn_resources() -> void:
 	player.reset_turn_resources()
 	turn_flags.clear()
+	apply_turn_start_relics(player)
+
+
+func apply_turn_start_relics(target: PlayerState) -> void:
+	if target.relics.has("gilded_purse"):
+		target.coins += 1
+	if target.relics.has("marching_orders"):
+		target.actions += 1
+
+
+func get_turn_draw_count(target: PlayerState) -> int:
+	var draw_count := BASE_TURN_DRAW_COUNT
+	if target.relics.has("dawn_banner"):
+		draw_count += 1
+	return draw_count
+
+
+func uses_timed_relic_cadence() -> bool:
+	# Timed (simultaneous) multiplayer drafts relics on the host's 45-second
+	# timer; solo and turn-based tables draft between every RELIC_TURN_INTERVAL turns.
+	return multiplayer_enabled and not turn_based_enabled
+
+
+func generate_relic_offer(target: PlayerState) -> bool:
+	if target.relics.size() >= RelicCatalog.RELIC_CAP:
+		return false
+	if not target.pending_relic_offer.is_empty():
+		return false
+	var available: Array[String] = []
+	for relic_id in RelicCatalog.get_pool(uses_timed_relic_cadence()):
+		if not target.relics.has(relic_id):
+			available.append(relic_id)
+	if available.is_empty():
+		return false
+	available.shuffle()
+	var offer: Array[String] = []
+	for index in range(mini(RelicCatalog.OFFER_SIZE, available.size())):
+		offer.append(available[index])
+	target.pending_relic_offer = offer
+	print("[Game] Relic offer for %s: %s" % [target.player_name, ", ".join(offer)])
+	return true
+
+
+func maybe_offer_turn_relic(target: PlayerState) -> void:
+	if uses_timed_relic_cadence():
+		return
+	if target.turn_number <= 1 or (target.turn_number - 1) % RELIC_TURN_INTERVAL != 0:
+		return
+	generate_relic_offer(target)
+
+
+func choose_relic(target: PlayerState, relic_id: String) -> bool:
+	if target == null:
+		return false
+	if relic_id.is_empty():
+		# Declining the draft clears the offer without claiming anything.
+		if target.pending_relic_offer.is_empty():
+			return false
+		target.pending_relic_offer.clear()
+		print("[Game] %s declines the relic offer" % target.player_name)
+		return true
+	if not target.pending_relic_offer.has(relic_id):
+		return false
+	if target.relics.size() >= RelicCatalog.RELIC_CAP:
+		target.pending_relic_offer.clear()
+		return false
+	target.pending_relic_offer.clear()
+	target.relics.append(relic_id)
+	if relic_id == "swift_hourglass":
+		target.game_cooldown_reduction += 1.0
+	print("[Game] %s claims relic: %s" % [target.player_name, RelicCatalog.get_relic_name(relic_id)])
+	return true
+
+
+func check_idle_relics() -> void:
+	# Victory Levy: once per turn, when nothing in hand can be played, gain a
+	# coin per victory card held. Checked after plays, choices, and turn draws.
+	if not player.relics.has("victory_levy"):
+		return
+	if has_pending_choice() or cleanup_in_progress:
+		return
+	if bool(turn_flags.get("victory_levy_used", false)):
+		return
+	if player.hand.is_empty():
+		return
+	for card in player.hand:
+		if card.card_type == "resource":
+			return
+		if card.card_type == "action" and player.actions > 0:
+			return
+	var victory_count := 0
+	for card in player.hand:
+		if card.card_type == "victory":
+			victory_count += 1
+	if victory_count <= 0:
+		return
+	turn_flags["victory_levy_used"] = true
+	player.coins += victory_count
+	print(
+		"[Game] Victory Levy grants %s %d coins"
+		% [player.player_name, victory_count]
+	)
 
 
 func draw_cards(amount: int) -> int:
 	var drawn_count := 0
 	for _draw_index in range(amount):
+		if _maybe_request_shuffle_predraw(amount - drawn_count):
+			# Seeker's Compass paused the draw with a choice; the resolver
+			# draws the remaining cards once the player has picked.
+			break
 		var card := _take_top_card()
 		if card == null:
 			print("[Game] Draw stopped: no cards available (%d/%d drawn)" % [drawn_count, amount])
@@ -512,6 +624,35 @@ func draw_cards(amount: int) -> int:
 		drawn_count += 1
 		print("[Game] Draw: %s" % card.card_name)
 	return drawn_count
+
+
+func _maybe_request_shuffle_predraw(remaining: int) -> bool:
+	if remaining <= 0 or has_pending_choice():
+		return false
+	if not player.relics.has("seekers_compass"):
+		return false
+	if not player.draw_pile.is_empty() or player.discard_pile.is_empty():
+		return false
+	player.draw_pile.append_array(player.discard_pile)
+	player.discard_pile.clear()
+	player.draw_pile.shuffle()
+	print(
+		"[Game] Seeker's Compass: shuffle discard into %s draw pile (%d cards)"
+		% [player.player_name, player.draw_pile.size()]
+	)
+	var candidates: Array[CardDefinition] = []
+	candidates.append_array(player.draw_pile)
+	_request_zone_choice(
+		candidates,
+		"Seeker's Compass: choose up to 2 cards to draw first.",
+		0,
+		2,
+		"relic_predraw",
+		"DRAW THESE",
+		"JUST DRAW",
+		{"remaining": remaining}
+	)
+	return has_pending_choice()
 
 
 func play_card(card: CardDefinition) -> bool:
@@ -537,6 +678,7 @@ func _play_card_internal(
 	player.play_area.append(card)
 	_prepend_card_resolutions(card, repetitions)
 	_process_resolution_queue()
+	check_idle_relics()
 	print("[Game] Play card: %s" % card.card_name)
 	return true
 
@@ -1024,6 +1166,7 @@ func resolve_choice(tokens: Array[String]) -> bool:
 	_apply_choice_resolution(choice, selected)
 	choice_resolved.emit(choice.id)
 	_process_resolution_queue()
+	check_idle_relics()
 	return true
 
 
@@ -1288,6 +1431,15 @@ func _apply_choice_resolution(
 				str(choice.context.get("exclude_card_id", "")),
 				"Choose a different card costing exactly %d." % target_cost
 			)
+		"relic_predraw":
+			var remaining := int(choice.context.get("remaining", 0))
+			for card in cards:
+				player.draw_pile.erase(card)
+				player.hand.append(card)
+				remaining -= 1
+				print("[Game] Draw: %s (Seeker's Compass)" % card.card_name)
+			if remaining > 0:
+				draw_cards(remaining)
 		"cleanup_topdeck":
 			_move_cards(player.play_area, player.draw_pile, cards)
 			_finish_cleanup()

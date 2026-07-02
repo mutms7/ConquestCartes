@@ -93,13 +93,16 @@ func _on_cleanup_completed() -> void:
 		return
 
 	game_state.player.turn_number += 1
-	game_state.draw_cards(5)
+	game_state.draw_cards(game_state.get_turn_draw_count(game_state.player))
+	game_state.maybe_offer_turn_relic(game_state.player)
+	game_state.check_idle_relics()
 
 	# Turn-based mode: once the active player has cleaned up and redrawn, hand
 	# control to the next player and start their turn (no timer involved).
 	if game_state.turn_based_enabled and game_state.get_player_count() > 1:
 		game_state.advance_active_player()
 		game_state.reset_turn_resources()
+		game_state.check_idle_relics()
 		turn_number = game_state.player.turn_number
 		print(
 			"[Game] Turn passes to %s (turn %d)"

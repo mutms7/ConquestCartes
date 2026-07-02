@@ -1,0 +1,76 @@
+extends RefCounted
+
+# Relics are conquest-long boons drafted between turns (solo) or on a timer
+# (networked lobbies). Definitions stay data-like and separate from rules code:
+# GameState interprets the ids, the UI only renders name/glyph/description.
+
+const RELIC_CAP := 4
+const OFFER_SIZE := 3
+
+const RELICS := {
+	"swift_hourglass": {
+		"name": "Swift Hourglass",
+		"glyph": "S",
+		"description": "Your end-turn cooldown is 1 second shorter for the rest of the conquest.",
+		"timed_only": true,
+	},
+	"victory_levy": {
+		"name": "Victory Levy",
+		"glyph": "V",
+		"description": "Once each turn, when no card in your hand can be played, gain 1 coin for each victory card in your hand.",
+		"timed_only": false,
+	},
+	"seekers_compass": {
+		"name": "Seeker's Compass",
+		"glyph": "C",
+		"description": "Whenever your discard pile is shuffled into your deck while drawing, choose up to 2 cards to draw first.",
+		"timed_only": false,
+	},
+	"dawn_banner": {
+		"name": "Dawn Banner",
+		"glyph": "D",
+		"description": "Draw 1 extra card at the start of each turn.",
+		"timed_only": false,
+	},
+	"gilded_purse": {
+		"name": "Gilded Purse",
+		"glyph": "G",
+		"description": "Start each turn with 1 extra coin.",
+		"timed_only": false,
+	},
+	"marching_orders": {
+		"name": "Marching Orders",
+		"glyph": "M",
+		"description": "Start each turn with 1 extra action.",
+		"timed_only": false,
+	},
+}
+
+
+static func has_relic(relic_id: String) -> bool:
+	return RELICS.has(relic_id)
+
+
+static func get_relic(relic_id: String) -> Dictionary:
+	return RELICS.get(relic_id, {})
+
+
+static func get_relic_name(relic_id: String) -> String:
+	return str(get_relic(relic_id).get("name", relic_id))
+
+
+static func get_relic_glyph(relic_id: String) -> String:
+	return str(get_relic(relic_id).get("glyph", "*"))
+
+
+static func get_relic_description(relic_id: String) -> String:
+	return str(get_relic(relic_id).get("description", ""))
+
+
+static func get_pool(include_timed: bool) -> Array[String]:
+	var pool: Array[String] = []
+	for relic_id in RELICS:
+		if not include_timed and bool(RELICS[relic_id].get("timed_only", false)):
+			continue
+		pool.append(relic_id)
+	return pool

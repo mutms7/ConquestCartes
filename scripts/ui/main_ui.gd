@@ -1,5 +1,6 @@
 extends Control
 
+const RelicCatalog := preload("res://scripts/core/relic_catalog.gd")
 const CARD_DATA_PATH := "res://data/cards/starter_cards.json"
 
 const HAND_PLAYABLE := "hand_playable"
@@ -60,6 +61,9 @@ const NETWORK_MODE_ONLINE := "online"
 const ONLINE_RELAY_PATH := "/api/relay"
 const ONLINE_RELAY_LOCAL_URL := "ws://127.0.0.1:3000/api/relay"
 const ONLINE_LOBBY_CODE_LENGTH := 4
+const ONLINE_RELAY_MAX_RECONNECT_ATTEMPTS := 3
+const ONLINE_RELAY_RECONNECT_DELAY_SECONDS := 2.0
+const NETWORK_RELIC_INTERVAL_SECONDS := 45.0
 
 const COLOR_PARCHMENT := Color("#ecdcb6")
 const COLOR_PARCHMENT_LIGHT := Color("#f4e6c4")
@@ -206,7 +210,21 @@ var online_relay_connected := false
 var online_relay_role := ""
 var online_relay_lobby_code := ""
 var online_relay_client_id := ""
+var online_relay_host_id := ""
 var online_relay_url_override := ""
+var online_relay_reconnect_attempts := 0
+var online_relay_reconnect_timer := 0.0
+# True once the host has actually opened the table. Online joiners wait in the
+# lobby panel until the snapshot says the game started.
+var network_table_open := false
+var network_connected_seats: Array[int] = []
+var network_relic_timer := NETWORK_RELIC_INTERVAL_SECONDS
+var relic_overlay: Control
+var relic_options_row: HBoxContainer
+var relic_overlay_offer: Array[String] = []
+var relics_rail_row: HBoxContainer
+var last_play_area_ids: Array[String] = []
+var last_play_area_owner: int = 0
 var home_noise_overlay: TextureRect
 var table_noise_overlay: TextureRect
 var home_noise_slider: HSlider
@@ -303,6 +321,7 @@ func _ready() -> void:
 	_build_top_bar()
 	_build_market_board()
 	_build_home_screen()
+	_build_relic_overlay()
 	_apply_imported_theme()
 	home_button.pressed.connect(_on_home_pressed)
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
@@ -357,10 +376,12 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_tick_online_relay_reconnect(delta)
 	_poll_online_relay()
 	if network_enabled:
 		if network_is_host:
 			_tick_network_cooldowns(delta)
+			_tick_network_relic_timer(delta)
 		elif game_state.player.cooldown_remaining > 0.0:
 			game_state.player.cooldown_remaining = maxf(
 				0.0,
@@ -456,6 +477,8 @@ func _host_network_lobby() -> void:
 	local_player_index = 0
 	network_peer_to_player = {1: 0}
 	_start_lobby_game(max_players)
+	network_table_open = has_active_game
+	network_relic_timer = NETWORK_RELIC_INTERVAL_SECONDS
 	_set_lobby_status("Hosting on port %d. Give players your IP address." % NETWORK_PORT)
 	_queue_network_ui_refresh()
 	_broadcast_network_snapshot()
@@ -554,6 +577,9 @@ func _disconnect_network() -> void:
 	online_relay_role = ""
 	online_relay_lobby_code = ""
 	online_relay_client_id = ""
+	online_relay_host_id = ""
+	online_relay_reconnect_attempts = 0
+	online_relay_reconnect_timer = 0.0
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = null
@@ -562,6 +588,9 @@ func _disconnect_network() -> void:
 	network_mode = NETWORK_MODE_LOCAL
 	local_player_index = 0
 	network_peer_to_player.clear()
+	network_table_open = false
+	network_connected_seats.clear()
+	network_relic_timer = NETWORK_RELIC_INTERVAL_SECONDS
 
 
 func _set_lobby_status(message: String) -> void:
@@ -605,9 +634,30 @@ func _on_online_relay_closed() -> void:
 	var was_host := network_is_host
 	online_relay_socket = null
 	online_relay_connected = false
-	_disconnect_network()
 	if not was_online:
+		_disconnect_network()
 		return
+	if (
+		not was_host
+		and has_active_game
+		and not online_relay_lobby_code.is_empty()
+		and online_relay_reconnect_attempts < ONLINE_RELAY_MAX_RECONNECT_ATTEMPTS
+	):
+		# The socket dropped mid-game (relay hiccup). Keep the lobby code and
+		# quietly rejoin; the host re-seats us and sends a fresh snapshot.
+		online_relay_reconnect_attempts += 1
+		online_relay_reconnect_timer = ONLINE_RELAY_RECONNECT_DELAY_SECONDS
+		online_relay_role = "join"
+		_set_lobby_status(
+			"Connection lost. Rejoining %s (attempt %d of %d)..."
+			% [
+				online_relay_lobby_code,
+				online_relay_reconnect_attempts,
+				ONLINE_RELAY_MAX_RECONNECT_ATTEMPTS,
+			]
+		)
+		return
+	_disconnect_network()
 	_refresh_home_controls()
 	if not was_host:
 		has_active_game = false
@@ -637,8 +687,15 @@ func _handle_online_relay_message(message: Dictionary) -> void:
 			_on_network_server_disconnected()
 		"error":
 			_set_lobby_status(str(message.get("message", "Online relay error.")))
+			var error_code := str(message.get("code", ""))
 			if not has_active_game:
 				_disconnect_network()
+			elif error_code == "not_found" or error_code == "full":
+				# A mid-game rejoin attempt hit a dead or full lobby; give up.
+				_disconnect_network()
+				has_active_game = false
+				_show_home_screen(false)
+				_refresh_home_controls()
 		_:
 			pass
 
@@ -646,6 +703,8 @@ func _handle_online_relay_message(message: Dictionary) -> void:
 func _on_online_lobby_created(message: Dictionary) -> void:
 	online_relay_lobby_code = str(message.get("code", ""))
 	online_relay_client_id = str(message.get("clientId", online_relay_client_id))
+	online_relay_host_id = online_relay_client_id
+	online_relay_reconnect_attempts = 0
 	network_peer_to_player.clear()
 	network_peer_to_player[online_relay_client_id] = 0
 	if home_lobby_address_input != null:
@@ -659,6 +718,8 @@ func _on_online_lobby_created(message: Dictionary) -> void:
 func _on_online_lobby_joined(message: Dictionary) -> void:
 	online_relay_lobby_code = str(message.get("code", online_relay_lobby_code))
 	online_relay_client_id = str(message.get("clientId", online_relay_client_id))
+	online_relay_host_id = str(message.get("hostId", online_relay_host_id))
+	online_relay_reconnect_attempts = 0
 	if home_lobby_address_input != null:
 		home_lobby_address_input.text = online_relay_lobby_code
 	_set_lobby_status("Joined %s. Waiting for the host..." % online_relay_lobby_code)
@@ -689,15 +750,25 @@ func _on_online_relay_peer_left(client_id: String) -> void:
 		return
 	network_peer_to_player.erase(client_id)
 	_set_lobby_status("Player disconnected. Online lobby %s remains open." % online_relay_lobby_code)
+	_broadcast_network_snapshot()
+	_refresh_lobby_panel()
 
 
 func _handle_online_relay_signal(sender_id: String, payload: Dictionary) -> void:
+	# Host-originated methods are only honoured on clients when they really came
+	# from the host, so a hostile peer cannot spoof snapshots or reseat players.
+	var sender_is_host := (
+		not network_is_host
+		and not sender_id.is_empty()
+		and (online_relay_host_id.is_empty() or sender_id == online_relay_host_id)
+	)
 	match str(payload.get("method", "")):
 		"apply_network_snapshot":
-			if not network_is_host and typeof(payload.get("snapshot", {})) == TYPE_DICTIONARY:
+			if sender_is_host and typeof(payload.get("snapshot", {})) == TYPE_DICTIONARY:
 				_apply_network_snapshot(payload["snapshot"])
 		"set_local_player_index":
-			_rpc_set_local_player_index(int(payload.get("player_index", 0)))
+			if sender_is_host:
+				_rpc_set_local_player_index(int(payload.get("player_index", 0)))
 		"request_play_card":
 			_handle_network_play_card_request(
 				_player_index_for_relay_client(sender_id),
@@ -714,8 +785,18 @@ func _handle_online_relay_signal(sender_id: String, payload: Dictionary) -> void
 			var raw_tokens = payload.get("tokens", [])
 			if typeof(raw_tokens) == TYPE_ARRAY:
 				_handle_network_choice_request(_player_index_for_relay_client(sender_id), raw_tokens)
+		"request_relic_choice":
+			_handle_network_relic_choice_request(
+				_player_index_for_relay_client(sender_id),
+				str(payload.get("relic_id", ""))
+			)
 		"lobby_full":
-			_set_lobby_status("That online lobby is already full.")
+			if sender_is_host:
+				_disconnect_network()
+				has_active_game = false
+				_show_home_screen(false)
+				_set_lobby_status("That online lobby is already full.")
+				_refresh_home_controls()
 		_:
 			pass
 
@@ -751,6 +832,8 @@ func _send_network_client_request(method: String, payload: Dictionary = {}) -> v
 			rpc_id(1, "_rpc_request_end_turn")
 		"request_choice":
 			rpc_id(1, "_rpc_request_choice", payload.get("tokens", []))
+		"request_relic_choice":
+			rpc_id(1, "_rpc_request_relic_choice", str(payload.get("relic_id", "")))
 
 
 func _get_online_relay_url() -> String:
@@ -885,6 +968,8 @@ func _on_network_peer_disconnected(peer_id: int) -> void:
 	if network_is_host:
 		network_peer_to_player.erase(peer_id)
 		_set_lobby_status("Player disconnected. Hosting remains open.")
+		_broadcast_network_snapshot()
+		_refresh_lobby_panel()
 
 
 func _on_network_connected_to_server() -> void:
@@ -894,7 +979,10 @@ func _on_network_connected_to_server() -> void:
 
 
 func _next_open_network_player_index() -> int:
-	for player_index in range(1, NETWORK_MAX_PLAYERS):
+	# Seats are bounded by the players actually created for this table, so a
+	# surplus joiner can never be assigned an index past the player list.
+	var seat_count := mini(game_state.players.size(), NETWORK_MAX_PLAYERS)
+	for player_index in range(1, seat_count):
 		if not network_peer_to_player.values().has(player_index):
 			return player_index
 	return -1
@@ -902,7 +990,10 @@ func _next_open_network_player_index() -> int:
 
 @rpc("authority", "call_remote", "reliable")
 func _rpc_set_local_player_index(player_index: int) -> void:
-	local_player_index = clampi(player_index, 0, NETWORK_MAX_PLAYERS - 1)
+	var highest_seat := NETWORK_MAX_PLAYERS - 1
+	if not game_state.players.is_empty():
+		highest_seat = game_state.players.size() - 1
+	local_player_index = clampi(player_index, 0, highest_seat)
 	_set_lobby_status("Connected as Player %d." % (local_player_index + 1))
 	if network_enabled and not game_state.players.is_empty():
 		_restore_local_network_view()
@@ -980,6 +1071,39 @@ func _tick_network_cooldowns(delta: float) -> void:
 		_broadcast_network_snapshot()
 
 
+func _tick_network_relic_timer(delta: float) -> void:
+	# Timed lobbies draft relics on a shared 45-second cadence. Only the host
+	# ticks this; each player gets their own independent offer.
+	if (
+		not network_table_open
+		or turn_manager.game_over
+		or game_state.players.is_empty()
+		or game_state.turn_based_enabled
+	):
+		return
+	network_relic_timer -= delta
+	if network_relic_timer > 0.0:
+		return
+	network_relic_timer = NETWORK_RELIC_INTERVAL_SECONDS
+	var offered := false
+	for game_player in game_state.players:
+		if game_state.generate_relic_offer(game_player):
+			offered = true
+	if offered:
+		_refresh_ui()
+		_broadcast_network_snapshot()
+
+
+func _tick_online_relay_reconnect(delta: float) -> void:
+	if online_relay_reconnect_timer <= 0.0:
+		return
+	online_relay_reconnect_timer -= delta
+	if online_relay_reconnect_timer > 0.0:
+		return
+	if network_enabled and online_relay_socket == null:
+		_connect_online_relay()
+
+
 func _finish_network_player_turn(player_index: int) -> void:
 	_set_authoritative_player(player_index)
 	var game_player := game_state.player
@@ -1014,7 +1138,8 @@ func _complete_network_player_cleanup(player_index: int) -> void:
 		_show_final_score(turn_manager.final_score)
 		return
 	game_player.turn_number += 1
-	game_state.draw_cards(5)
+	game_state.draw_cards(game_state.get_turn_draw_count(game_player))
+	game_state.check_idle_relics()
 	_restore_local_network_view()
 	if player_index == local_player_index:
 		_animate_cleanup_cards(pending_cleanup_ghosts)
@@ -1052,6 +1177,8 @@ func _create_network_snapshot() -> Dictionary:
 			"buys": game_player.buys,
 			"cooldown_reduction": game_player.end_turn_cooldown_reduction,
 			"game_cooldown_reduction": game_player.game_cooldown_reduction,
+			"relics": game_player.relics.duplicate(),
+			"relic_offer": game_player.pending_relic_offer.duplicate(),
 			"turn_flags": _serialize_turn_flags(game_player.turn_flags),
 			"pending_choice": _serialize_choice(game_player.pending_choice),
 			"cleanup_in_progress": game_player.cleanup_in_progress,
@@ -1061,8 +1188,10 @@ func _create_network_snapshot() -> Dictionary:
 		})
 	return {
 		"players": player_snapshots,
-		"active_player_index": local_player_index,
+		"started": network_table_open,
+		"connected_seats": _connected_seat_indexes(),
 		"multiplayer_enabled": game_state.multiplayer_enabled,
+		"turn_based_enabled": game_state.turn_based_enabled,
 		"end_turn_cooldown_seconds": game_state.end_turn_cooldown_seconds,
 		"attack_cards_enabled": game_state.attack_cards_enabled,
 		"market": _card_ids_from_zone(game_state.market),
@@ -1074,6 +1203,23 @@ func _create_network_snapshot() -> Dictionary:
 			"final_scores": turn_manager.final_scores.duplicate(),
 		},
 	}
+
+
+func _connected_seat_indexes() -> Array[int]:
+	var seats: Array[int] = [0]
+	for seat in network_peer_to_player.values():
+		var seat_index := int(seat)
+		if not seats.has(seat_index):
+			seats.append(seat_index)
+	seats.sort()
+	return seats
+
+
+func _string_array(values: Array) -> Array[String]:
+	var strings: Array[String] = []
+	for value in values:
+		strings.append(str(value))
+	return strings
 
 
 func _card_ids_from_zone(zone: Array[CardDefinition]) -> Array[String]:
@@ -1127,6 +1273,7 @@ func _rpc_apply_network_snapshot(snapshot: Dictionary) -> void:
 
 
 func _apply_network_snapshot(snapshot: Dictionary) -> void:
+	var previous_summary := _capture_local_zone_summary()
 	game_state.players.clear()
 	for player_data in snapshot.get("players", []):
 		var synced_player := PlayerState.new()
@@ -1146,6 +1293,8 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		synced_player.game_cooldown_reduction = float(
 			player_data.get("game_cooldown_reduction", 0.0)
 		)
+		synced_player.relics = _string_array(player_data.get("relics", []))
+		synced_player.pending_relic_offer = _string_array(player_data.get("relic_offer", []))
 		synced_player.turn_flags = player_data.get("turn_flags", {}).duplicate(true)
 		synced_player.pending_choice = _choice_from_snapshot(player_data.get("pending_choice", {}))
 		synced_player.cleanup_in_progress = bool(player_data.get("cleanup_in_progress", false))
@@ -1164,6 +1313,13 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 	game_state.turn_flags = game_state.player.turn_flags
 	game_state.cleanup_in_progress = game_state.player.cleanup_in_progress
 	game_state.multiplayer_enabled = bool(snapshot.get("multiplayer_enabled", true))
+	game_state.turn_based_enabled = bool(
+		snapshot.get("turn_based_enabled", game_state.turn_based_enabled)
+	)
+	network_table_open = bool(snapshot.get("started", true))
+	network_connected_seats.clear()
+	for seat in snapshot.get("connected_seats", []):
+		network_connected_seats.append(int(seat))
 	game_state.end_turn_cooldown_seconds = float(
 		snapshot.get("end_turn_cooldown_seconds", game_state.end_turn_cooldown_seconds)
 	)
@@ -1185,11 +1341,17 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		turn_manager.final_score = turn_manager.final_scores[local_player_index]
 	_sync_turn_manager_to_local_player()
 
-	has_active_game = true
-	_hide_home_screen()
+	# Joiners stay on the lobby screen until the host actually opens the table.
+	has_active_game = network_table_open
+	if network_table_open:
+		_hide_home_screen()
+	else:
+		_refresh_home_controls()
 	_sync_choice_overlay_from_network()
 	_refresh_ui()
 	_queue_network_ui_refresh()
+	if network_table_open:
+		_animate_snapshot_changes(previous_summary)
 	if turn_manager.game_over and not end_game_overlay.visible:
 		_show_final_score(turn_manager.final_score)
 
@@ -1253,6 +1415,7 @@ func _handle_network_play_card_request(player_index: int, card_id: String) -> vo
 		if game_state.consume_end_turn_request():
 			_start_network_player_cooldown(player_index)
 		_restore_local_network_view()
+		_sync_choice_overlay_from_network()
 		_broadcast_network_snapshot()
 	else:
 		_restore_local_network_view()
@@ -1273,6 +1436,7 @@ func _handle_network_buy_card_request(player_index: int, card_id: String) -> voi
 	var card: CardDefinition = game_state.card_catalog.get(card_id) as CardDefinition
 	if card != null and game_state.buy_card(card):
 		_restore_local_network_view()
+		_sync_choice_overlay_from_network()
 		_broadcast_network_snapshot()
 	else:
 		_restore_local_network_view()
@@ -1287,7 +1451,24 @@ func _handle_network_end_turn_request(player_index: int) -> void:
 	if not network_is_host or player_index < 0:
 		return
 	_start_network_player_cooldown(player_index)
+	_sync_choice_overlay_from_network()
 	_broadcast_network_snapshot()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_relic_choice(relic_id: String) -> void:
+	_handle_network_relic_choice_request(
+		_player_index_for_peer(multiplayer.get_remote_sender_id()),
+		relic_id
+	)
+
+
+func _handle_network_relic_choice_request(player_index: int, relic_id: String) -> void:
+	if not network_is_host or player_index < 0 or player_index >= game_state.players.size():
+		return
+	if game_state.choose_relic(game_state.players[player_index], relic_id):
+		_refresh_ui()
+		_broadcast_network_snapshot()
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -1317,6 +1498,7 @@ func _handle_network_choice_request(player_index: int, raw_tokens: Array) -> voi
 		):
 			_complete_network_player_cleanup(player_index)
 		_restore_local_network_view()
+		_sync_choice_overlay_from_network()
 		_broadcast_network_snapshot()
 	else:
 		turn_manager.ending_turn = previous_turn_manager_ending
@@ -1814,13 +1996,34 @@ func _create_relics_rail() -> PanelContainer:
 		label.add_theme_font_override("font", title_font)
 	row.add_child(label)
 
-	# Relic slots start empty; relics get added later.
-	for index in range(4):
-		row.add_child(_create_relic_slot(false, index))
+	relics_rail_row = HBoxContainer.new()
+	relics_rail_row.name = "Slots"
+	relics_rail_row.add_theme_constant_override("separation", 8)
+	row.add_child(relics_rail_row)
+	# Relic slots start empty; claimed relics fill them via _refresh_relics_rail.
+	for index in range(RelicCatalog.RELIC_CAP):
+		relics_rail_row.add_child(_create_relic_slot("", index))
 	return rail
 
 
-func _create_relic_slot(filled: bool, index: int) -> PanelContainer:
+func _refresh_relics_rail() -> void:
+	if relics_rail_row == null:
+		return
+	var relics: Array[String] = []
+	if has_active_game and not game_state.players.is_empty():
+		relics = _local_view_player().relics
+	var signature := ",".join(relics)
+	if str(relics_rail_row.get_meta("relic_signature", "")) == signature:
+		return
+	relics_rail_row.set_meta("relic_signature", signature)
+	_clear_container(relics_rail_row)
+	for index in range(RelicCatalog.RELIC_CAP):
+		var relic_id := relics[index] if index < relics.size() else ""
+		relics_rail_row.add_child(_create_relic_slot(relic_id, index))
+
+
+func _create_relic_slot(relic_id: String, index: int) -> PanelContainer:
+	var filled := not relic_id.is_empty()
 	var slot := PanelContainer.new()
 	slot.name = "RelicSlot%d" % (index + 1)
 	slot.custom_minimum_size = Vector2(30, 30)
@@ -1828,9 +2031,15 @@ func _create_relic_slot(filled: bool, index: int) -> PanelContainer:
 		"panel",
 		_make_relic_slot_style(filled)
 	)
+	if filled:
+		slot.tooltip_text = "%s\n%s" % [
+			RelicCatalog.get_relic_name(relic_id),
+			RelicCatalog.get_relic_description(relic_id),
+		]
+		slot.mouse_filter = Control.MOUSE_FILTER_STOP
 	var glyph := Label.new()
 	glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	glyph.text = "*" if filled else "+"
+	glyph.text = RelicCatalog.get_relic_glyph(relic_id) if filled else "+"
 	glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	glyph.add_theme_color_override(
@@ -1842,6 +2051,201 @@ func _create_relic_slot(filled: bool, index: int) -> PanelContainer:
 		glyph.add_theme_font_override("font", title_font)
 	slot.add_child(glyph)
 	return slot
+
+
+func _build_relic_overlay() -> void:
+	relic_overlay = Control.new()
+	relic_overlay.name = "RelicOverlay"
+	relic_overlay.visible = false
+	relic_overlay.z_index = 150
+	relic_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	relic_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(relic_overlay)
+
+	var dim := ColorRect.new()
+	dim.name = "Dim"
+	dim.color = Color(0.02, 0.012, 0.006, 0.74)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	relic_overlay.add_child(dim)
+
+	var center := CenterContainer.new()
+	center.name = "Center"
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	relic_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.name = "RelicPanel"
+	panel.add_theme_stylebox_override("panel", _make_parchment_panel_style())
+	center.add_child(panel)
+
+	var margin := MarginContainer.new()
+	margin.name = "Margin"
+	margin.add_theme_constant_override("margin_left", 30)
+	margin.add_theme_constant_override("margin_top", 24)
+	margin.add_theme_constant_override("margin_right", 30)
+	margin.add_theme_constant_override("margin_bottom", 22)
+	panel.add_child(margin)
+
+	var layout := VBoxContainer.new()
+	layout.name = "Layout"
+	layout.add_theme_constant_override("separation", 12)
+	margin.add_child(layout)
+
+	var title := Label.new()
+	title.name = "Title"
+	title.text = "CLAIM A RELIC"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", COLOR_PARCHMENT_INK)
+	title.add_theme_font_size_override("font_size", 26)
+	if title_font != null:
+		title.add_theme_font_override("font", title_font)
+	layout.add_child(title)
+
+	var subtitle := Label.new()
+	subtitle.name = "Subtitle"
+	subtitle.text = "A boon that lasts the rest of the conquest."
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
+	subtitle.add_theme_font_size_override("font_size", 13)
+	if body_font != null:
+		subtitle.add_theme_font_override("font", body_font)
+	layout.add_child(subtitle)
+
+	relic_options_row = HBoxContainer.new()
+	relic_options_row.name = "RelicOptions"
+	relic_options_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	relic_options_row.add_theme_constant_override("separation", 14)
+	layout.add_child(relic_options_row)
+
+	var footer := HBoxContainer.new()
+	footer.name = "Footer"
+	footer.alignment = BoxContainer.ALIGNMENT_CENTER
+	layout.add_child(footer)
+	var skip_button := _create_parchment_button("RelicSkipButton", "PASS", false)
+	skip_button.pressed.connect(_on_relic_option_pressed.bind(""))
+	footer.add_child(skip_button)
+
+
+func _create_relic_option_button(relic_id: String) -> Button:
+	var button := Button.new()
+	button.name = "Relic_%s" % relic_id
+	button.custom_minimum_size = Vector2(196, 212)
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var surface := Color(0.13, 0.095, 0.055, 1.0)
+	button.add_theme_stylebox_override(
+		"normal",
+		_make_card_style(surface, Color(0.835, 0.667, 0.314, 0.4), 1)
+	)
+	button.add_theme_stylebox_override(
+		"hover",
+		_make_card_style(surface.lightened(0.06), COLOR_BRASS, 2)
+	)
+	button.add_theme_stylebox_override(
+		"pressed",
+		_make_card_style(surface.darkened(0.08), COLOR_BRASS, 2)
+	)
+	button.pressed.connect(_on_relic_option_pressed.bind(relic_id))
+	button.mouse_entered.connect(_on_hud_button_hovered.bind(button))
+	button.mouse_exited.connect(_on_hud_button_unhovered.bind(button))
+
+	var margin := MarginContainer.new()
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 12)
+	margin.add_theme_constant_override("margin_top", 14)
+	margin.add_theme_constant_override("margin_right", 12)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	button.add_child(margin)
+
+	var stack := VBoxContainer.new()
+	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.add_theme_constant_override("separation", 8)
+	margin.add_child(stack)
+
+	var glyph := Label.new()
+	glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glyph.text = RelicCatalog.get_relic_glyph(relic_id)
+	glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	glyph.add_theme_color_override("font_color", COLOR_BRASS)
+	glyph.add_theme_font_size_override("font_size", 34)
+	if title_font != null:
+		glyph.add_theme_font_override("font", title_font)
+	stack.add_child(glyph)
+
+	var name_label := Label.new()
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_label.text = RelicCatalog.get_relic_name(relic_id)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	name_label.add_theme_font_size_override("font_size", 15)
+	if title_font != null:
+		name_label.add_theme_font_override("font", title_font)
+	stack.add_child(name_label)
+
+	var description := Label.new()
+	description.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	description.text = RelicCatalog.get_relic_description(relic_id)
+	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	description.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	description.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	description.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	description.add_theme_font_size_override("font_size", 11)
+	if body_font != null:
+		description.add_theme_font_override("font", body_font)
+	stack.add_child(description)
+	return button
+
+
+func _local_view_player() -> PlayerState:
+	if network_enabled and not game_state.players.is_empty():
+		return game_state.players[clampi(local_player_index, 0, game_state.players.size() - 1)]
+	return game_state.player
+
+
+func _local_relic_offer() -> Array[String]:
+	var empty_offer: Array[String] = []
+	if not has_active_game or game_state.players.is_empty() or turn_manager.game_over:
+		return empty_offer
+	if home_overlay != null and home_overlay.visible:
+		return empty_offer
+	return _local_view_player().pending_relic_offer
+
+
+func _refresh_relic_overlay() -> void:
+	if relic_overlay == null:
+		return
+	var offer := _local_relic_offer()
+	if offer.is_empty():
+		if relic_overlay.visible:
+			relic_overlay.hide()
+		relic_overlay_offer.clear()
+		return
+	if relic_overlay.visible and offer == relic_overlay_offer:
+		return
+	relic_overlay_offer = offer.duplicate()
+	_clear_container(relic_options_row)
+	for relic_id in offer:
+		relic_options_row.add_child(_create_relic_option_button(relic_id))
+	relic_overlay.show()
+	last_animation_event = "relic_offer"
+	_play_ui_sound("draw")
+
+
+func _on_relic_option_pressed(relic_id: String) -> void:
+	_play_ui_sound("button_click" if relic_id.is_empty() else "buy_card")
+	if _is_network_client():
+		_send_network_client_request("request_relic_choice", {"relic_id": relic_id})
+		# Clear the offer optimistically; the next host snapshot is authoritative.
+		_local_view_player().pending_relic_offer.clear()
+		_refresh_ui()
+		return
+	if game_state.choose_relic(_local_view_player(), relic_id):
+		_refresh_ui()
+		if network_enabled and network_is_host:
+			_broadcast_network_snapshot()
 
 
 func _build_home_screen() -> void:
@@ -2781,11 +3185,22 @@ func _refresh_lobby_panel() -> void:
 	var can_edit_table := _can_edit_table_settings()
 	var can_edit_lobby_setup := _can_edit_lobby_setup()
 	_clear_container(home_lobby_seat_list)
-	var filled_count := game_state.players.size() if has_active_game else 1
-	filled_count = clampi(filled_count, 1, lobby_max_players)
+	var filled_seats: Array[int] = []
+	if network_enabled:
+		# Show who is actually connected, not just how many seats exist.
+		if network_is_host:
+			filled_seats = _connected_seat_indexes()
+		elif not network_connected_seats.is_empty():
+			filled_seats = network_connected_seats.duplicate()
+		else:
+			filled_seats = [0, clampi(local_player_index, 0, NETWORK_MAX_PLAYERS - 1)]
+	else:
+		var filled_count := game_state.players.size() if has_active_game else 1
+		filled_count = clampi(filled_count, 1, lobby_max_players)
+		for index in range(filled_count):
+			filled_seats.append(index)
 	for index in range(lobby_max_players):
-		var is_filled := index < filled_count
-		home_lobby_seat_list.add_child(_create_lobby_seat_row(index, is_filled))
+		home_lobby_seat_list.add_child(_create_lobby_seat_row(index, filled_seats.has(index)))
 	if home_lobby_rules_summary != null:
 		if lobby_pending_mode == "host_online" or lobby_pending_mode == "join_online":
 			home_lobby_rules_summary.text = (
@@ -3291,6 +3706,8 @@ func _show_home_screen(_from_game: bool) -> void:
 func _hide_home_screen() -> void:
 	if home_overlay != null:
 		home_overlay.hide()
+	# A relic offer may have been waiting behind the menu.
+	_refresh_relic_overlay()
 
 
 func _refresh_home_controls() -> void:
@@ -3328,8 +3745,12 @@ func _refresh_home_controls() -> void:
 			)
 		elif network_enabled and network_mode == NETWORK_MODE_ONLINE:
 			home_lobby_status_label.text = (
-				"Connected to %s as Player %d."
-				% [online_relay_lobby_code, local_player_index + 1]
+				"Connected to %s as Player %d.%s"
+				% [
+					online_relay_lobby_code,
+					local_player_index + 1,
+					"" if network_table_open else " Waiting for the host to start...",
+				]
 			)
 		elif network_enabled:
 			home_lobby_status_label.text = "Connected as Player %d." % (local_player_index + 1)
@@ -4108,25 +4529,31 @@ func _refresh_ui() -> void:
 	_refresh_hand()
 	_refresh_market()
 	_refresh_play_area()
+	_refresh_relics_rail()
+	_refresh_relic_overlay()
 
 
 func _refresh_player_status() -> void:
 	if player_status_list == null:
 		return
-	var panel := player_status_list.get_parent().get_parent().get_parent() as PanelContainer
-	var header := panel.find_child("Header", true, false) as Label if panel != null else null
-	if header != null:
-		header.text = "TABLE - %d PLAYERS" % maxi(1, game_state.players.size())
-	_clear_container(player_status_list)
 	var you_index := (
 		clampi(local_player_index, 0, game_state.players.size() - 1)
 		if network_enabled and not game_state.players.is_empty()
 		else game_state.active_player_index
 	)
+	# Rows update in place every frame (for cooldown bars); they are only
+	# rebuilt when the player count changes, not 60 times a second.
+	if player_status_list.get_child_count() != game_state.players.size():
+		_clear_container(player_status_list)
+		player_status_rows.clear()
+		for index in range(game_state.players.size()):
+			player_status_list.add_child(_create_player_status_row(index))
+		var panel := player_status_list.get_parent().get_parent().get_parent() as PanelContainer
+		var header := panel.find_child("Header", true, false) as Label if panel != null else null
+		if header != null:
+			header.text = "TABLE - %d PLAYERS" % maxi(1, game_state.players.size())
 	for index in range(game_state.players.size()):
-		player_status_list.add_child(
-			_create_player_status_row(index, game_state.players[index], you_index)
-		)
+		_update_player_status_row(index, game_state.players[index], you_index)
 
 
 func _refresh_discard_pile_art() -> void:
@@ -4144,32 +4571,12 @@ func _refresh_discard_pile_art() -> void:
 		discard_pile_scrim.color = Color(0, 0, 0, 0.48)
 
 
-func _create_player_status_row(index: int, game_player: PlayerState, you_index: int) -> PanelContainer:
-	var is_active := index == game_state.active_player_index
-	var is_local := index == you_index
-	var status_color := COLOR_BRASS
-	var status_text := "Waiting"
-	if game_player.pending_choice != null:
-		status_color = COLOR_ACTION_ACCENT
-		status_text = "Choosing"
-	elif game_player.cooldown_remaining > 0.0:
-		status_color = COLOR_VICTORY_ACCENT
-		status_text = "Cooldown %.1fs" % game_player.cooldown_remaining
-	elif is_active:
-		status_color = COLOR_RESOURCE_ACCENT
-		status_text = "Your turn" if is_local else "Buying"
-	elif game_player.ending_turn:
-		status_color = COLOR_PARCHMENT.darkened(0.25)
-		status_text = "Ended"
-
+func _create_player_status_row(index: int) -> PanelContainer:
 	var row_panel := PanelContainer.new()
 	row_panel.name = "PlayerRow%d" % (index + 1)
 	row_panel.custom_minimum_size = Vector2(0, PLAYER_STATUS_ROW_HEIGHT)
 	row_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row_panel.add_theme_stylebox_override(
-		"panel",
-		_make_player_row_style(is_active)
-	)
+	row_panel.add_theme_stylebox_override("panel", _make_player_row_style(false))
 
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 7)
@@ -4189,14 +4596,11 @@ func _create_player_status_row(index: int, game_player: PlayerState, you_index: 
 	var dot := PanelContainer.new()
 	dot.name = "StatusDot"
 	dot.custom_minimum_size = Vector2(9, 9)
-	dot.add_theme_stylebox_override("panel", _make_dot_style(status_color))
+	dot.add_theme_stylebox_override("panel", _make_dot_style(COLOR_BRASS))
 	top.add_child(dot)
 
 	var name_label := Label.new()
 	name_label.name = "Name"
-	name_label.text = game_player.player_name
-	if is_local and network_is_host:
-		name_label.text += " (host)"
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
 	name_label.add_theme_font_size_override("font_size", 10)
@@ -4213,7 +4617,6 @@ func _create_player_status_row(index: int, game_player: PlayerState, you_index: 
 	)
 	top.add_child(turn_badge)
 	var turn_text := Label.new()
-	turn_text.text = "TURN %d" % game_player.turn_number
 	turn_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	turn_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	turn_text.add_theme_color_override("font_color", COLOR_BRASS)
@@ -4224,20 +4627,12 @@ func _create_player_status_row(index: int, game_player: PlayerState, you_index: 
 
 	var status_label := Label.new()
 	status_label.name = "Status"
-	status_label.text = status_text
-	status_label.add_theme_color_override("font_color", status_color)
+	status_label.add_theme_color_override("font_color", COLOR_BRASS)
 	status_label.add_theme_font_size_override("font_size", 9)
 	if body_font != null:
 		status_label.add_theme_font_override("font", body_font)
 	stack.add_child(status_label)
 
-	var cooldown_bar := _create_cooldown_bar(game_player, status_color)
-	cooldown_bar.modulate.a = 1.0 if game_player.cooldown_remaining > 0.0 else 0.0
-	stack.add_child(cooldown_bar)
-	return row_panel
-
-
-func _create_cooldown_bar(game_player: PlayerState, color: Color) -> Control:
 	var track := PanelContainer.new()
 	track.name = "CooldownBar"
 	track.custom_minimum_size = Vector2(0, PLAYER_STATUS_COOLDOWN_BAR_HEIGHT)
@@ -4248,14 +4643,102 @@ func _create_cooldown_bar(game_player: PlayerState, color: Color) -> Control:
 	)
 	var fill := ColorRect.new()
 	fill.name = "Fill"
-	fill.color = color
-	var duration := maxf(0.001, game_player.cooldown_duration)
+	fill.color = COLOR_VICTORY_ACCENT
 	fill.anchor_left = 0.0
 	fill.anchor_top = 0.0
-	fill.anchor_right = clampf(game_player.cooldown_remaining / duration, 0.0, 1.0)
+	fill.anchor_right = 0.0
 	fill.anchor_bottom = 1.0
 	track.add_child(fill)
-	return track
+	track.modulate.a = 0.0
+	stack.add_child(track)
+
+	player_status_rows[index] = {
+		"row": row_panel,
+		"dot": dot,
+		"name": name_label,
+		"turn": turn_text,
+		"status": status_label,
+		"bar": track,
+		"fill": fill,
+	}
+	return row_panel
+
+
+func _is_seat_connected(index: int) -> bool:
+	if not network_enabled:
+		return true
+	if network_is_host:
+		return _connected_seat_indexes().has(index)
+	if network_connected_seats.is_empty():
+		return true
+	return network_connected_seats.has(index)
+
+
+func _update_player_status_row(index: int, game_player: PlayerState, you_index: int) -> void:
+	var refs: Dictionary = player_status_rows.get(index, {})
+	if refs.is_empty():
+		return
+	var is_active := index == game_state.active_player_index
+	var is_local := index == you_index
+	var connected := is_local or _is_seat_connected(index)
+	var status_color := COLOR_BRASS
+	var status_text := "Waiting"
+	if not connected:
+		status_color = COLOR_UNAVAILABLE
+		status_text = "Disconnected"
+	elif not game_player.pending_relic_offer.is_empty():
+		status_color = COLOR_CURSE_ACCENT
+		status_text = "Choosing relic"
+	elif game_player.pending_choice != null:
+		status_color = COLOR_ACTION_ACCENT
+		status_text = "Choosing"
+	elif game_player.cooldown_remaining > 0.0:
+		status_color = COLOR_VICTORY_ACCENT
+		status_text = "Cooldown %.1fs" % game_player.cooldown_remaining
+	elif is_active:
+		status_color = COLOR_RESOURCE_ACCENT
+		status_text = "Your turn" if is_local else "Buying"
+	elif game_player.ending_turn:
+		status_color = COLOR_PARCHMENT.darkened(0.25)
+		status_text = "Ended"
+
+	var row: PanelContainer = refs["row"]
+	if bool(row.get_meta("row_active", false)) != is_active:
+		row.set_meta("row_active", is_active)
+		row.add_theme_stylebox_override("panel", _make_player_row_style(is_active))
+
+	var dot: PanelContainer = refs["dot"]
+	if dot.get_meta("dot_color", Color.TRANSPARENT) != status_color:
+		dot.set_meta("dot_color", status_color)
+		dot.add_theme_stylebox_override("panel", _make_dot_style(status_color))
+
+	var name_text := game_player.player_name
+	if network_enabled and index == 0:
+		name_text += " (host)"
+	if network_enabled and is_local:
+		name_text += " (you)"
+	var name_label: Label = refs["name"]
+	if name_label.text != name_text:
+		name_label.text = name_text
+
+	var turn_text_value := "TURN %d" % game_player.turn_number
+	var turn_label: Label = refs["turn"]
+	if turn_label.text != turn_text_value:
+		turn_label.text = turn_text_value
+
+	var status_label: Label = refs["status"]
+	if status_label.text != status_text:
+		status_label.text = status_text
+	if status_label.get_meta("status_color", Color.TRANSPARENT) != status_color:
+		status_label.set_meta("status_color", status_color)
+		status_label.add_theme_color_override("font_color", status_color)
+
+	var bar: Control = refs["bar"]
+	var fill: ColorRect = refs["fill"]
+	var duration := maxf(0.001, game_player.cooldown_duration)
+	fill.anchor_right = clampf(game_player.cooldown_remaining / duration, 0.0, 1.0)
+	fill.color = status_color
+	bar.modulate.a = 1.0 if game_player.cooldown_remaining > 0.0 else 0.0
 
 
 func _refresh_end_turn_button() -> void:
@@ -4277,6 +4760,7 @@ func _refresh_end_turn_button() -> void:
 
 
 func _refresh_hand() -> void:
+	var previous_layout := _capture_hand_layout()
 	_clear_container(hand_container)
 	var hand_size := game_state.player.hand.size()
 	for index in range(hand_size):
@@ -4290,7 +4774,42 @@ func _refresh_hand() -> void:
 		)
 		button.pressed.connect(_on_hand_card_pressed.bind(card))
 		hand_container.add_child(button)
+	_assign_hand_flip_origins(previous_layout)
 	_apply_hand_fan_offsets()
+
+
+func _capture_hand_layout() -> Array[Dictionary]:
+	# Remember where each hand card sat (container-local) before a rebuild so
+	# the surviving cards can glide to their new fan slots instead of snapping.
+	var entries: Array[Dictionary] = []
+	for child in hand_container.get_children():
+		var control := child as Control
+		if control == null or not control.has_meta("card_id"):
+			continue
+		entries.append({
+			"card_id": str(control.get_meta("card_id")),
+			"position": control.position,
+			"rotation": control.rotation_degrees,
+			"consumed": false,
+		})
+	return entries
+
+
+func _assign_hand_flip_origins(previous_layout: Array[Dictionary]) -> void:
+	if previous_layout.is_empty() or not motion_enabled:
+		return
+	for child in hand_container.get_children():
+		var control := child as Control
+		if control == null or not control.has_meta("card_id"):
+			continue
+		var card_id := str(control.get_meta("card_id"))
+		for entry in previous_layout:
+			if bool(entry["consumed"]) or str(entry["card_id"]) != card_id:
+				continue
+			entry["consumed"] = true
+			control.set_meta("flip_position", entry["position"])
+			control.set_meta("flip_rotation", entry["rotation"])
+			break
 
 
 func _hand_fan_angle_step(total: int) -> float:
@@ -4330,8 +4849,54 @@ func _apply_hand_fan_offsets() -> void:
 		# the faces stay flatter / more upright than the spread would imply.
 		var card_center := pivot + Vector2(sin(arc_angle), -cos(arc_angle)) * radius
 		card.pivot_offset = card_size * 0.5
-		card.position = card_center - card_size * 0.5
-		card.rotation_degrees = (float(index) - center) * angle_step * HAND_FAN_TILT
+		_place_hand_card(
+			card,
+			card_center - card_size * 0.5,
+			(float(index) - center) * angle_step * HAND_FAN_TILT
+		)
+
+
+func _place_hand_card(card: Control, target_position: Vector2, target_rotation: float) -> void:
+	# Cards that survived a hand rebuild carry their previous slot as metadata;
+	# glide them into the new fan position. Anything else snaps instantly so a
+	# fresh layout never tweens in from (0, 0).
+	var previous_tween: Tween = null
+	if card.has_meta("hand_tween"):
+		var stored_tween = card.get_meta("hand_tween")
+		if stored_tween is Tween and (stored_tween as Tween).is_valid():
+			previous_tween = stored_tween as Tween
+	var from_flip := card.has_meta("flip_position")
+	var start_position := card.position
+	var start_rotation := card.rotation_degrees
+	if from_flip:
+		start_position = card.get_meta("flip_position")
+		start_rotation = float(card.get_meta("flip_rotation", target_rotation))
+		card.remove_meta("flip_position")
+		card.remove_meta("flip_rotation")
+	if previous_tween != null:
+		previous_tween.kill()
+	if not motion_enabled or (not from_flip and previous_tween == null):
+		card.position = target_position
+		card.rotation_degrees = target_rotation
+		return
+	if (
+		start_position.distance_to(target_position) < 1.0
+		and absf(start_rotation - target_rotation) < 0.25
+	):
+		card.position = target_position
+		card.rotation_degrees = target_rotation
+		return
+	card.position = start_position
+	card.rotation_degrees = start_rotation
+	var duration := _action_animation_duration(CARD_MOVE_SECONDS)
+	var tween := create_tween()
+	tween.bind_node(card)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_parallel(true)
+	tween.tween_property(card, "position", target_position, duration)
+	tween.tween_property(card, "rotation_degrees", target_rotation, duration)
+	card.set_meta("hand_tween", tween)
 
 
 func _refresh_market() -> void:
@@ -4498,6 +5063,18 @@ func _refresh_play_area() -> void:
 	var played_cards := game_state.player.play_area
 	play_area_label.text = "IN PLAY  %d" % played_cards.size()
 
+	var new_ids: Array[String] = []
+	for card in played_cards:
+		new_ids.append(card.id)
+	var owner_id := game_state.player.get_instance_id()
+	var pop_from := new_ids.size()
+	if owner_id == last_play_area_owner and new_ids.size() > last_play_area_ids.size():
+		# Only the chips that just arrived pop in; a view switch or rebuild of
+		# the same cards stays still.
+		pop_from = last_play_area_ids.size()
+	last_play_area_ids = new_ids
+	last_play_area_owner = owner_id
+
 	if played_cards.is_empty():
 		var empty_label := Label.new()
 		empty_label.custom_minimum_size = Vector2(0, PLAY_AREA_CONTENT_HEIGHT)
@@ -4508,8 +5085,26 @@ func _refresh_play_area() -> void:
 		play_area_container.add_child(empty_label)
 		return
 
-	for card in played_cards:
-		play_area_container.add_child(_create_played_card_chip(card))
+	for index in range(played_cards.size()):
+		var chip := _create_played_card_chip(played_cards[index])
+		play_area_container.add_child(chip)
+		if index >= pop_from:
+			_pop_in_control(chip)
+
+
+func _pop_in_control(control: Control) -> void:
+	if not motion_enabled:
+		return
+	control.scale = Vector2(0.55, 0.55)
+	control.modulate.a = 0.2
+	var duration := _action_animation_duration(0.16)
+	var tween := create_tween()
+	tween.bind_node(control)
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_parallel(true)
+	tween.tween_property(control, "scale", Vector2.ONE, duration)
+	tween.tween_property(control, "modulate:a", 1.0, duration)
 
 
 func _can_play_card(card: CardDefinition) -> bool:
@@ -5840,6 +6435,216 @@ func _animate_draw_ghost(ghost: Control, target_rect: Rect2, duration: float) ->
 	tween.tween_callback(ghost.queue_free)
 
 
+func _animate_choice_flights(tokens: Array[String]) -> void:
+	# When a choice is confirmed, fly the picked cards from the overlay to
+	# wherever they are headed (deck, discard, play) or shrink them away for a
+	# trash, so choice resolutions read as physical card movement.
+	if current_choice == null or tokens.is_empty() or not motion_enabled:
+		return
+	var resolver := current_choice.resolver
+	var trash_resolvers := [
+		"trash_hand", "remodel", "develop_trash", "upgrade_resource",
+		"upgrade_exact_nonself", "trash_for_copies", "trash_named_coins",
+		"trash_resource_mode", "inspect_trash", "attack_trash_resource",
+		"salvage_resource",
+	]
+	var play_resolvers := ["replay_action", "vassal_play", "play_self"]
+	for token in tokens:
+		var button: Button = choice_buttons.get(token)
+		if button == null or not button.is_inside_tree():
+			continue
+		var card: CardDefinition = null
+		for candidate in current_choice.candidates:
+			if str(candidate.get("token", "")) == token:
+				card = candidate.get("card")
+				break
+		if card == null:
+			continue
+		var ghost := _create_moving_card(
+			card,
+			button.get_global_rect(),
+			_get_card_surface_color(card.card_type)
+		)
+		if trash_resolvers.has(resolver):
+			_animate_vanishing_card(ghost)
+		elif resolver == "relic_predraw":
+			_animate_moving_card(
+				ghost,
+				hand_panel.get_global_rect().get_center(),
+				CARD_MOVE_SECONDS,
+				Vector2(0.5, 0.5)
+			)
+		elif play_resolvers.has(resolver):
+			_animate_moving_card(
+				ghost,
+				play_area_panel.get_global_rect().get_center(),
+				CARD_MOVE_SECONDS,
+				Vector2(0.48, 0.48)
+			)
+		elif resolver.contains("topdeck") or resolver == "inspect_order" or resolver == "shuffle_actions" or resolver == "order_cards":
+			_animate_moving_card(
+				ghost,
+				_get_hud_target_center("DeckStat"),
+				CARD_MOVE_SECONDS,
+				Vector2(0.22, 0.22)
+			)
+		else:
+			_animate_moving_card(
+				ghost,
+				_get_hud_target_center("DiscardStat"),
+				CARD_MOVE_SECONDS,
+				Vector2(0.22, 0.22)
+			)
+
+
+func _animate_vanishing_card(ghost: Control) -> void:
+	if not motion_enabled:
+		ghost.queue_free()
+		return
+	var duration := _action_animation_duration(CARD_MOVE_SECONDS)
+	var tween := create_tween()
+	tween.bind_node(ghost)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_IN)
+	tween.set_parallel(true)
+	tween.tween_property(ghost, "scale", Vector2(0.05, 0.05), duration)
+	tween.tween_property(ghost, "rotation", 0.4, duration)
+	tween.tween_property(ghost, "modulate:a", 0.0, duration)
+	tween.set_parallel(false)
+	tween.tween_callback(ghost.queue_free)
+
+
+func _capture_local_zone_summary() -> Dictionary:
+	# Clients animate their confirmed actions by diffing the snapshot before
+	# and after it is applied. Hosts animate directly, so they skip this.
+	if not network_enabled or network_is_host or game_state.players.is_empty():
+		return {}
+	if not has_active_game or not network_table_open:
+		return {}
+	var local_player := _local_view_player()
+	var hand_rects: Dictionary = {}
+	for child in hand_container.get_children():
+		var control := child as Control
+		if control == null or not control.has_meta("card_id"):
+			continue
+		var card_id := str(control.get_meta("card_id"))
+		if not hand_rects.has(card_id):
+			hand_rects[card_id] = []
+		(hand_rects[card_id] as Array).append(control.get_global_rect())
+	var discard_top := ""
+	if not local_player.discard_pile.is_empty():
+		discard_top = local_player.discard_pile[local_player.discard_pile.size() - 1].id
+	return {
+		"hand_ids": _card_ids_from_zone(local_player.hand),
+		"play_count": local_player.play_area.size(),
+		"discard_count": local_player.discard_pile.size(),
+		"discard_top": discard_top,
+		"turn_number": local_player.turn_number,
+		"hand_rects": hand_rects,
+	}
+
+
+func _take_recorded_rect(hand_rects: Dictionary, card_id: String) -> Rect2:
+	var rects: Array = hand_rects.get(card_id, [])
+	if rects.is_empty():
+		return Rect2()
+	return rects.pop_front()
+
+
+func _multiset_count(values: Array, value: String) -> int:
+	var count := 0
+	for entry in values:
+		if str(entry) == value:
+			count += 1
+	return count
+
+
+func _multiset_difference(from_values: Array, subtract_values: Array) -> Array[String]:
+	var difference: Array[String] = []
+	var seen: Dictionary = {}
+	for entry in from_values:
+		var value := str(entry)
+		seen[value] = int(seen.get(value, 0)) + 1
+		if seen[value] > _multiset_count(subtract_values, value):
+			difference.append(value)
+	return difference
+
+
+func _animate_snapshot_changes(previous_summary: Dictionary) -> void:
+	if previous_summary.is_empty() or not motion_enabled:
+		return
+	if game_state.players.is_empty() or turn_manager.game_over:
+		return
+	var local_player := _local_view_player()
+	var old_hand: Array = previous_summary.get("hand_ids", [])
+	var new_hand := _card_ids_from_zone(local_player.hand)
+	var hand_rects: Dictionary = previous_summary.get("hand_rects", {})
+
+	if local_player.turn_number > int(previous_summary.get("turn_number", 1)):
+		# Cleanup went through: the old hand sweeps to the discard pile and the
+		# fresh hand is dealt from the deck.
+		for card_id in old_hand:
+			var rect := _take_recorded_rect(hand_rects, str(card_id))
+			if rect == Rect2() or not game_state.card_catalog.has(str(card_id)):
+				continue
+			_animate_moving_card(
+				_create_moving_card(
+					game_state.card_catalog[str(card_id)],
+					rect,
+					COLOR_SLATE.darkened(0.18)
+				),
+				_get_hud_target_center("DiscardStat"),
+				CLEANUP_SECONDS,
+				Vector2(0.22, 0.22)
+			)
+		if not old_hand.is_empty():
+			_play_ui_sound("discard")
+		call_deferred("_animate_draw_cards", new_hand.size())
+		return
+
+	var removed := _multiset_difference(old_hand, new_hand)
+	var added := _multiset_difference(new_hand, old_hand)
+	var play_gain := local_player.play_area.size() - int(previous_summary.get("play_count", 0))
+	var discard_gain := (
+		local_player.discard_pile.size()
+		- int(previous_summary.get("discard_count", 0))
+	)
+
+	if play_gain > 0 and not removed.is_empty():
+		for card_id in removed:
+			var rect := _take_recorded_rect(hand_rects, card_id)
+			if rect == Rect2() or not game_state.card_catalog.has(card_id):
+				continue
+			_animate_moving_card(
+				_create_moving_card(game_state.card_catalog[card_id], rect, COLOR_SLATE),
+				play_area_panel.get_global_rect().get_center(),
+				CARD_MOVE_SECONDS,
+				Vector2(0.48, 0.48)
+			)
+		_play_ui_sound("play_card")
+	if not added.is_empty():
+		call_deferred("_animate_draw_cards", added.size())
+	if discard_gain > 0 and play_gain <= 0 and removed.is_empty():
+		# A card was gained straight to our discard pile (a buy, or a curse
+		# gifted by an attack): fly it in from its market pile when visible.
+		var top_id := ""
+		if not local_player.discard_pile.is_empty():
+			top_id = local_player.discard_pile[local_player.discard_pile.size() - 1].id
+		var source_button := _find_card_button(market_container, top_id)
+		if source_button != null and game_state.card_catalog.has(top_id):
+			_animate_moving_card(
+				_create_moving_card(
+					game_state.card_catalog[top_id],
+					source_button.get_global_rect(),
+					COLOR_FOREST
+				),
+				_get_hud_target_center("DiscardStat"),
+				CARD_MOVE_SECONDS,
+				Vector2(0.22, 0.22)
+			)
+			_play_ui_sound("buy_card")
+
+
 func _get_hud_target_center(stat_name: String) -> Vector2:
 	var stat := hud_row.find_child(stat_name, true, false) as Control
 	if stat == null:
@@ -5916,7 +6721,9 @@ func _clear_container(container: Container) -> void:
 
 func _on_choice_requested(choice: CardChoice) -> void:
 	if network_enabled and not _can_control_active_player():
-		_hide_choice_overlay()
+		# A choice for another seat (the host is processing a client request).
+		# Leave the local overlay alone; clobbering it here soft-locked the host
+		# whenever a guest's card triggered a choice mid-request.
 		return
 	current_choice = choice
 	selected_choice_tokens.clear()
@@ -6017,6 +6824,7 @@ func _on_choice_skipped() -> void:
 func _submit_choice(tokens: Array[String]) -> void:
 	if current_choice == null:
 		return
+	_animate_choice_flights(tokens)
 	if _is_network_client():
 		_send_network_client_request("request_choice", {"tokens": tokens})
 		return
@@ -6391,10 +7199,14 @@ func _on_lobby_copy_pressed() -> void:
 
 func _on_lobby_leave_pressed() -> void:
 	_play_ui_sound("button_click")
-	if network_enabled and not has_active_game:
+	if network_enabled and (not has_active_game or not network_table_open):
+		# Leaving an open-but-unstarted lobby really closes it (the relay tells
+		# any seated guests), instead of leaving a zombie room behind.
 		_disconnect_network()
+		has_active_game = false
 	lobby_pending_mode = "host"
 	_show_home_tab("multiplayer")
+	_refresh_home_controls()
 
 
 func _on_lobby_start_pressed() -> void:
@@ -6408,7 +7220,10 @@ func _on_lobby_start_pressed() -> void:
 		_join_online_lobby()
 	elif lobby_pending_mode == "host_online":
 		if network_enabled and network_mode == NETWORK_MODE_ONLINE and has_active_game:
+			network_table_open = true
+			network_relic_timer = NETWORK_RELIC_INTERVAL_SECONDS
 			_hide_home_screen()
+			_broadcast_network_snapshot()
 		else:
 			_host_online_lobby()
 	elif game_state.turn_based_enabled:

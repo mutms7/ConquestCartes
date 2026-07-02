@@ -1093,7 +1093,7 @@ func _initialize() -> void:
 	)
 	_check(
 		_player_row(3) != null
-		and (_player_row(3).find_child("Name", true, false) as Label).text == "Player 3",
+		and (_player_row(3).find_child("Name", true, false) as Label).text.begins_with("Player 3"),
 		"Player status should update when a client receives its assigned slot."
 	)
 	_check(
