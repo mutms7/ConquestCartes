@@ -34,6 +34,47 @@ func _initialize() -> void:
 		main_ui._normalize_online_lobby_code("a-b 1 cde") == "ABCD",
 		"Online lobby codes should normalize to four letters."
 	)
+	_home_join_online_button().pressed.emit()
+	await process_frame
+	_check(
+		_home_lobby_panel().visible
+		and _home_lobby_address_input().text.is_empty()
+		and _home_lobby_address_input().placeholder_text == "4-letter code"
+		and _lobby_start_button().text == "JOIN ONLINE",
+		"Join online should show an empty 4-letter code field, not the local IP field."
+	)
+	_home_multiplayer_button().pressed.emit()
+	await process_frame
+	_home_create_online_button().pressed.emit()
+	await process_frame
+	_check(
+		_home_lobby_panel().visible
+		and _home_lobby_address_input().text.is_empty()
+		and _home_lobby_address_input().placeholder_text == "Code appears here"
+		and _lobby_start_button().text == "CREATE LOBBY",
+		"Create online should wait in the lobby until a code is assigned."
+	)
+	main_ui.network_enabled = true
+	main_ui.network_is_host = true
+	main_ui.network_mode = main_ui.NETWORK_MODE_ONLINE
+	main_ui._on_online_lobby_created({
+		"code": "WXYZ",
+		"clientId": "host",
+		"maxPlayers": 4,
+	})
+	await process_frame
+	_check(
+		_home_overlay().visible
+		and _home_lobby_panel().visible
+		and _home_lobby_address_input().text == "WXYZ"
+		and _lobby_start_button().text == "ENTER TABLE",
+		"Create online should keep the generated code visible before entering the table."
+	)
+	main_ui._disconnect_network()
+	main_ui.has_active_game = false
+	main_ui.game_state.multiplayer_enabled = false
+	main_ui._show_home_tab("multiplayer")
+	await process_frame
 	_home_create_lobby_button().pressed.emit()
 	await process_frame
 	_check(
@@ -934,6 +975,8 @@ func _initialize() -> void:
 		and main_ui.game_state.get_player_count() == 4,
 		"Lobby Start Game should start a four-player table."
 	)
+	var player_row_height_before_cooldown := _player_row(1).custom_minimum_size.y
+	var player_panel_height_before_cooldown := _players_turn_panel().get_global_rect().size.y
 	_click_control(_end_turn_button())
 	await process_frame
 	_check(
@@ -946,6 +989,14 @@ func _initialize() -> void:
 		and not main_ui.game_state.players[0].ending_turn
 		and main_ui.game_state.players[1].cooldown_remaining <= 0.0,
 		"Network End Turn should start only Player 1's button cooldown."
+	)
+	_check(
+		is_equal_approx(_player_row(1).custom_minimum_size.y, player_row_height_before_cooldown)
+		and is_equal_approx(
+			_players_turn_panel().get_global_rect().size.y,
+			player_panel_height_before_cooldown
+		),
+		"Player status panel should not resize when a cooldown bar appears."
 	)
 	var cooldown_resource_button := _find_card_button(_hand_container(), "pebble_coin")
 	_check(cooldown_resource_button != null, "Cooldown hand should include a playable Pebble Coin.")

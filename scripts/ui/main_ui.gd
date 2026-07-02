@@ -41,6 +41,8 @@ const CARD_META_HEIGHT := 10.0
 const HUD_LEDGER_WIDTH := 158.0
 const RIGHT_DOCK_WIDTH := 202.0
 const END_TURN_BUTTON_WIDTH := 188.0
+const PLAYER_STATUS_ROW_HEIGHT := 49.0
+const PLAYER_STATUS_COOLDOWN_BAR_HEIGHT := 5.0
 const PILE_FACE_SIZE := Vector2(105, 145)
 const PREVIEW_SIZE := Vector2(320, 540)
 const PREVIEW_ART_HEIGHT := 215.0
@@ -416,6 +418,25 @@ func _start_lobby_game(player_count: int = 2) -> void:
 	call_deferred("_animate_draw_cards", game_state.player.hand.size())
 
 
+func _prepare_online_lobby_game(player_count: int = 2) -> void:
+	if game_state.card_catalog.is_empty() or not game_state.has_enough_market_candidates():
+		_refresh_home_controls()
+		return
+	_hide_end_game_overlay()
+	_hide_choice_overlay()
+	_clear_animation_layer()
+	active_lobby_player_count = maxi(2, player_count)
+	if not game_state.setup_starting_game(active_lobby_player_count):
+		push_error("Could not prepare an online multiplayer lobby.")
+		has_active_game = false
+		end_turn_button.disabled = true
+		return
+	has_active_game = true
+	turn_manager.start_first_turn()
+	_refresh_ui()
+	_refresh_home_controls()
+
+
 func _host_network_lobby() -> void:
 	if game_state.card_catalog.is_empty() or not game_state.has_enough_market_candidates():
 		_refresh_home_controls()
@@ -517,8 +538,8 @@ func _connect_online_relay() -> void:
 	var error := online_relay_socket.connect_to_url(relay_url)
 	if error != OK:
 		_disconnect_network()
-		_set_lobby_status("Could not connect to online relay.")
 		_refresh_home_controls()
+		_set_lobby_status("Could not connect to online relay.")
 		return
 	_set_lobby_status("Connecting to online relay...")
 
@@ -629,7 +650,7 @@ func _on_online_lobby_created(message: Dictionary) -> void:
 	if home_lobby_address_input != null:
 		home_lobby_address_input.text = online_relay_lobby_code
 	var max_players := clampi(int(message.get("maxPlayers", lobby_max_players)), 2, NETWORK_MAX_PLAYERS)
-	_start_lobby_game(max_players)
+	_prepare_online_lobby_game(max_players)
 	_set_lobby_status("Online lobby %s. Share this code." % online_relay_lobby_code)
 	_broadcast_network_snapshot()
 
@@ -2768,6 +2789,19 @@ func _refresh_lobby_panel() -> void:
 			)
 	if home_lobby_start_button != null:
 		home_lobby_start_button.disabled = not game_state.has_enough_market_candidates()
+		match lobby_pending_mode:
+			"join":
+				home_lobby_start_button.text = "JOIN LOBBY"
+			"host_online":
+				home_lobby_start_button.text = (
+					"ENTER TABLE"
+					if network_enabled and has_active_game and not online_relay_lobby_code.is_empty()
+					else "CREATE LOBBY"
+				)
+			"join_online":
+				home_lobby_start_button.text = "JOIN ONLINE"
+			_:
+				home_lobby_start_button.text = "START GAME"
 	if home_lobby_address_input != null:
 		# Turn-based tables are local, so the network invite row is dimmed.
 		var online_lobby := lobby_pending_mode == "host_online" or lobby_pending_mode == "join_online"
@@ -2782,9 +2816,14 @@ func _refresh_lobby_panel() -> void:
 			home_lobby_address_input.text = "%s:%d" % [NETWORK_DEFAULT_ADDRESS, NETWORK_PORT]
 			home_lobby_address_input.placeholder_text = "Host address"
 		elif lobby_pending_mode == "host_online":
-			home_lobby_address_input.text = online_relay_lobby_code
-			home_lobby_address_input.placeholder_text = "Lobby code"
+			if not online_relay_lobby_code.is_empty():
+				home_lobby_address_input.text = online_relay_lobby_code
+			else:
+				home_lobby_address_input.text = ""
+			home_lobby_address_input.placeholder_text = "Code appears here"
 		elif lobby_pending_mode == "join_online":
+			if not network_enabled:
+				home_lobby_address_input.text = _normalize_online_lobby_code(home_lobby_address_input.text)
 			home_lobby_address_input.placeholder_text = "4-letter code"
 	if home_lobby_turn_based_toggle != null:
 		home_lobby_turn_based_toggle.set_pressed_no_signal(game_state.turn_based_enabled)
@@ -4075,6 +4114,7 @@ func _create_player_status_row(index: int, game_player: PlayerState, you_index: 
 
 	var row_panel := PanelContainer.new()
 	row_panel.name = "PlayerRow%d" % (index + 1)
+	row_panel.custom_minimum_size = Vector2(0, PLAYER_STATUS_ROW_HEIGHT)
 	row_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row_panel.add_theme_stylebox_override(
 		"panel",
@@ -4141,15 +4181,16 @@ func _create_player_status_row(index: int, game_player: PlayerState, you_index: 
 		status_label.add_theme_font_override("font", body_font)
 	stack.add_child(status_label)
 
-	if game_player.cooldown_remaining > 0.0:
-		stack.add_child(_create_cooldown_bar(game_player, status_color))
+	var cooldown_bar := _create_cooldown_bar(game_player, status_color)
+	cooldown_bar.modulate.a = 1.0 if game_player.cooldown_remaining > 0.0 else 0.0
+	stack.add_child(cooldown_bar)
 	return row_panel
 
 
 func _create_cooldown_bar(game_player: PlayerState, color: Color) -> Control:
 	var track := PanelContainer.new()
 	track.name = "CooldownBar"
-	track.custom_minimum_size = Vector2(0, 5)
+	track.custom_minimum_size = Vector2(0, PLAYER_STATUS_COOLDOWN_BAR_HEIGHT)
 	track.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	track.add_theme_stylebox_override(
 		"panel",
@@ -6117,6 +6158,9 @@ func _on_home_create_online_pressed() -> void:
 	_play_ui_sound("button_click")
 	lobby_pending_mode = "host_online"
 	game_state.turn_based_enabled = false
+	online_relay_lobby_code = ""
+	if home_lobby_address_input != null:
+		home_lobby_address_input.text = ""
 	_show_home_tab("lobby")
 
 
@@ -6124,6 +6168,9 @@ func _on_home_join_online_pressed() -> void:
 	_play_ui_sound("button_click")
 	lobby_pending_mode = "join_online"
 	game_state.turn_based_enabled = false
+	online_relay_lobby_code = ""
+	if home_lobby_address_input != null:
+		home_lobby_address_input.text = ""
 	_show_home_tab("lobby")
 
 
@@ -6297,7 +6344,10 @@ func _on_lobby_start_pressed() -> void:
 	elif lobby_pending_mode == "join_online":
 		_join_online_lobby()
 	elif lobby_pending_mode == "host_online":
-		_host_online_lobby()
+		if network_enabled and network_mode == NETWORK_MODE_ONLINE and has_active_game:
+			_hide_home_screen()
+		else:
+			_host_online_lobby()
 	elif game_state.turn_based_enabled:
 		# Turn-based tables are a local pass-and-play variation: players share the
 		# screen and take sequential turns, so no network server is started.
