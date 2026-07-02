@@ -15,8 +15,8 @@ func _initialize() -> void:
 	_check(_home_overlay().visible, "Startup should open on the home screen.")
 	_check(_home_art().texture != null, "Home screen should use uploaded card artwork.")
 	_check(
-		_home_set_label().text.contains("BASE KINGDOM"),
-		"Home screen should show the kingdom eyebrow above the title."
+		not main_ui.has_node("HomeOverlay/MenuMargin/Menu/SetLabel"),
+		"Home screen should not show the old base kingdom card-count eyebrow."
 	)
 	_check(_home_continue_button().disabled, "Continue should be disabled before a game starts.")
 	_check(not _home_multiplayer_button().disabled, "Multiplayer should be available at startup.")
@@ -138,12 +138,14 @@ func _initialize() -> void:
 		and _kingdom_detail_host().get_child_count() > 0,
 		"Kingdoms should open a tabbed card browser with a detail pane."
 	)
+	var kingdom_rect := _home_kingdoms_panel().get_global_rect()
+	var root_rect := root.get_visible_rect()
 	_check(
-		is_equal_approx(_home_kingdoms_panel().anchor_left, 0.5)
-		and is_equal_approx(_home_kingdoms_panel().anchor_right, 0.5)
-		and _home_kingdoms_panel().offset_left == -578
-		and _home_kingdoms_panel().offset_right == 578,
-		"Kingdoms browser should be centered at the wide handoff width."
+		kingdom_rect.position.x >= root_rect.position.x
+		and kingdom_rect.end.x <= root_rect.end.x
+		and is_equal_approx(_home_kingdoms_panel().anchor_left, 0.04)
+		and is_equal_approx(_home_kingdoms_panel().anchor_right, 0.96),
+		"Kingdoms browser should fit inside the viewport without right overflow."
 	)
 	_kingdoms_close_button().pressed.emit()
 	await process_frame
@@ -276,6 +278,10 @@ func _initialize() -> void:
 		"The handoff market should not reserve obsolete scene section titles."
 	)
 	_check(
+		_market_panel().find_child("MarketHeader", true, false) == null,
+		"The market should not reserve the old title/helper instruction row."
+	)
+	_check(
 		is_equal_approx(_play_area_panel().custom_minimum_size.y, main_ui.PLAY_AREA_PANEL_HEIGHT)
 		and is_equal_approx(
 			_play_area_container().custom_minimum_size.y,
@@ -294,7 +300,11 @@ func _initialize() -> void:
 	_check(main_ui.ui_sound_players.size() == 7, "All configured UI sounds should load.")
 	_check(_top_bar() != null, "The 2a table should render a top bar.")
 	_check(_relics_rail().get_child_count() > 0, "The top bar should include the relics rail.")
-	_check(_bazaar_button() != null, "The top bar should include The Bazaar button.")
+	_check(
+		_bazaar_button() == null
+		and _top_bar().find_child("BaseKingdomPill", true, false) == null,
+		"The top bar should not show the old base kingdom or bazaar text."
+	)
 	_check(_settings_gear_button() == main_ui.home_button, "The old home button should be restyled as the settings gear.")
 	_check(_draw_pile_stack() != null, "The bottom band should include a physical draw pile.")
 	_check(_discard_pile_stack() != null, "The bottom band should include a physical discard pile.")
@@ -546,6 +556,21 @@ func _initialize() -> void:
 		_check(_hud_value("CoinStat") == "1", "Coin HUD should update after playing a resource.")
 		_check(_hand_container().get_child_count() == 4, "Played card should leave the hand UI.")
 		_check(_play_area_container().get_child_count() == 1, "Played card should render in play area.")
+		var played_card_button := _play_area_container().get_child(0) as Button
+		_check(
+			played_card_button != null
+			and played_card_button.custom_minimum_size == main_ui.PLAYED_CARD_SIZE
+			and played_card_button.has_node("PlayedCardContent/ArtFrame/Art")
+			and played_card_button.has_node("PlayedCardContent/NameBand/NameLabel"),
+			"Played cards should render as mini art/name cards."
+		)
+		if played_card_button != null:
+			played_card_button.mouse_entered.emit()
+			await process_frame
+			_check(_card_preview().visible, "Hovering a played mini card should show its preview.")
+			played_card_button.mouse_exited.emit()
+			await process_frame
+			_check(not _card_preview().visible, "Leaving a played mini card should hide its preview.")
 		_check(
 			_play_area_panel().size == play_area_size_before_play,
 			"Playing a card should not resize the play area or move the UI."
@@ -1076,10 +1101,6 @@ func _home_overlay() -> Control:
 
 func _home_art() -> TextureRect:
 	return _home_overlay().find_child("HomeArt", true, false) as TextureRect
-
-
-func _home_set_label() -> Label:
-	return main_ui.get_node("HomeOverlay/MenuMargin/Menu/SetLabel")
 
 
 func _home_new_game_button() -> Button:
