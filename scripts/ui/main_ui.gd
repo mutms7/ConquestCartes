@@ -185,6 +185,7 @@ var home_lobby_seat_list: VBoxContainer
 var home_lobby_rules_summary: Label
 var home_lobby_start_button: Button
 var home_lobby_turn_based_toggle: CheckButton
+var home_lobby_edit_kingdom_button: Button
 var lobby_cooldown_slider: HSlider
 var home_kingdoms_panel: PanelContainer
 var home_kingdom_tab_list: VBoxContainer
@@ -758,16 +759,21 @@ func _get_online_relay_url() -> String:
 	var env_url := OS.get_environment("CONQUEST_CARTES_RELAY_URL")
 	if not env_url.is_empty():
 		return env_url
-	if OS.has_feature("web") and Engine.has_singleton("JavaScriptBridge"):
-		var bridge = Engine.get_singleton("JavaScriptBridge")
-		var origin = bridge.eval("window.location.origin", true)
+	if OS.has_feature("web"):
+		var origin = JavaScriptBridge.eval("window.location.origin", true)
 		if typeof(origin) == TYPE_STRING:
-			var origin_text := str(origin)
-			if origin_text.begins_with("https://"):
-				return "wss://" + origin_text.substr("https://".length()) + ONLINE_RELAY_PATH
-			if origin_text.begins_with("http://"):
-				return "ws://" + origin_text.substr("http://".length()) + ONLINE_RELAY_PATH
+			var relay_url := _relay_url_from_origin(str(origin))
+			if not relay_url.is_empty():
+				return relay_url
 	return ONLINE_RELAY_LOCAL_URL
+
+
+func _relay_url_from_origin(origin_text: String) -> String:
+	if origin_text.begins_with("https://"):
+		return "wss://" + origin_text.substr("https://".length()) + ONLINE_RELAY_PATH
+	if origin_text.begins_with("http://"):
+		return "ws://" + origin_text.substr("http://".length()) + ONLINE_RELAY_PATH
+	return ""
 
 
 func _normalize_online_lobby_code(raw_code: String) -> String:
@@ -804,6 +810,14 @@ func _can_interact_with_local_player() -> bool:
 		return false
 	_restore_local_network_view()
 	return _can_control_active_player()
+
+
+func _can_edit_table_settings() -> bool:
+	return not network_enabled or network_is_host
+
+
+func _can_edit_lobby_setup() -> bool:
+	return _can_edit_table_settings() and not has_active_game
 
 
 func _player_index_for_peer(peer_id: int) -> int:
@@ -2421,9 +2435,9 @@ func _build_lobby_panel() -> void:
 	if body_font != null:
 		kingdom_label.add_theme_font_override("font", body_font)
 	kingdom_row.add_child(kingdom_label)
-	var edit_kingdom := _create_parchment_button("EditKingdomButton", "EDIT", false)
-	edit_kingdom.pressed.connect(_on_home_kingdoms_pressed)
-	kingdom_row.add_child(edit_kingdom)
+	home_lobby_edit_kingdom_button = _create_parchment_button("EditKingdomButton", "EDIT", false)
+	home_lobby_edit_kingdom_button.pressed.connect(_on_home_kingdoms_pressed)
+	kingdom_row.add_child(home_lobby_edit_kingdom_button)
 
 	home_lobby_rules_summary = Label.new()
 	home_lobby_rules_summary.name = "RulesSummary"
@@ -2764,6 +2778,8 @@ func _create_lobby_max_players_row() -> VBoxContainer:
 func _refresh_lobby_panel() -> void:
 	if home_lobby_seat_list == null:
 		return
+	var can_edit_table := _can_edit_table_settings()
+	var can_edit_lobby_setup := _can_edit_lobby_setup()
 	_clear_container(home_lobby_seat_list)
 	var filled_count := game_state.players.size() if has_active_game else 1
 	filled_count = clampi(filled_count, 1, lobby_max_players)
@@ -2787,8 +2803,13 @@ func _refresh_lobby_panel() -> void:
 				"Starts when all seated players are ready. Cooldown %.1fs, up to %d players, attacks on."
 				% [game_state.end_turn_cooldown_seconds, lobby_max_players]
 			)
+		if not can_edit_table:
+			home_lobby_rules_summary.text += " Only the host can edit table rules."
 	if home_lobby_start_button != null:
-		home_lobby_start_button.disabled = not game_state.has_enough_market_candidates()
+		home_lobby_start_button.disabled = (
+			not game_state.has_enough_market_candidates()
+			or (network_enabled and not network_is_host)
+		)
 		match lobby_pending_mode:
 			"join":
 				home_lobby_start_button.text = "JOIN LOBBY"
@@ -2828,8 +2849,27 @@ func _refresh_lobby_panel() -> void:
 	if home_lobby_turn_based_toggle != null:
 		home_lobby_turn_based_toggle.set_pressed_no_signal(game_state.turn_based_enabled)
 		home_lobby_turn_based_toggle.disabled = (
-			lobby_pending_mode == "host_online" or lobby_pending_mode == "join_online"
+			not can_edit_lobby_setup
+			or lobby_pending_mode == "host_online"
+			or lobby_pending_mode == "join_online"
 		)
+	if lobby_cooldown_slider != null:
+		lobby_cooldown_slider.editable = can_edit_table
+		lobby_cooldown_slider.modulate = Color(1, 1, 1, 1.0 if can_edit_table else 0.4)
+	if home_lobby_edit_kingdom_button != null:
+		home_lobby_edit_kingdom_button.disabled = not can_edit_lobby_setup
+		home_lobby_edit_kingdom_button.modulate = Color(
+			1,
+			1,
+			1,
+			1.0 if can_edit_lobby_setup else 0.4
+		)
+	var max_buttons := home_lobby_panel.find_children("Max*Button", "Button", true, false)
+	for button_node in max_buttons:
+		var button := button_node as Button
+		if button != null:
+			button.disabled = not can_edit_lobby_setup
+			button.modulate = Color(1, 1, 1, 1.0 if can_edit_lobby_setup else 0.4)
 
 
 func _create_lobby_seat_row(index: int, filled: bool) -> PanelContainer:
@@ -3314,6 +3354,13 @@ func _refresh_home_controls() -> void:
 		background_music_slider.set_value_no_signal(background_music_volume)
 	if end_turn_cooldown_slider != null:
 		end_turn_cooldown_slider.set_value_no_signal(game_state.end_turn_cooldown_seconds)
+		end_turn_cooldown_slider.editable = _can_edit_table_settings()
+		end_turn_cooldown_slider.modulate = Color(
+			1,
+			1,
+			1,
+			1.0 if _can_edit_table_settings() else 0.4
+		)
 	if fullscreen_toggle != null:
 		fullscreen_toggle.set_pressed_no_signal(
 			DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
@@ -3402,7 +3449,7 @@ func _create_kingdom_tab_section(kingdom: String) -> VBoxContainer:
 	kingdom_toggle.name = "KingdomToggle"
 	kingdom_toggle.text = "BASE" if kingdom == GameState.BASE_KINGDOM else "IN POOL"
 	kingdom_toggle.button_pressed = game_state.is_kingdom_enabled(kingdom)
-	kingdom_toggle.disabled = kingdom == GameState.BASE_KINGDOM
+	kingdom_toggle.disabled = kingdom == GameState.BASE_KINGDOM or not _can_edit_lobby_setup()
 	kingdom_toggle.toggled.connect(_on_kingdom_toggled.bind(kingdom))
 	_style_home_toggle(kingdom_toggle)
 	kingdom_toggle.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
@@ -3449,6 +3496,8 @@ func _create_kingdom_card_button(card: CardDefinition) -> Button:
 	var kingdom_enabled := game_state.is_kingdom_enabled(game_state.get_card_kingdom(card))
 	var card_enabled := game_state.is_card_enabled_for_market(card.id)
 	var can_toggle := (
+		_can_edit_lobby_setup()
+		and
 		kingdom_enabled
 		and card.market_enabled
 		and not game_state.is_required_card(card.id)
@@ -3588,6 +3637,7 @@ func _refresh_kingdom_detail() -> void:
 	card_toggle.button_pressed = kingdom_enabled and game_state.is_card_enabled_for_market(card.id)
 	card_toggle.disabled = (
 		not kingdom_enabled
+		or not _can_edit_lobby_setup()
 		or game_state.is_required_card(card.id)
 		or not card.market_enabled
 		or GameState.STARTING_CARD_COUNTS.has(card.id)
@@ -6285,9 +6335,19 @@ func _on_background_music_changed(value: float) -> void:
 
 
 func _on_end_turn_cooldown_changed(value: float) -> void:
+	if not _can_edit_table_settings():
+		if end_turn_cooldown_slider != null:
+			end_turn_cooldown_slider.set_value_no_signal(game_state.end_turn_cooldown_seconds)
+		if lobby_cooldown_slider != null:
+			lobby_cooldown_slider.set_value_no_signal(game_state.end_turn_cooldown_seconds)
+		return
 	game_state.end_turn_cooldown_seconds = clampf(value, 0.5, 10.0)
 	if end_turn_cooldown_slider != null:
 		end_turn_cooldown_slider.set_value_no_signal(game_state.end_turn_cooldown_seconds)
+	if lobby_cooldown_slider != null:
+		lobby_cooldown_slider.set_value_no_signal(game_state.end_turn_cooldown_seconds)
+	if network_enabled and network_is_host:
+		_broadcast_network_snapshot()
 	_refresh_lobby_panel()
 
 
@@ -6339,6 +6399,9 @@ func _on_lobby_leave_pressed() -> void:
 
 func _on_lobby_start_pressed() -> void:
 	_play_ui_sound("button_click")
+	if network_enabled and not network_is_host:
+		_refresh_lobby_panel()
+		return
 	if lobby_pending_mode == "join":
 		_join_network_lobby()
 	elif lobby_pending_mode == "join_online":
@@ -6357,11 +6420,17 @@ func _on_lobby_start_pressed() -> void:
 
 
 func _on_lobby_max_players_pressed(count: int) -> void:
+	if not _can_edit_lobby_setup():
+		_refresh_lobby_panel()
+		return
 	lobby_max_players = clampi(count, 2, NETWORK_MAX_PLAYERS)
 	_refresh_lobby_panel()
 
 
 func _on_lobby_turn_based_toggled(enabled: bool) -> void:
+	if not _can_edit_lobby_setup():
+		_refresh_lobby_panel()
+		return
 	if lobby_pending_mode == "host_online" or lobby_pending_mode == "join_online":
 		game_state.turn_based_enabled = false
 		_refresh_lobby_panel()
@@ -6383,6 +6452,9 @@ func _on_kingdom_tab_pressed(kingdom: String) -> void:
 
 
 func _on_kingdom_toggled(enabled: bool, kingdom: String) -> void:
+	if not _can_edit_lobby_setup():
+		_refresh_kingdom_tab()
+		return
 	game_state.set_kingdom_enabled(kingdom, enabled)
 	if selected_home_kingdom != kingdom:
 		selected_home_kingdom = kingdom
@@ -6404,6 +6476,9 @@ func _on_kingdom_card_hovered(card_id: String) -> void:
 
 
 func _on_kingdom_card_toggled(enabled: bool, card_id: String) -> void:
+	if not _can_edit_lobby_setup():
+		_refresh_kingdom_tab()
+		return
 	selected_home_kingdom_card_id = card_id
 	if game_state.card_catalog.has(card_id):
 		var card: CardDefinition = game_state.card_catalog[card_id]

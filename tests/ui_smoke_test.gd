@@ -34,6 +34,13 @@ func _initialize() -> void:
 		main_ui._normalize_online_lobby_code("a-b 1 cde") == "ABCD",
 		"Online lobby codes should normalize to four letters."
 	)
+	_check(
+		main_ui._relay_url_from_origin("https://conquest-cartes.vercel.app")
+		== "wss://conquest-cartes.vercel.app/api/relay"
+		and main_ui._relay_url_from_origin("http://127.0.0.1:3000")
+		== "ws://127.0.0.1:3000/api/relay",
+		"Online relay URLs should use the browser origin, not the local fallback."
+	)
 	_home_join_online_button().pressed.emit()
 	await process_frame
 	_check(
@@ -73,6 +80,25 @@ func _initialize() -> void:
 	main_ui._disconnect_network()
 	main_ui.has_active_game = false
 	main_ui.game_state.multiplayer_enabled = false
+	main_ui.network_enabled = true
+	main_ui.network_is_host = false
+	main_ui.lobby_pending_mode = "join_online"
+	main_ui._show_home_tab("lobby")
+	await process_frame
+	var cooldown_before_client_edit: float = main_ui.game_state.end_turn_cooldown_seconds
+	main_ui._on_end_turn_cooldown_changed(cooldown_before_client_edit + 2.0)
+	_check(
+		not main_ui.lobby_cooldown_slider.editable
+		and _home_lobby_turn_based_toggle().disabled
+		and main_ui.home_lobby_edit_kingdom_button.disabled
+		and main_ui.home_lobby_start_button.disabled
+		and is_equal_approx(
+			main_ui.game_state.end_turn_cooldown_seconds,
+			cooldown_before_client_edit
+		),
+		"Joined clients should not be able to edit shared lobby rules."
+	)
+	main_ui._disconnect_network()
 	main_ui._show_home_tab("multiplayer")
 	await process_frame
 	_home_create_lobby_button().pressed.emit()
