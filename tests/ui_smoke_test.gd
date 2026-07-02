@@ -25,8 +25,14 @@ func _initialize() -> void:
 	_check(
 		_home_multiplayer_panel().visible
 		and not _home_create_lobby_button().disabled
-		and not _home_join_lobby_button().disabled,
-		"Multiplayer should open the local create/join choices."
+		and not _home_join_lobby_button().disabled
+		and not _home_create_online_button().disabled
+		and not _home_join_online_button().disabled,
+		"Multiplayer should open the local and online create/join choices."
+	)
+	_check(
+		main_ui._normalize_online_lobby_code("a-b 1 cde") == "ABCD",
+		"Online lobby codes should normalize to four letters."
 	)
 	_home_create_lobby_button().pressed.emit()
 	await process_frame
@@ -1141,6 +1147,14 @@ func _home_lobby_address_input() -> LineEdit:
 
 func _home_join_lobby_button() -> Button:
 	return main_ui.get_node("HomeOverlay/MultiplayerPanel/Margin/Layout/Options/JoinLocalButton")
+
+
+func _home_create_online_button() -> Button:
+	return main_ui.get_node("HomeOverlay/MultiplayerPanel/Margin/Layout/Options/CreateOnlineButton")
+
+
+func _home_join_online_button() -> Button:
+	return main_ui.get_node("HomeOverlay/MultiplayerPanel/Margin/Layout/Options/JoinOnlineButton")
 
 
 func _home_settings_button() -> Button:

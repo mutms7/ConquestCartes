@@ -2,9 +2,9 @@
 
 ## Concept
 
-A cozy tabletop fantasy deck-building game for one local player or a direct-IP
-lobby for up to four players. The prototype focuses on a short, readable play
-loop rather than campaign or relay matchmaking systems.
+A cozy tabletop fantasy deck-building game for one local player, a direct-IP
+lobby, or an online-code lobby for up to four players. The prototype focuses on
+a short, readable play loop rather than campaign systems.
 
 ## Turn Loop
 
@@ -67,8 +67,8 @@ pile, hand, play area, and discard pile.
 ## Prototype Scope
 
 - Desktop, 1280x720, 2D interface
-- One local player or a direct-IP lobby for up to four players
+- One local player, a direct-IP lobby, or an online-code lobby for up to four players
 - Random fourteen-card kingdom market with finite supply piles
 - Home menu with New Game, Create Lobby, Continue, local Settings controls, and a Kingdoms card browser
 - Original medieval interface, painterly card art, and UI audio
-- No AI opponent, relay matchmaking, campaign, or save system
+- No AI opponent, durable matchmaking, campaign, or save system

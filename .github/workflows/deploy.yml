@@ -67,6 +67,38 @@ jobs:
           test -f web/index.wasm
           test -f web/index.pck
 
+      - name: Verify Vercel secrets
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          test -n "$VERCEL_ORG_ID"
+          test -n "$VERCEL_PROJECT_ID"
+          test -n "$VERCEL_TOKEN"
+
+      - name: Configure generated static build
+        run: |
+          mkdir -p web/api
+          cp api/relay.js web/api/relay.js
+          cp package.json web/package.json
+          if [ -f package-lock.json ]; then
+            cp package-lock.json web/package-lock.json
+          fi
+          cat > web/vercel.json <<'JSON'
+          {
+            "framework": null,
+            "buildCommand": null,
+            "installCommand": "npm install --omit=dev",
+            "outputDirectory": ".",
+            "functions": {
+              "api/relay.js": {
+                "maxDuration": 300
+              }
+            }
+          }
+          JSON
+
       - name: Link generated build to Vercel project
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -80,7 +112,7 @@ jobs:
 
       - name: Deploy production build to Vercel
         run: |
-          npx --yes vercel@54.17.0 \
+          npx --yes vercel@54.17.0 deploy . \
             --cwd web \
             --prod \
             --yes \

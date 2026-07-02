@@ -3,5 +3,6 @@
 *.translation
 /web/
 /.vercel/
+/node_modules/
 .env*
 /_shots/

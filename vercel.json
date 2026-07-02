@@ -2,8 +2,13 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "buildCommand": null,
-  "installCommand": null,
+  "installCommand": "npm install --omit=dev",
   "outputDirectory": "web",
+  "functions": {
+	"api/relay.js": {
+	  "maxDuration": 300
+	}
+  },
   "git": {
 	"deploymentEnabled": false
   }

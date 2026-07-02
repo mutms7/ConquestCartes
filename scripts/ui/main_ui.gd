@@ -53,6 +53,11 @@ const CARD_RULE_BOTTOM_MARGIN := 7
 const NETWORK_PORT := 27041
 const NETWORK_DEFAULT_ADDRESS := "127.0.0.1"
 const NETWORK_MAX_PLAYERS := 4
+const NETWORK_MODE_LOCAL := "local"
+const NETWORK_MODE_ONLINE := "online"
+const ONLINE_RELAY_PATH := "/api/relay"
+const ONLINE_RELAY_LOCAL_URL := "ws://127.0.0.1:3000/api/relay"
+const ONLINE_LOBBY_CODE_LENGTH := 4
 
 const COLOR_PARCHMENT := Color("#ecdcb6")
 const COLOR_PARCHMENT_LIGHT := Color("#f4e6c4")
@@ -166,6 +171,8 @@ var home_new_game_button: Button
 var home_continue_button: Button
 var home_create_lobby_button: Button
 var home_join_lobby_button: Button
+var home_create_online_button: Button
+var home_join_online_button: Button
 var home_lobby_address_input: LineEdit
 var home_lobby_status_label: Label
 var player_status_label: Label
@@ -188,8 +195,15 @@ var selected_home_kingdom_card_id := ""
 var active_lobby_player_count := 1
 var network_enabled := false
 var network_is_host := false
+var network_mode := NETWORK_MODE_LOCAL
 var local_player_index := 0
 var network_peer_to_player: Dictionary = {}
+var online_relay_socket: WebSocketPeer
+var online_relay_connected := false
+var online_relay_role := ""
+var online_relay_lobby_code := ""
+var online_relay_client_id := ""
+var online_relay_url_override := ""
 var home_noise_overlay: TextureRect
 var table_noise_overlay: TextureRect
 var home_noise_slider: HSlider
@@ -340,6 +354,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_poll_online_relay()
 	if network_enabled:
 		if network_is_host:
 			_tick_network_cooldowns(delta)
@@ -415,6 +430,7 @@ func _host_network_lobby() -> void:
 	multiplayer.multiplayer_peer = peer
 	network_enabled = true
 	network_is_host = true
+	network_mode = NETWORK_MODE_LOCAL
 	local_player_index = 0
 	network_peer_to_player = {1: 0}
 	_start_lobby_game(max_players)
@@ -443,6 +459,7 @@ func _join_network_lobby() -> void:
 	multiplayer.multiplayer_peer = peer
 	network_enabled = true
 	network_is_host = false
+	network_mode = NETWORK_MODE_LOCAL
 	local_player_index = 1
 	has_active_game = false
 	_set_lobby_status("Connecting to %s:%d..." % [address, NETWORK_PORT])
@@ -450,12 +467,77 @@ func _join_network_lobby() -> void:
 	_queue_network_ui_refresh()
 
 
+func _host_online_lobby() -> void:
+	if game_state.card_catalog.is_empty() or not game_state.has_enough_market_candidates():
+		_refresh_home_controls()
+		return
+	_disconnect_network()
+	network_enabled = true
+	network_is_host = true
+	network_mode = NETWORK_MODE_ONLINE
+	local_player_index = 0
+	online_relay_role = "host"
+	online_relay_lobby_code = ""
+	online_relay_client_id = ""
+	network_peer_to_player.clear()
+	_set_lobby_status("Creating online lobby...")
+	_refresh_home_controls()
+	_connect_online_relay()
+
+
+func _join_online_lobby() -> void:
+	if game_state.card_catalog.is_empty():
+		_refresh_home_controls()
+		return
+	var code := ""
+	if home_lobby_address_input != null:
+		code = _normalize_online_lobby_code(home_lobby_address_input.text)
+	if code.length() != ONLINE_LOBBY_CODE_LENGTH:
+		_set_lobby_status("Enter a 4-letter lobby code.")
+		return
+	_disconnect_network()
+	network_enabled = true
+	network_is_host = false
+	network_mode = NETWORK_MODE_ONLINE
+	local_player_index = 1
+	has_active_game = false
+	online_relay_role = "join"
+	online_relay_lobby_code = code
+	online_relay_client_id = ""
+	network_peer_to_player.clear()
+	_set_lobby_status("Joining online lobby %s..." % code)
+	_refresh_home_controls()
+	_connect_online_relay()
+
+
+func _connect_online_relay() -> void:
+	online_relay_socket = WebSocketPeer.new()
+	online_relay_connected = false
+	var relay_url := _get_online_relay_url()
+	var error := online_relay_socket.connect_to_url(relay_url)
+	if error != OK:
+		_disconnect_network()
+		_set_lobby_status("Could not connect to online relay.")
+		_refresh_home_controls()
+		return
+	_set_lobby_status("Connecting to online relay...")
+
+
 func _disconnect_network() -> void:
+	if online_relay_socket != null:
+		if online_relay_socket.get_ready_state() == WebSocketPeer.STATE_OPEN:
+			online_relay_socket.close(1000, "leaving")
+		online_relay_socket = null
+	online_relay_connected = false
+	online_relay_role = ""
+	online_relay_lobby_code = ""
+	online_relay_client_id = ""
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = null
 	network_enabled = false
 	network_is_host = false
+	network_mode = NETWORK_MODE_LOCAL
 	local_player_index = 0
 	network_peer_to_player.clear()
 
@@ -463,6 +545,220 @@ func _disconnect_network() -> void:
 func _set_lobby_status(message: String) -> void:
 	if home_lobby_status_label != null:
 		home_lobby_status_label.text = message
+
+
+func _poll_online_relay() -> void:
+	if online_relay_socket == null:
+		return
+	online_relay_socket.poll()
+	var state := online_relay_socket.get_ready_state()
+	if state == WebSocketPeer.STATE_OPEN and not online_relay_connected:
+		online_relay_connected = true
+		_on_online_relay_connected()
+	if state == WebSocketPeer.STATE_OPEN:
+		while online_relay_socket.get_available_packet_count() > 0:
+			var raw_message := online_relay_socket.get_packet().get_string_from_utf8()
+			var parsed_message = JSON.parse_string(raw_message)
+			if typeof(parsed_message) == TYPE_DICTIONARY:
+				_handle_online_relay_message(parsed_message)
+	elif state == WebSocketPeer.STATE_CLOSED:
+		_on_online_relay_closed()
+
+
+func _on_online_relay_connected() -> void:
+	if online_relay_role == "host":
+		_send_online_relay_message({
+			"type": "create",
+			"maxPlayers": lobby_max_players,
+		})
+	elif online_relay_role == "join":
+		_send_online_relay_message({
+			"type": "join",
+			"code": online_relay_lobby_code,
+		})
+
+
+func _on_online_relay_closed() -> void:
+	var was_online := network_enabled and network_mode == NETWORK_MODE_ONLINE
+	var was_host := network_is_host
+	online_relay_socket = null
+	online_relay_connected = false
+	_disconnect_network()
+	if not was_online:
+		return
+	_refresh_home_controls()
+	if not was_host:
+		has_active_game = false
+		_show_home_screen(false)
+		_set_lobby_status("Host disconnected.")
+	else:
+		_set_lobby_status("Online relay disconnected.")
+
+
+func _handle_online_relay_message(message: Dictionary) -> void:
+	match str(message.get("type", "")):
+		"hello":
+			online_relay_client_id = str(message.get("clientId", online_relay_client_id))
+		"created":
+			_on_online_lobby_created(message)
+		"joined":
+			_on_online_lobby_joined(message)
+		"peer_joined":
+			_on_online_relay_peer_joined(str(message.get("clientId", "")))
+		"peer_left":
+			_on_online_relay_peer_left(str(message.get("clientId", "")))
+		"signal":
+			var payload = message.get("payload", {})
+			if typeof(payload) == TYPE_DICTIONARY:
+				_handle_online_relay_signal(str(message.get("from", "")), payload)
+		"closed":
+			_on_network_server_disconnected()
+		"error":
+			_set_lobby_status(str(message.get("message", "Online relay error.")))
+			if not has_active_game:
+				_disconnect_network()
+		_:
+			pass
+
+
+func _on_online_lobby_created(message: Dictionary) -> void:
+	online_relay_lobby_code = str(message.get("code", ""))
+	online_relay_client_id = str(message.get("clientId", online_relay_client_id))
+	network_peer_to_player.clear()
+	network_peer_to_player[online_relay_client_id] = 0
+	if home_lobby_address_input != null:
+		home_lobby_address_input.text = online_relay_lobby_code
+	var max_players := clampi(int(message.get("maxPlayers", lobby_max_players)), 2, NETWORK_MAX_PLAYERS)
+	_start_lobby_game(max_players)
+	_set_lobby_status("Online lobby %s. Share this code." % online_relay_lobby_code)
+	_broadcast_network_snapshot()
+
+
+func _on_online_lobby_joined(message: Dictionary) -> void:
+	online_relay_lobby_code = str(message.get("code", online_relay_lobby_code))
+	online_relay_client_id = str(message.get("clientId", online_relay_client_id))
+	if home_lobby_address_input != null:
+		home_lobby_address_input.text = online_relay_lobby_code
+	_set_lobby_status("Joined %s. Waiting for the host..." % online_relay_lobby_code)
+	_refresh_home_controls()
+
+
+func _on_online_relay_peer_joined(client_id: String) -> void:
+	if not network_is_host or client_id.is_empty():
+		return
+	var player_index := _next_open_network_player_index()
+	if player_index == -1:
+		_send_online_signal(client_id, {"method": "lobby_full"})
+		return
+	network_peer_to_player[client_id] = player_index
+	_send_online_signal(client_id, {
+		"method": "set_local_player_index",
+		"player_index": player_index,
+	})
+	_set_lobby_status(
+		"%s joined online lobby %s."
+		% [game_state.players[player_index].player_name, online_relay_lobby_code]
+	)
+	_broadcast_network_snapshot()
+
+
+func _on_online_relay_peer_left(client_id: String) -> void:
+	if not network_is_host:
+		return
+	network_peer_to_player.erase(client_id)
+	_set_lobby_status("Player disconnected. Online lobby %s remains open." % online_relay_lobby_code)
+
+
+func _handle_online_relay_signal(sender_id: String, payload: Dictionary) -> void:
+	match str(payload.get("method", "")):
+		"apply_network_snapshot":
+			if not network_is_host and typeof(payload.get("snapshot", {})) == TYPE_DICTIONARY:
+				_apply_network_snapshot(payload["snapshot"])
+		"set_local_player_index":
+			_rpc_set_local_player_index(int(payload.get("player_index", 0)))
+		"request_play_card":
+			_handle_network_play_card_request(
+				_player_index_for_relay_client(sender_id),
+				str(payload.get("card_id", ""))
+			)
+		"request_buy_card":
+			_handle_network_buy_card_request(
+				_player_index_for_relay_client(sender_id),
+				str(payload.get("card_id", ""))
+			)
+		"request_end_turn":
+			_handle_network_end_turn_request(_player_index_for_relay_client(sender_id))
+		"request_choice":
+			var raw_tokens = payload.get("tokens", [])
+			if typeof(raw_tokens) == TYPE_ARRAY:
+				_handle_network_choice_request(_player_index_for_relay_client(sender_id), raw_tokens)
+		"lobby_full":
+			_set_lobby_status("That online lobby is already full.")
+		_:
+			pass
+
+
+func _send_online_relay_message(message: Dictionary) -> void:
+	if online_relay_socket == null:
+		return
+	if online_relay_socket.get_ready_state() != WebSocketPeer.STATE_OPEN:
+		return
+	online_relay_socket.send_text(JSON.stringify(message))
+
+
+func _send_online_signal(target: String, payload: Dictionary) -> void:
+	_send_online_relay_message({
+		"type": "signal",
+		"target": target,
+		"payload": payload,
+	})
+
+
+func _send_network_client_request(method: String, payload: Dictionary = {}) -> void:
+	if network_mode == NETWORK_MODE_ONLINE:
+		var online_payload := payload.duplicate(true)
+		online_payload["method"] = method
+		_send_online_signal("host", online_payload)
+		return
+	match method:
+		"request_play_card":
+			rpc_id(1, "_rpc_request_play_card", str(payload.get("card_id", "")))
+		"request_buy_card":
+			rpc_id(1, "_rpc_request_buy_card", str(payload.get("card_id", "")))
+		"request_end_turn":
+			rpc_id(1, "_rpc_request_end_turn")
+		"request_choice":
+			rpc_id(1, "_rpc_request_choice", payload.get("tokens", []))
+
+
+func _get_online_relay_url() -> String:
+	if not online_relay_url_override.is_empty():
+		return online_relay_url_override
+	var env_url := OS.get_environment("CONQUEST_CARTES_RELAY_URL")
+	if not env_url.is_empty():
+		return env_url
+	if OS.has_feature("web") and Engine.has_singleton("JavaScriptBridge"):
+		var bridge = Engine.get_singleton("JavaScriptBridge")
+		var origin = bridge.eval("window.location.origin", true)
+		if typeof(origin) == TYPE_STRING:
+			var origin_text := str(origin)
+			if origin_text.begins_with("https://"):
+				return "wss://" + origin_text.substr("https://".length()) + ONLINE_RELAY_PATH
+			if origin_text.begins_with("http://"):
+				return "ws://" + origin_text.substr("http://".length()) + ONLINE_RELAY_PATH
+	return ONLINE_RELAY_LOCAL_URL
+
+
+func _normalize_online_lobby_code(raw_code: String) -> String:
+	var normalized := ""
+	var upper_code := raw_code.to_upper()
+	for index in range(upper_code.length()):
+		var character := upper_code.substr(index, 1)
+		if "ABCDEFGHIJKLMNOPQRSTUVWXYZ".contains(character):
+			normalized += character
+		if normalized.length() >= ONLINE_LOBBY_CODE_LENGTH:
+			break
+	return normalized
 
 
 func _is_network_client() -> bool:
@@ -493,6 +789,12 @@ func _player_index_for_peer(peer_id: int) -> int:
 	if peer_id == 1:
 		return 0
 	return int(network_peer_to_player.get(peer_id, -1))
+
+
+func _player_index_for_relay_client(client_id: String) -> int:
+	if client_id.is_empty():
+		return -1
+	return int(network_peer_to_player.get(client_id, -1))
 
 
 func _set_network_view_player(player_index: int) -> void:
@@ -688,7 +990,14 @@ func _complete_network_player_cleanup(player_index: int) -> void:
 func _broadcast_network_snapshot() -> void:
 	if not network_enabled or not network_is_host:
 		return
-	rpc("_rpc_apply_network_snapshot", _create_network_snapshot())
+	var snapshot := _create_network_snapshot()
+	if network_mode == NETWORK_MODE_ONLINE:
+		_send_online_signal("all", {
+			"method": "apply_network_snapshot",
+			"snapshot": snapshot,
+		})
+	else:
+		rpc("_rpc_apply_network_snapshot", snapshot)
 	_refresh_ui()
 
 
@@ -894,7 +1203,13 @@ func _sync_choice_overlay_from_network() -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_play_card(card_id: String) -> void:
-	var player_index := _player_index_for_peer(multiplayer.get_remote_sender_id())
+	_handle_network_play_card_request(
+		_player_index_for_peer(multiplayer.get_remote_sender_id()),
+		card_id
+	)
+
+
+func _handle_network_play_card_request(player_index: int, card_id: String) -> void:
 	if not network_is_host or player_index < 0:
 		return
 	_set_authoritative_player(player_index)
@@ -910,7 +1225,13 @@ func _rpc_request_play_card(card_id: String) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_buy_card(card_id: String) -> void:
-	var player_index := _player_index_for_peer(multiplayer.get_remote_sender_id())
+	_handle_network_buy_card_request(
+		_player_index_for_peer(multiplayer.get_remote_sender_id()),
+		card_id
+	)
+
+
+func _handle_network_buy_card_request(player_index: int, card_id: String) -> void:
 	if not network_is_host or player_index < 0:
 		return
 	_set_authoritative_player(player_index)
@@ -924,7 +1245,10 @@ func _rpc_request_buy_card(card_id: String) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_end_turn() -> void:
-	var player_index := _player_index_for_peer(multiplayer.get_remote_sender_id())
+	_handle_network_end_turn_request(_player_index_for_peer(multiplayer.get_remote_sender_id()))
+
+
+func _handle_network_end_turn_request(player_index: int) -> void:
 	if not network_is_host or player_index < 0:
 		return
 	_start_network_player_cooldown(player_index)
@@ -933,7 +1257,13 @@ func _rpc_request_end_turn() -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_choice(raw_tokens: Array) -> void:
-	var player_index := _player_index_for_peer(multiplayer.get_remote_sender_id())
+	_handle_network_choice_request(
+		_player_index_for_peer(multiplayer.get_remote_sender_id()),
+		raw_tokens
+	)
+
+
+func _handle_network_choice_request(player_index: int, raw_tokens: Array) -> void:
 	if not network_is_host or player_index < 0:
 		return
 	_set_authoritative_player(player_index)
@@ -1660,7 +1990,7 @@ func _build_home_screen() -> void:
 
 	home_lobby_status_label = Label.new()
 	home_lobby_status_label.name = "LobbyStatus"
-	home_lobby_status_label.text = "Choose Multiplayer to host or join a direct-IP table."
+	home_lobby_status_label.text = "Choose Multiplayer to host or join a table."
 	home_lobby_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	home_lobby_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	home_lobby_status_label.custom_minimum_size = Vector2(404, 0)
@@ -1909,7 +2239,7 @@ func _build_multiplayer_panel() -> void:
 	layout.add_theme_constant_override("separation", 14)
 	margin.add_child(layout)
 
-	layout.add_child(_create_parchment_title("Multiplayer", "Gather a local table or prepare an online room."))
+	layout.add_child(_create_parchment_title("Multiplayer", "Gather a local table or open an online room."))
 	layout.add_child(_create_parchment_rule())
 
 	var options := GridContainer.new()
@@ -1941,23 +2271,25 @@ func _build_multiplayer_panel() -> void:
 	home_join_lobby_button.pressed.connect(_on_home_join_lobby_pressed)
 	options.add_child(home_join_lobby_button)
 
-	var create_online := _create_multiplayer_option_button(
+	home_create_online_button = _create_multiplayer_option_button(
 		"CreateOnlineButton",
 		"Create online",
-		"Coming soon.",
-		false,
+		"Share a 4-letter lobby code.",
+		true,
 		"online"
 	)
-	options.add_child(create_online)
+	home_create_online_button.pressed.connect(_on_home_create_online_pressed)
+	options.add_child(home_create_online_button)
 
-	var join_online := _create_multiplayer_option_button(
+	home_join_online_button = _create_multiplayer_option_button(
 		"JoinOnlineButton",
 		"Join online",
-		"Coming soon.",
-		false,
+		"Enter a 4-letter code.",
+		true,
 		"online"
 	)
-	options.add_child(join_online)
+	home_join_online_button.pressed.connect(_on_home_join_online_pressed)
+	options.add_child(home_join_online_button)
 
 	var footer := HBoxContainer.new()
 	footer.name = "Footer"
@@ -2418,7 +2750,12 @@ func _refresh_lobby_panel() -> void:
 		var is_filled := index < filled_count
 		home_lobby_seat_list.add_child(_create_lobby_seat_row(index, is_filled))
 	if home_lobby_rules_summary != null:
-		if game_state.turn_based_enabled:
+		if lobby_pending_mode == "host_online" or lobby_pending_mode == "join_online":
+			home_lobby_rules_summary.text = (
+				"Online: share or enter a 4-letter code. Cooldown %.1fs, up to %d players, attacks on."
+				% [game_state.end_turn_cooldown_seconds, lobby_max_players]
+			)
+		elif game_state.turn_based_enabled:
 			home_lobby_rules_summary.text = (
 				"Turn based: pass-and-play on one screen with no timer. "
 				+ "Up to %d players take sequential turns; the next player goes when you finish."
@@ -2433,15 +2770,27 @@ func _refresh_lobby_panel() -> void:
 		home_lobby_start_button.disabled = not game_state.has_enough_market_candidates()
 	if home_lobby_address_input != null:
 		# Turn-based tables are local, so the network invite row is dimmed.
-		var network_lobby := not game_state.turn_based_enabled or lobby_pending_mode == "join"
+		var online_lobby := lobby_pending_mode == "host_online" or lobby_pending_mode == "join_online"
+		var network_lobby := online_lobby or not game_state.turn_based_enabled or lobby_pending_mode == "join"
 		home_lobby_address_input.editable = (
-			network_lobby and lobby_pending_mode == "join" and not network_enabled
+			network_lobby
+			and (lobby_pending_mode == "join" or lobby_pending_mode == "join_online")
+			and not network_enabled
 		)
 		home_lobby_address_input.modulate = Color(1, 1, 1, 1.0 if network_lobby else 0.4)
 		if lobby_pending_mode == "host":
 			home_lobby_address_input.text = "%s:%d" % [NETWORK_DEFAULT_ADDRESS, NETWORK_PORT]
+			home_lobby_address_input.placeholder_text = "Host address"
+		elif lobby_pending_mode == "host_online":
+			home_lobby_address_input.text = online_relay_lobby_code
+			home_lobby_address_input.placeholder_text = "Lobby code"
+		elif lobby_pending_mode == "join_online":
+			home_lobby_address_input.placeholder_text = "4-letter code"
 	if home_lobby_turn_based_toggle != null:
 		home_lobby_turn_based_toggle.set_pressed_no_signal(game_state.turn_based_enabled)
+		home_lobby_turn_based_toggle.disabled = (
+			lobby_pending_mode == "host_online" or lobby_pending_mode == "join_online"
+		)
 
 
 func _create_lobby_seat_row(index: int, filled: bool) -> PanelContainer:
@@ -2878,13 +3227,30 @@ func _refresh_home_controls() -> void:
 		home_create_lobby_button.disabled = not can_start
 	if home_join_lobby_button != null:
 		home_join_lobby_button.disabled = not can_start or network_enabled
+	if home_create_online_button != null:
+		home_create_online_button.disabled = not can_start or network_enabled
+	if home_join_online_button != null:
+		home_join_online_button.disabled = not can_start or network_enabled
 	if home_lobby_address_input != null:
-		home_lobby_address_input.editable = lobby_pending_mode == "join" and not network_enabled
+		home_lobby_address_input.editable = (
+			(lobby_pending_mode == "join" or lobby_pending_mode == "join_online")
+			and not network_enabled
+		)
 	if home_lobby_status_label != null:
-		if network_enabled and network_is_host:
+		if network_enabled and network_is_host and network_mode == NETWORK_MODE_ONLINE:
+			home_lobby_status_label.text = (
+				"Online lobby %s. Share this code."
+				% (online_relay_lobby_code if not online_relay_lobby_code.is_empty() else "....")
+			)
+		elif network_enabled and network_is_host:
 			home_lobby_status_label.text = (
 				"Hosting on port %d. Give players your IP address."
 				% NETWORK_PORT
+			)
+		elif network_enabled and network_mode == NETWORK_MODE_ONLINE:
+			home_lobby_status_label.text = (
+				"Connected to %s as Player %d."
+				% [online_relay_lobby_code, local_player_index + 1]
 			)
 		elif network_enabled:
 			home_lobby_status_label.text = "Connected as Player %d." % (local_player_index + 1)
@@ -2894,7 +3260,7 @@ func _refresh_home_controls() -> void:
 				% game_state.get_player_count()
 			)
 		else:
-			home_lobby_status_label.text = "Host or join a direct-IP table for up to 4 players."
+			home_lobby_status_label.text = "Host locally or use a 4-letter online code."
 	if home_audio_toggle != null:
 		home_audio_toggle.set_pressed_no_signal(audio_enabled)
 	if home_motion_toggle != null:
@@ -5561,7 +5927,7 @@ func _submit_choice(tokens: Array[String]) -> void:
 	if current_choice == null:
 		return
 	if _is_network_client():
-		rpc_id(1, "_rpc_request_choice", tokens)
+		_send_network_client_request("request_choice", {"tokens": tokens})
 		return
 	var hand_before := game_state.player.hand.size()
 	var previous_turn_manager_ending := turn_manager.ending_turn
@@ -5591,7 +5957,7 @@ func _on_hand_card_pressed(card: CardDefinition) -> void:
 	if network_enabled and not _can_interact_with_local_player():
 		return
 	if _is_network_client():
-		rpc_id(1, "_rpc_request_play_card", card.id)
+		_send_network_client_request("request_play_card", {"card_id": card.id})
 		return
 	var source_button := _find_card_button(hand_container, card.id)
 	var ghost: Control = null
@@ -5642,7 +6008,7 @@ func _on_market_card_pressed(card: CardDefinition) -> void:
 	if network_enabled and not _can_interact_with_local_player():
 		return
 	if _is_network_client():
-		rpc_id(1, "_rpc_request_buy_card", card.id)
+		_send_network_client_request("request_buy_card", {"card_id": card.id})
 		return
 	if not _can_buy_card(card):
 		push_warning("Card cannot be bought right now: %s" % card.card_name)
@@ -5681,7 +6047,7 @@ func _on_end_turn_pressed() -> void:
 		return
 	_play_ui_sound("end_turn")
 	if _is_network_client():
-		rpc_id(1, "_rpc_request_end_turn")
+		_send_network_client_request("request_end_turn")
 		return
 	if network_enabled and network_is_host:
 		_start_network_player_cooldown(local_player_index)
@@ -5744,6 +6110,20 @@ func _on_home_create_lobby_pressed() -> void:
 func _on_home_join_lobby_pressed() -> void:
 	_play_ui_sound("button_click")
 	lobby_pending_mode = "join"
+	_show_home_tab("lobby")
+
+
+func _on_home_create_online_pressed() -> void:
+	_play_ui_sound("button_click")
+	lobby_pending_mode = "host_online"
+	game_state.turn_based_enabled = false
+	_show_home_tab("lobby")
+
+
+func _on_home_join_online_pressed() -> void:
+	_play_ui_sound("button_click")
+	lobby_pending_mode = "join_online"
+	game_state.turn_based_enabled = false
 	_show_home_tab("lobby")
 
 
@@ -5904,6 +6284,8 @@ func _on_lobby_copy_pressed() -> void:
 
 func _on_lobby_leave_pressed() -> void:
 	_play_ui_sound("button_click")
+	if network_enabled and not has_active_game:
+		_disconnect_network()
 	lobby_pending_mode = "host"
 	_show_home_tab("multiplayer")
 
@@ -5912,6 +6294,10 @@ func _on_lobby_start_pressed() -> void:
 	_play_ui_sound("button_click")
 	if lobby_pending_mode == "join":
 		_join_network_lobby()
+	elif lobby_pending_mode == "join_online":
+		_join_online_lobby()
+	elif lobby_pending_mode == "host_online":
+		_host_online_lobby()
 	elif game_state.turn_based_enabled:
 		# Turn-based tables are a local pass-and-play variation: players share the
 		# screen and take sequential turns, so no network server is started.
@@ -5926,6 +6312,10 @@ func _on_lobby_max_players_pressed(count: int) -> void:
 
 
 func _on_lobby_turn_based_toggled(enabled: bool) -> void:
+	if lobby_pending_mode == "host_online" or lobby_pending_mode == "join_online":
+		game_state.turn_based_enabled = false
+		_refresh_lobby_panel()
+		return
 	game_state.turn_based_enabled = enabled
 	if lobby_cooldown_slider != null:
 		# A turn-based table has no timer, so the cooldown control is irrelevant.

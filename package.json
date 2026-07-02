@@ -1,0 +1,14 @@
+{
+  "name": "conquest-cartes",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "check:relay": "node --check api/relay.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

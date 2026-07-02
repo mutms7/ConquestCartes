@@ -19,7 +19,7 @@ contents of your deck into victory points.
   replaying, inspecting, and ordering cards
 - Gain, buy, discard, trash, and cleanup triggers for reactive cards
 - Temporary cost reductions, progressive resources, and event-driven bonuses
-- Direct-IP 2-player lobby tables with shared supplies and attacks that hit rivals
+- Direct-IP and online-code lobby tables with shared supplies and attacks that hit rivals
 - 0-cost Briar Hex curses worth -1 VP
 - Parallel 5-second end-turn cooldowns in online lobbies that still allow card play
   while they count down (singleplayer has no end-turn timeout)
@@ -64,18 +64,21 @@ currently unavailable.
 
 ## Multiplayer
 
-`CREATE LOBBY` hosts a direct-IP desktop lobby on port `27041`. The host is
+`CREATE LOCAL` hosts a direct-IP desktop lobby on port `27041`. The host is
 Player 1. Up to three joined players enter the host's IP address in the
-home-screen address field and press `JOIN LOBBY`. The host owns the
-authoritative game state and broadcasts every play, buy, choice, personal
-cooldown, cleanup, attack, and score update to clients. Players act in parallel;
-pressing End Turn immediately prepares that player's next hand and only starts
-that player's own End Turn cooldown.
+home-screen address field and press `JOIN LOCAL`.
 
-For internet play outside the same LAN, the host must allow inbound traffic on
-port `27041` or use a VPN/tunnel such as Tailscale, ZeroTier, or another private
-network. Browser-hosted no-port-forward matchmaking would require a separate
-relay/signaling service.
+`CREATE ONLINE` connects to the Vercel WebSocket relay at `/api/relay` and
+receives a 4-letter lobby code. Other players press `JOIN ONLINE` and enter that
+code. The host owns the authoritative game state and broadcasts every play, buy,
+choice, personal cooldown, cleanup, attack, and score update to clients. Players
+act in parallel; pressing End Turn immediately prepares that player's next hand
+and only starts that player's own End Turn cooldown.
+
+The bundled Vercel relay is a prototype path for browser play. For public
+low-ping multiplayer at scale, replace or harden it with a room-affine realtime
+service such as Durable Objects/PartyKit, Ably, Pusher, or a Redis-backed Vercel
+relay. See `docs/online_multiplayer_plan.md`.
 
 ## Run Locally
 
@@ -141,8 +144,10 @@ See `assets/licenses/ASSET_SOURCES.md` for provenance details.
 
 ## Current Limitations
 
-- Direct-IP multiplayer requires LAN reachability, port forwarding, or a VPN.
-- No save system, relay matchmaking, or full accessibility menu.
+- Local direct-IP multiplayer requires LAN reachability, port forwarding, or a VPN.
+- The Vercel online relay is in-memory prototype infrastructure; room durability
+  and reconnect/resume still need a production realtime backend.
+- No save system or full accessibility menu.
 - Rival-only reaction clauses are omitted in the solo ruleset.
 - The art library contains 29 finished illustrations. The 63-card catalog
   currently references 29 of them; related cards share paintings through the
