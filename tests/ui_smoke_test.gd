@@ -82,6 +82,7 @@ func _initialize() -> void:
 	main_ui.game_state.multiplayer_enabled = false
 	main_ui.network_enabled = true
 	main_ui.network_is_host = false
+	main_ui.network_mode = main_ui.NETWORK_MODE_ONLINE
 	main_ui.lobby_pending_mode = "join_online"
 	main_ui._show_home_tab("lobby")
 	await process_frame
@@ -91,12 +92,24 @@ func _initialize() -> void:
 		not main_ui.lobby_cooldown_slider.editable
 		and _home_lobby_turn_based_toggle().disabled
 		and main_ui.home_lobby_edit_kingdom_button.disabled
-		and main_ui.home_lobby_start_button.disabled
 		and is_equal_approx(
 			main_ui.game_state.end_turn_cooldown_seconds,
 			cooldown_before_client_edit
 		),
 		"Joined clients should not be able to edit shared lobby rules."
+	)
+	_check(
+		main_ui.home_lobby_start_button.text == "I'M READY"
+		and not main_ui.home_lobby_start_button.disabled,
+		"A joined guest should get a ready button instead of a start button."
+	)
+	main_ui._on_lobby_start_pressed()
+	await process_frame
+	_check(
+		main_ui.lobby_ready_sent
+		and main_ui.home_lobby_start_button.disabled
+		and main_ui.home_lobby_start_button.text.begins_with("READY"),
+		"Pressing ready should lock the button while waiting for the host."
 	)
 	main_ui._disconnect_network()
 	main_ui._show_home_tab("multiplayer")
@@ -118,6 +131,28 @@ func _initialize() -> void:
 	)
 	_home_lobby_turn_based_toggle().toggled.emit(false)
 	await process_frame
+	# Editing the kingdom from the lobby must return to the lobby on close,
+	# not dump the player back to the main menu.
+	main_ui._on_home_kingdoms_pressed()
+	await process_frame
+	_check(
+		_home_kingdoms_panel().visible and not _home_lobby_panel().visible,
+		"Editing kingdoms from the lobby should open the kingdom browser."
+	)
+	main_ui._close_kingdom_browser()
+	await process_frame
+	_check(
+		_home_lobby_panel().visible and not _home_kingdoms_panel().visible,
+		"Closing the kingdom browser should return to the lobby."
+	)
+	main_ui._on_home_kingdoms_pressed()
+	await process_frame
+	main_ui._hide_home_modals()
+	await process_frame
+	_check(
+		_home_lobby_panel().visible,
+		"Escaping the kingdom browser should also return to the lobby."
+	)
 	_home_settings_button().pressed.emit()
 	await process_frame
 	_check(_home_settings_panel().visible, "Settings should open from the home menu.")

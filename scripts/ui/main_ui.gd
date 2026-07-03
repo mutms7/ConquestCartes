@@ -59,10 +59,14 @@ const NETWORK_MAX_PLAYERS := 4
 const NETWORK_MODE_LOCAL := "local"
 const NETWORK_MODE_ONLINE := "online"
 const ONLINE_RELAY_PATH := "/api/relay"
-const ONLINE_RELAY_LOCAL_URL := "ws://127.0.0.1:3000/api/relay"
+# Desktop builds talk to the deployed relay; web builds derive the URL from the
+# page origin, and CONQUEST_CARTES_RELAY_URL overrides both (e.g. for a local
+# `node api/relay.js` server at ws://127.0.0.1:3000/api/relay).
+const ONLINE_RELAY_DEFAULT_URL := "wss://conquest-cartes.vercel.app/api/relay"
 const ONLINE_LOBBY_CODE_LENGTH := 4
 const ONLINE_RELAY_MAX_RECONNECT_ATTEMPTS := 3
 const ONLINE_RELAY_RECONNECT_DELAY_SECONDS := 2.0
+const ONLINE_RELAY_CONNECT_TIMEOUT_SECONDS := 10.0
 const NETWORK_RELIC_INTERVAL_SECONDS := 45.0
 
 const COLOR_PARCHMENT := Color("#ecdcb6")
@@ -214,6 +218,13 @@ var online_relay_host_id := ""
 var online_relay_url_override := ""
 var online_relay_reconnect_attempts := 0
 var online_relay_reconnect_timer := 0.0
+var online_relay_connect_timer := 0.0
+var network_ready_seats: Array[int] = []
+var lobby_ready_sent := false
+var lobby_code_banner: PanelContainer
+var lobby_code_value_label: Label
+var lobby_panel_status_label: Label
+var kingdom_return_tab := ""
 # True once the host has actually opened the table. Online joiners wait in the
 # lobby panel until the snapshot says the game started.
 var network_table_open := false
@@ -558,14 +569,15 @@ func _join_online_lobby() -> void:
 func _connect_online_relay() -> void:
 	online_relay_socket = WebSocketPeer.new()
 	online_relay_connected = false
+	online_relay_connect_timer = ONLINE_RELAY_CONNECT_TIMEOUT_SECONDS
 	var relay_url := _get_online_relay_url()
 	var error := online_relay_socket.connect_to_url(relay_url)
 	if error != OK:
 		_disconnect_network()
 		_refresh_home_controls()
-		_set_lobby_status("Could not connect to online relay.")
+		_set_lobby_status("Could not connect to the online relay.")
 		return
-	_set_lobby_status("Connecting to online relay...")
+	_set_lobby_status("Connecting to the online relay...")
 
 
 func _disconnect_network() -> void:
@@ -590,12 +602,19 @@ func _disconnect_network() -> void:
 	network_peer_to_player.clear()
 	network_table_open = false
 	network_connected_seats.clear()
+	network_ready_seats.clear()
+	lobby_ready_sent = false
+	online_relay_connect_timer = 0.0
 	network_relic_timer = NETWORK_RELIC_INTERVAL_SECONDS
 
 
 func _set_lobby_status(message: String) -> void:
+	# The home menu and the lobby panel each carry a status line; keep both in
+	# step so messages are visible from whichever screen is open.
 	if home_lobby_status_label != null:
 		home_lobby_status_label.text = message
+	if lobby_panel_status_label != null:
+		lobby_panel_status_label.text = message
 
 
 func _poll_online_relay() -> void:
@@ -605,6 +624,7 @@ func _poll_online_relay() -> void:
 	var state := online_relay_socket.get_ready_state()
 	if state == WebSocketPeer.STATE_OPEN and not online_relay_connected:
 		online_relay_connected = true
+		online_relay_connect_timer = 0.0
 		_on_online_relay_connected()
 	if state == WebSocketPeer.STATE_OPEN:
 		while online_relay_socket.get_available_packet_count() > 0:
@@ -632,10 +652,20 @@ func _on_online_relay_connected() -> void:
 func _on_online_relay_closed() -> void:
 	var was_online := network_enabled and network_mode == NETWORK_MODE_ONLINE
 	var was_host := network_is_host
+	var never_connected := not online_relay_connected
 	online_relay_socket = null
 	online_relay_connected = false
+	online_relay_connect_timer = 0.0
 	if not was_online:
 		_disconnect_network()
+		return
+	if never_connected and not has_active_game:
+		# The relay could not be reached at all (no code was ever issued).
+		_disconnect_network()
+		_refresh_home_controls()
+		_set_lobby_status(
+			"Could not reach the online relay. Check your internet connection and try again."
+		)
 		return
 	if (
 		not was_host
@@ -748,7 +778,10 @@ func _on_online_relay_peer_joined(client_id: String) -> void:
 func _on_online_relay_peer_left(client_id: String) -> void:
 	if not network_is_host:
 		return
+	var seat := int(network_peer_to_player.get(client_id, -1))
 	network_peer_to_player.erase(client_id)
+	if seat >= 0:
+		network_ready_seats.erase(seat)
 	_set_lobby_status("Player disconnected. Online lobby %s remains open." % online_relay_lobby_code)
 	_broadcast_network_snapshot()
 	_refresh_lobby_panel()
@@ -790,6 +823,8 @@ func _handle_online_relay_signal(sender_id: String, payload: Dictionary) -> void
 				_player_index_for_relay_client(sender_id),
 				str(payload.get("relic_id", ""))
 			)
+		"lobby_ready":
+			_handle_network_lobby_ready(_player_index_for_relay_client(sender_id))
 		"lobby_full":
 			if sender_is_host:
 				_disconnect_network()
@@ -846,9 +881,9 @@ func _get_online_relay_url() -> String:
 		var origin = JavaScriptBridge.eval("window.location.origin", true)
 		if typeof(origin) == TYPE_STRING:
 			var relay_url := _relay_url_from_origin(str(origin))
-			if not relay_url.is_empty():
+			if not relay_url.is_empty() and not relay_url.contains("localhost") and not relay_url.contains("127.0.0.1"):
 				return relay_url
-	return ONLINE_RELAY_LOCAL_URL
+	return ONLINE_RELAY_DEFAULT_URL
 
 
 func _relay_url_from_origin(origin_text: String) -> String:
@@ -966,7 +1001,10 @@ func _on_network_peer_connected(peer_id: int) -> void:
 
 func _on_network_peer_disconnected(peer_id: int) -> void:
 	if network_is_host:
+		var seat := int(network_peer_to_player.get(peer_id, -1))
 		network_peer_to_player.erase(peer_id)
+		if seat >= 0:
+			network_ready_seats.erase(seat)
 		_set_lobby_status("Player disconnected. Hosting remains open.")
 		_broadcast_network_snapshot()
 		_refresh_lobby_panel()
@@ -1095,6 +1133,16 @@ func _tick_network_relic_timer(delta: float) -> void:
 
 
 func _tick_online_relay_reconnect(delta: float) -> void:
+	if online_relay_connect_timer > 0.0 and online_relay_socket != null and not online_relay_connected:
+		# A socket stuck in CONNECTING (unreachable relay) never reports CLOSED
+		# on its own; force it closed so the failure is visible instead of the
+		# lobby hanging forever with no code.
+		online_relay_connect_timer -= delta
+		if online_relay_connect_timer <= 0.0:
+			online_relay_socket.close()
+			online_relay_socket = null
+			_on_online_relay_closed()
+			return
 	if online_relay_reconnect_timer <= 0.0:
 		return
 	online_relay_reconnect_timer -= delta
@@ -1190,6 +1238,7 @@ func _create_network_snapshot() -> Dictionary:
 		"players": player_snapshots,
 		"started": network_table_open,
 		"connected_seats": _connected_seat_indexes(),
+		"ready_seats": network_ready_seats.duplicate(),
 		"multiplayer_enabled": game_state.multiplayer_enabled,
 		"turn_based_enabled": game_state.turn_based_enabled,
 		"end_turn_cooldown_seconds": game_state.end_turn_cooldown_seconds,
@@ -1320,6 +1369,9 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 	network_connected_seats.clear()
 	for seat in snapshot.get("connected_seats", []):
 		network_connected_seats.append(int(seat))
+	network_ready_seats.clear()
+	for seat in snapshot.get("ready_seats", []):
+		network_ready_seats.append(int(seat))
 	game_state.end_turn_cooldown_seconds = float(
 		snapshot.get("end_turn_cooldown_seconds", game_state.end_turn_cooldown_seconds)
 	)
@@ -1469,6 +1521,18 @@ func _handle_network_relic_choice_request(player_index: int, relic_id: String) -
 	if game_state.choose_relic(game_state.players[player_index], relic_id):
 		_refresh_ui()
 		_broadcast_network_snapshot()
+
+
+func _handle_network_lobby_ready(player_index: int) -> void:
+	if not network_is_host or player_index <= 0:
+		return
+	if not network_ready_seats.has(player_index):
+		network_ready_seats.append(player_index)
+		network_ready_seats.sort()
+		_play_ui_sound("button_click")
+		_set_lobby_status("Player %d is ready to play." % (player_index + 1))
+	_refresh_lobby_panel()
+	_broadcast_network_snapshot()
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -2766,6 +2830,41 @@ func _build_lobby_panel() -> void:
 	left.add_child(_create_parchment_title("Lobby", "Seat players before opening the table."))
 	left.add_child(_create_parchment_rule())
 
+	# A big, unmissable lobby code banner: this is the thing players share.
+	lobby_code_banner = PanelContainer.new()
+	lobby_code_banner.name = "CodeBanner"
+	lobby_code_banner.visible = false
+	lobby_code_banner.custom_minimum_size = Vector2(0, 74)
+	lobby_code_banner.add_theme_stylebox_override(
+		"panel",
+		_make_pill_style(Color(0.16, 0.115, 0.06, 0.92), COLOR_BRASS, 12)
+	)
+	left.add_child(lobby_code_banner)
+	var banner_stack := VBoxContainer.new()
+	banner_stack.name = "Stack"
+	banner_stack.alignment = BoxContainer.ALIGNMENT_CENTER
+	banner_stack.add_theme_constant_override("separation", 0)
+	lobby_code_banner.add_child(banner_stack)
+	var banner_eyebrow := Label.new()
+	banner_eyebrow.name = "Eyebrow"
+	banner_eyebrow.text = "LOBBY CODE"
+	banner_eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner_eyebrow.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
+	banner_eyebrow.add_theme_font_size_override("font_size", 10)
+	if title_font != null:
+		banner_eyebrow.add_theme_font_override("font", title_font)
+	banner_stack.add_child(banner_eyebrow)
+	lobby_code_value_label = Label.new()
+	lobby_code_value_label.name = "CodeValue"
+	lobby_code_value_label.text = "...."
+	lobby_code_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lobby_code_value_label.add_theme_color_override("font_color", COLOR_BRASS)
+	lobby_code_value_label.add_theme_font_size_override("font_size", 34)
+	lobby_code_value_label.add_theme_constant_override("outline_size", 0)
+	if title_font != null:
+		lobby_code_value_label.add_theme_font_override("font", title_font)
+	banner_stack.add_child(lobby_code_value_label)
+
 	home_lobby_seat_list = VBoxContainer.new()
 	home_lobby_seat_list.name = "SeatList"
 	home_lobby_seat_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -2786,10 +2885,20 @@ func _build_lobby_panel() -> void:
 	home_lobby_address_input.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
 	if body_font != null:
 		home_lobby_address_input.add_theme_font_override("font", body_font)
+	home_lobby_address_input.text_changed.connect(_on_lobby_address_text_changed)
 	invite_row.add_child(home_lobby_address_input)
 	var copy_button := _create_parchment_button("CopyButton", "COPY", false)
 	copy_button.pressed.connect(_on_lobby_copy_pressed)
 	invite_row.add_child(copy_button)
+
+	lobby_panel_status_label = Label.new()
+	lobby_panel_status_label.name = "LobbyPanelStatus"
+	lobby_panel_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lobby_panel_status_label.add_theme_color_override("font_color", COLOR_PARCHMENT.darkened(0.08))
+	lobby_panel_status_label.add_theme_font_size_override("font_size", 12)
+	if body_font != null:
+		lobby_panel_status_label.add_theme_font_override("font", body_font)
+	left.add_child(lobby_panel_status_label)
 
 	var right := VBoxContainer.new()
 	right.name = "RulesColumn"
@@ -3184,6 +3293,13 @@ func _refresh_lobby_panel() -> void:
 		return
 	var can_edit_table := _can_edit_table_settings()
 	var can_edit_lobby_setup := _can_edit_lobby_setup()
+	var online_mode := lobby_pending_mode == "host_online" or lobby_pending_mode == "join_online"
+	if lobby_code_banner != null:
+		var show_code := online_mode and not online_relay_lobby_code.is_empty()
+		lobby_code_banner.visible = show_code
+		if show_code and lobby_code_value_label != null:
+			# Space the letters out so the code reads at a glance.
+			lobby_code_value_label.text = " ".join(online_relay_lobby_code.split(""))
 	_clear_container(home_lobby_seat_list)
 	var filled_seats: Array[int] = []
 	if network_enabled:
@@ -3235,7 +3351,16 @@ func _refresh_lobby_panel() -> void:
 					else "CREATE LOBBY"
 				)
 			"join_online":
-				home_lobby_start_button.text = "JOIN ONLINE"
+				if network_enabled and not network_is_host:
+					# A seated guest signals readiness instead of starting.
+					if lobby_ready_sent or network_ready_seats.has(local_player_index):
+						home_lobby_start_button.text = "READY - WAITING FOR HOST"
+						home_lobby_start_button.disabled = true
+					else:
+						home_lobby_start_button.text = "I'M READY"
+						home_lobby_start_button.disabled = false
+				else:
+					home_lobby_start_button.text = "JOIN ONLINE"
 			_:
 				home_lobby_start_button.text = "START GAME"
 	if home_lobby_address_input != null:
@@ -3348,8 +3473,16 @@ func _create_lobby_seat_row(index: int, filled: bool) -> PanelContainer:
 	if body_bold_font != null:
 		title.add_theme_font_override("font", body_bold_font)
 	names.add_child(title)
+	var seat_ready := filled and _is_seat_ready(index)
+	var seat_is_host := network_enabled and index == 0
+
 	var sub := Label.new()
-	sub.text = "Starting deck ready" if filled else "Waiting for a player"
+	if not filled:
+		sub.text = "Waiting for a player"
+	elif network_enabled and not seat_ready:
+		sub.text = "Getting ready..."
+	else:
+		sub.text = "Starting deck ready"
 	sub.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
 	sub.add_theme_font_size_override("font_size", 12)
 	if body_font != null:
@@ -3358,8 +3491,14 @@ func _create_lobby_seat_row(index: int, filled: bool) -> PanelContainer:
 
 	var pill := PanelContainer.new()
 	pill.custom_minimum_size = Vector2(74, 24)
-	var ready_bg := Color("#3d7d58") if filled else Color(0.46, 0.34, 0.16, 0.18)
-	var ready_border := Color("#2f6949") if filled else Color(0.46, 0.34, 0.16, 0.26)
+	var ready_bg := Color(0.46, 0.34, 0.16, 0.18)
+	var ready_border := Color(0.46, 0.34, 0.16, 0.26)
+	if seat_ready:
+		ready_bg = Color("#3d7d58")
+		ready_border = Color("#2f6949")
+	elif filled:
+		ready_bg = Color("#8a6a2a")
+		ready_border = Color("#6e5320")
 	pill.add_theme_stylebox_override(
 		"panel",
 		_make_pill_style(
@@ -3370,7 +3509,14 @@ func _create_lobby_seat_row(index: int, filled: bool) -> PanelContainer:
 	)
 	row.add_child(pill)
 	var pill_label := Label.new()
-	pill_label.text = "READY" if filled else "WAITING"
+	if seat_is_host:
+		pill_label.text = "HOST"
+	elif seat_ready:
+		pill_label.text = "READY"
+	elif filled:
+		pill_label.text = "JOINED"
+	else:
+		pill_label.text = "WAITING"
 	pill_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pill_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	var pill_text_color := Color("#f5e6c0") if filled else COLOR_PARCHMENT_MUTED
@@ -3761,6 +3907,8 @@ func _refresh_home_controls() -> void:
 			)
 		else:
 			home_lobby_status_label.text = "Host locally or use a 4-letter online code."
+		if lobby_panel_status_label != null:
+			lobby_panel_status_label.text = home_lobby_status_label.text
 	if home_audio_toggle != null:
 		home_audio_toggle.set_pressed_no_signal(audio_enabled)
 	if home_motion_toggle != null:
@@ -3803,6 +3951,13 @@ func _show_home_tab(tab_name: String) -> void:
 		_refresh_kingdom_tab()
 	elif tab_name == "lobby":
 		_refresh_lobby_panel()
+		if (
+			lobby_pending_mode == "join_online"
+			and not network_enabled
+			and home_lobby_address_input != null
+		):
+			# Joining is all about the code: put the caret right in the box.
+			home_lobby_address_input.grab_focus()
 
 
 func _refresh_kingdom_tab() -> void:
@@ -7039,6 +7194,13 @@ func _on_home_settings_pressed() -> void:
 
 func _on_home_kingdoms_pressed() -> void:
 	_play_ui_sound("button_click")
+	# Remember whether the kingdom browser was opened from the lobby so
+	# closing it returns there instead of dumping the player to the main menu.
+	kingdom_return_tab = (
+		"lobby"
+		if home_lobby_panel != null and home_lobby_panel.visible
+		else ""
+	)
 	_show_home_tab("kingdoms")
 
 
@@ -7055,6 +7217,11 @@ func _on_kingdoms_close_pressed() -> void:
 func _close_kingdom_browser() -> void:
 	if home_kingdoms_panel != null:
 		home_kingdoms_panel.hide()
+	if not kingdom_return_tab.is_empty():
+		var return_tab := kingdom_return_tab
+		kingdom_return_tab = ""
+		_show_home_tab(return_tab)
+		return
 	if not _home_modal_is_visible():
 		_set_menu_overlay_active(false)
 
@@ -7087,6 +7254,18 @@ func _home_modal_is_visible() -> bool:
 
 
 func _hide_home_modals() -> void:
+	# Escaping the kingdom browser that was opened from the lobby goes back to
+	# the lobby; a second escape then closes the modals for real.
+	if (
+		home_kingdoms_panel != null
+		and home_kingdoms_panel.visible
+		and not kingdom_return_tab.is_empty()
+	):
+		var return_tab := kingdom_return_tab
+		kingdom_return_tab = ""
+		_show_home_tab(return_tab)
+		return
+	kingdom_return_tab = ""
 	if home_settings_panel != null:
 		home_settings_panel.hide()
 	if home_kingdoms_panel != null:
@@ -7191,9 +7370,34 @@ func _update_settings_slider_value(
 			value_label.text = "%.1f" % value
 
 
+func _on_lobby_address_text_changed(new_text: String) -> void:
+	# While typing a join code, keep it uppercase letters only, max 4. Setting
+	# the text programmatically does not re-emit text_changed.
+	if lobby_pending_mode != "join_online" or network_enabled:
+		return
+	var normalized := _normalize_online_lobby_code(new_text)
+	if normalized != new_text and home_lobby_address_input != null:
+		home_lobby_address_input.text = normalized
+		home_lobby_address_input.caret_column = normalized.length()
+
+
+func _is_seat_ready(index: int) -> bool:
+	if not network_enabled:
+		return true
+	if index == 0 or network_table_open:
+		return true
+	if index == local_player_index and lobby_ready_sent:
+		return true
+	return network_ready_seats.has(index)
+
+
 func _on_lobby_copy_pressed() -> void:
 	if home_lobby_address_input != null:
-		DisplayServer.clipboard_set(home_lobby_address_input.text)
+		DisplayServer.clipboard_set(
+			online_relay_lobby_code
+			if network_mode == NETWORK_MODE_ONLINE and not online_relay_lobby_code.is_empty()
+			else home_lobby_address_input.text
+		)
 	_play_ui_sound("button_click")
 
 
@@ -7212,6 +7416,16 @@ func _on_lobby_leave_pressed() -> void:
 func _on_lobby_start_pressed() -> void:
 	_play_ui_sound("button_click")
 	if network_enabled and not network_is_host:
+		if (
+			network_mode == NETWORK_MODE_ONLINE
+			and not network_table_open
+			and not lobby_ready_sent
+		):
+			# Guests can't start the table; the button tells the host they are
+			# ready to play instead.
+			lobby_ready_sent = true
+			_send_online_signal("host", {"method": "lobby_ready"})
+			_set_lobby_status("You're ready. Waiting for the host to start...")
 		_refresh_lobby_panel()
 		return
 	if lobby_pending_mode == "join":
