@@ -387,6 +387,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_keep_background_music_alive()
 	_tick_online_relay_reconnect(delta)
 	_poll_online_relay()
 	if network_enabled:
@@ -6856,6 +6857,17 @@ func _refresh_background_music() -> void:
 	else:
 		background_music_player.stop()
 		background_music_started_from_user_gesture = false
+
+
+func _keep_background_music_alive() -> void:
+	# If the music player ever ends up stopped while audio is on (audio device
+	# hiccup, slow audio-server startup on some platforms), quietly restart it.
+	if background_music_player == null or not audio_enabled:
+		return
+	if not background_music_started_from_user_gesture:
+		return
+	if background_music_player.stream != null and not background_music_player.playing:
+		background_music_player.play()
 
 
 func _start_background_music_from_user_gesture() -> void:

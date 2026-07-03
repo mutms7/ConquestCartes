@@ -159,14 +159,26 @@ func _initialize() -> void:
 	_check(_home_audio_toggle().button_pressed, "Audio should default to enabled.")
 	_check(
 		main_ui.background_music_player != null
-		and main_ui.background_music_player.stream != null
-		and main_ui.background_music_player.playing
-		and main_ui.background_music_started_from_user_gesture
+		and main_ui.background_music_player.stream != null,
+		"Background medieval music should load its stream."
+	)
+	_check(
+		main_ui.background_music_started_from_user_gesture,
+		"Background music should be unlocked by the first UI sound."
+	)
+	await process_frame
+	await process_frame
+	_check(
+		main_ui.background_music_player != null and main_ui.background_music_player.playing,
+		"Background music should be playing when audio is enabled."
+	)
+	_check(
+		main_ui.background_music_player != null
 		and is_equal_approx(
 			main_ui.background_music_player.volume_db,
 			main_ui.BACKGROUND_MUSIC_VOLUME_DB
 		),
-		"Background medieval music should load and start when audio is enabled."
+		"Background music should play at the configured volume."
 	)
 	main_ui.background_music_started_from_user_gesture = false
 	var unlock_click := InputEventMouseButton.new()
