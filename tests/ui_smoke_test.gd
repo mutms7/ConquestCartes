@@ -163,6 +163,10 @@ func _initialize() -> void:
 		"Background medieval music should load its stream."
 	)
 	_check(
+		_music_import_uses_full_quality_wav(),
+		"Background music should import as full-quality WAV, not compressed buzz."
+	)
+	_check(
 		main_ui.background_music_started_from_user_gesture,
 		"Background music should be unlocked by the first UI sound."
 	)
@@ -179,6 +183,26 @@ func _initialize() -> void:
 			main_ui.BACKGROUND_MUSIC_VOLUME_DB
 		),
 		"Background music should play at the configured volume."
+	)
+	_background_music_slider().set_value_no_signal(0.0)
+	_background_music_slider().value_changed.emit(0.0)
+	_check(
+		is_zero_approx(main_ui.background_music_volume)
+		and main_ui.background_music_player != null
+		and not main_ui.background_music_player.playing,
+		"Background music slider at zero should fully stop playback instead of leaving faint noise."
+	)
+	_background_music_slider().set_value_no_signal(1.0)
+	_background_music_slider().value_changed.emit(1.0)
+	await process_frame
+	_check(
+		main_ui.background_music_player != null
+		and main_ui.background_music_player.playing
+		and is_equal_approx(
+			main_ui.background_music_player.volume_db,
+			main_ui.BACKGROUND_MUSIC_VOLUME_DB
+		),
+		"Raising the background music slider should restart the boosted music mix."
 	)
 	main_ui.background_music_started_from_user_gesture = false
 	var unlock_click := InputEventMouseButton.new()
@@ -1742,6 +1766,17 @@ func _active_ui_uses_original_assets() -> bool:
 		and not script_text.contains("kenney_fantasy-ui-borders")
 		and not scene_text.contains("kenney_fantasy-ui-borders")
 	)
+
+
+func _music_import_uses_full_quality_wav() -> bool:
+	var import_text := FileAccess.get_file_as_string(
+		"res://assets/audio/sunspire_court_loop.wav.import"
+	)
+	return import_text.contains("compress/mode=0")
+
+
+func _background_music_slider() -> HSlider:
+	return main_ui.background_music_slider
 
 
 func _cleanup_main_ui() -> void:

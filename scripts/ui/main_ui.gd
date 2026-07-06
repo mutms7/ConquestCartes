@@ -135,7 +135,7 @@ const SOUND_PATHS := {
 	"game_end": "res://assets/audio/ui/game_end.ogg",
 }
 const BACKGROUND_MUSIC_PATH := "res://assets/audio/sunspire_court_loop.wav"
-const BACKGROUND_MUSIC_VOLUME_DB := 0.0
+const BACKGROUND_MUSIC_VOLUME_DB := 6.0
 
 var game_state := GameState.new()
 var turn_manager := TurnManager.new()
@@ -7086,7 +7086,10 @@ func _refresh_background_music() -> void:
 	if background_music_player == null:
 		return
 	if audio_enabled:
-		background_music_player.volume_db = linear_to_db(maxf(0.001, background_music_volume))
+		background_music_player.volume_db = _get_background_music_volume_db()
+		if background_music_volume <= 0.0:
+			background_music_player.stop()
+			return
 		if not background_music_player.playing:
 			background_music_player.play()
 	else:
@@ -7094,10 +7097,18 @@ func _refresh_background_music() -> void:
 		background_music_started_from_user_gesture = false
 
 
+func _get_background_music_volume_db() -> float:
+	if background_music_volume <= 0.0:
+		return -80.0
+	return linear_to_db(background_music_volume) + BACKGROUND_MUSIC_VOLUME_DB
+
+
 func _keep_background_music_alive() -> void:
 	# If the music player ever ends up stopped while audio is on (audio device
 	# hiccup, slow audio-server startup on some platforms), quietly restart it.
 	if background_music_player == null or not audio_enabled:
+		return
+	if background_music_volume <= 0.0:
 		return
 	if not background_music_started_from_user_gesture:
 		return
@@ -7108,8 +7119,11 @@ func _keep_background_music_alive() -> void:
 func _start_background_music_from_user_gesture() -> void:
 	if background_music_player == null or not audio_enabled:
 		return
+	if background_music_volume <= 0.0:
+		return
 	if background_music_started_from_user_gesture and background_music_player.playing:
 		return
+	background_music_player.volume_db = _get_background_music_volume_db()
 	background_music_player.stop()
 	background_music_player.play()
 	background_music_started_from_user_gesture = true
@@ -7564,8 +7578,7 @@ func _on_action_animation_speed_changed(value: float) -> void:
 
 func _on_background_music_changed(value: float) -> void:
 	background_music_volume = clampf(value, 0.0, 1.0)
-	if background_music_player != null:
-		background_music_player.volume_db = linear_to_db(maxf(0.001, background_music_volume))
+	_refresh_background_music()
 
 
 func _on_end_turn_cooldown_changed(value: float) -> void:
