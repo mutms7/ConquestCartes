@@ -68,12 +68,13 @@ currently unavailable.
 Player 1. Up to three joined players enter the host's IP address in the
 home-screen address field and press `JOIN LOCAL`.
 
-`CREATE ONLINE` connects to the Vercel HTTP polling relay at `/api/relay` and
-receives a 4-letter lobby code. Other players press `JOIN ONLINE` and enter that
-code. The host owns the authoritative game state and relays every play, buy,
-choice, personal cooldown, cleanup, attack, and score update to clients. Players
-act in parallel; pressing End Turn immediately prepares that player's next hand
-and only starts that player's own End Turn cooldown.
+`CREATE ONLINE` opens the online lobby setup. Press `CREATE LOBBY` there to
+connect to the Vercel HTTP polling relay at `/api/relay` and receive a 4-letter
+lobby code. Other players press `JOIN ONLINE` and enter that code. The host owns
+the authoritative game state and relays every play, buy, choice, personal
+cooldown, cleanup, attack, and score update to clients. Players act in parallel;
+pressing End Turn immediately prepares that player's next hand and only starts
+that player's own End Turn cooldown.
 
 The bundled Vercel relay is a prototype path for browser play. For public
 low-ping multiplayer at scale, replace or harden it with a room-affine realtime

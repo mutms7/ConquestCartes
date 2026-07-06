@@ -61,6 +61,11 @@ func _initialize() -> void:
 		and _lobby_start_button().text == "CREATE LOBBY",
 		"Create online should wait in the lobby until a code is assigned."
 	)
+	_check(
+		_home_lobby_rules_summary().text.contains("press CREATE LOBBY")
+		and main_ui.lobby_panel_status_label.text.contains("CREATE LOBBY"),
+		"Create online should explain that the CREATE LOBBY button generates the code."
+	)
 	main_ui.network_enabled = true
 	main_ui.network_is_host = true
 	main_ui.network_mode = main_ui.NETWORK_MODE_ONLINE

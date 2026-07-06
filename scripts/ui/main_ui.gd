@@ -2884,7 +2884,7 @@ func _build_multiplayer_panel() -> void:
 	home_create_online_button = _create_multiplayer_option_button(
 		"CreateOnlineButton",
 		"Create online",
-		"Share a 4-letter lobby code.",
+		"Set rules, then generate a code.",
 		true,
 		"online"
 	)
@@ -3401,6 +3401,11 @@ func _refresh_lobby_panel() -> void:
 	var can_edit_table := _can_edit_table_settings()
 	var can_edit_lobby_setup := _can_edit_lobby_setup()
 	var online_mode := lobby_pending_mode == "host_online" or lobby_pending_mode == "join_online"
+	if not network_enabled:
+		if lobby_pending_mode == "host_online":
+			_set_lobby_status("Press CREATE LOBBY to generate a 4-letter code.")
+		elif lobby_pending_mode == "join_online":
+			_set_lobby_status("Enter a 4-letter code from the host.")
 	if lobby_code_banner != null:
 		var show_code := online_mode and not online_relay_lobby_code.is_empty()
 		lobby_code_banner.visible = show_code
@@ -3425,9 +3430,15 @@ func _refresh_lobby_panel() -> void:
 	for index in range(lobby_max_players):
 		home_lobby_seat_list.add_child(_create_lobby_seat_row(index, filled_seats.has(index)))
 	if home_lobby_rules_summary != null:
-		if lobby_pending_mode == "host_online" or lobby_pending_mode == "join_online":
+		if lobby_pending_mode == "host_online":
 			home_lobby_rules_summary.text = (
-				"Online: share or enter a 4-letter code. Cooldown %.1fs, up to %d players, attacks on."
+				"Online setup: choose rules, then press CREATE LOBBY to generate a 4-letter code. "
+				+ "Cooldown %.1fs, up to %d players, attacks on."
+				% [game_state.end_turn_cooldown_seconds, lobby_max_players]
+			)
+		elif lobby_pending_mode == "join_online":
+			home_lobby_rules_summary.text = (
+				"Online: enter the host's 4-letter code. Cooldown %.1fs, up to %d players, attacks on."
 				% [game_state.end_turn_cooldown_seconds, lobby_max_players]
 			)
 		elif game_state.turn_based_enabled:
@@ -4012,6 +4023,10 @@ func _refresh_home_controls() -> void:
 				"Active lobby: %d players share this market."
 				% game_state.get_player_count()
 			)
+		elif lobby_pending_mode == "host_online":
+			home_lobby_status_label.text = "Press CREATE LOBBY to generate a 4-letter code."
+		elif lobby_pending_mode == "join_online":
+			home_lobby_status_label.text = "Enter a 4-letter code from the host."
 		else:
 			home_lobby_status_label.text = "Host locally or use a 4-letter online code."
 		if lobby_panel_status_label != null:
