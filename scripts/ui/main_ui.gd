@@ -134,7 +134,7 @@ const SOUND_PATHS := {
 	"discard": "res://assets/audio/ui/discard.ogg",
 	"game_end": "res://assets/audio/ui/game_end.ogg",
 }
-const BACKGROUND_MUSIC_PATH := "res://assets/audio/sunspire_court_loop.wav"
+const BACKGROUND_MUSIC_PATH := "res://assets/audio/dominion_board_game_ambience.mp3"
 const BACKGROUND_MUSIC_VOLUME_DB := 6.0
 
 var game_state := GameState.new()
@@ -1710,6 +1710,9 @@ func _load_optional_assets() -> void:
 			if music_stream is AudioStreamWAV:
 				var wav_stream := music_stream as AudioStreamWAV
 				wav_stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+			elif music_stream is AudioStreamMP3:
+				var mp3_stream := music_stream as AudioStreamMP3
+				mp3_stream.loop = true
 			background_music_player = AudioStreamPlayer.new()
 			background_music_player.name = "BackgroundMusic"
 			background_music_player.stream = music_stream

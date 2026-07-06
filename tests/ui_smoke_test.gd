@@ -163,8 +163,8 @@ func _initialize() -> void:
 		"Background medieval music should load its stream."
 	)
 	_check(
-		_music_import_uses_full_quality_wav(),
-		"Background music should import as full-quality WAV, not compressed buzz."
+		_music_uses_dominion_ambience_mp3(),
+		"Background music should use the supplied Dominion ambience MP3."
 	)
 	_check(
 		main_ui.background_music_started_from_user_gesture,
@@ -1768,11 +1768,11 @@ func _active_ui_uses_original_assets() -> bool:
 	)
 
 
-func _music_import_uses_full_quality_wav() -> bool:
-	var import_text := FileAccess.get_file_as_string(
-		"res://assets/audio/sunspire_court_loop.wav.import"
+func _music_uses_dominion_ambience_mp3() -> bool:
+	return (
+		main_ui.BACKGROUND_MUSIC_PATH == "res://assets/audio/dominion_board_game_ambience.mp3"
+		and main_ui.background_music_player.stream is AudioStreamMP3
 	)
-	return import_text.contains("compress/mode=0")
 
 
 func _background_music_slider() -> HSlider:
