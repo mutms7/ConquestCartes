@@ -65,8 +65,7 @@ const ONLINE_RELAY_PATH := "/api/relay"
 # Point every build at that one dedicated host below. CONQUEST_CARTES_RELAY_URL
 # overrides it for local dev (e.g. `node api/relay.js` at
 # http://127.0.0.1:3000/api/relay).
-# TODO: replace with your deployed relay host, e.g. https://conquest-cartes-relay.onrender.com/api/relay
-const ONLINE_RELAY_DEFAULT_URL := "https://conquest-cartes.vercel.app/api/relay"
+const ONLINE_RELAY_DEFAULT_URL := "https://conquest-cartes-relay.onrender.com/api/relay"
 const ONLINE_LOBBY_CODE_LENGTH := 4
 const ONLINE_RELAY_MAX_RECONNECT_ATTEMPTS := 3
 const ONLINE_RELAY_RECONNECT_DELAY_SECONDS := 2.0
