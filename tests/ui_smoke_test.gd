@@ -170,6 +170,19 @@ func _initialize() -> void:
 		main_ui.background_music_started_from_user_gesture,
 		"Background music should be unlocked by the first UI sound."
 	)
+	_check(
+		is_equal_approx(main_ui.background_music_volume, main_ui.DEFAULT_AUDIO_VOLUME)
+		and is_equal_approx(_background_music_slider().value, main_ui.DEFAULT_AUDIO_VOLUME),
+		"Background music volume should default to 50%."
+	)
+	_check(
+		is_equal_approx(_background_music_slider().step, main_ui.VOLUME_SLIDER_STEP)
+		and is_equal_approx(
+			main_ui._get_background_music_linear_volume(),
+			pow(main_ui.DEFAULT_AUDIO_VOLUME, main_ui.VOLUME_RESPONSE_EXPONENT)
+		),
+		"Background music slider should offer finer low-end volume control."
+	)
 	await process_frame
 	await process_frame
 	_check(
@@ -180,9 +193,26 @@ func _initialize() -> void:
 		main_ui.background_music_player != null
 		and is_equal_approx(
 			main_ui.background_music_player.volume_db,
-			main_ui.BACKGROUND_MUSIC_VOLUME_DB
+			main_ui._get_background_music_volume_db()
 		),
 		"Background music should play at the configured volume."
+	)
+	main_ui.background_music_player.seek(2.0)
+	await process_frame
+	var position_before_settings: float = main_ui.background_music_player.get_playback_position()
+	main_ui.background_music_started_from_user_gesture = false
+	_home_settings_button().pressed.emit()
+	await process_frame
+	var position_after_settings: float = main_ui.background_music_player.get_playback_position()
+	var settings_preserved_position := true
+	if position_before_settings > 1.0:
+		settings_preserved_position = position_after_settings > 1.0
+	_check(
+		main_ui.background_music_started_from_user_gesture
+		and main_ui.background_music_player != null
+		and main_ui.background_music_player.playing
+		and settings_preserved_position,
+		"Opening Settings should not restart background music that is already playing."
 	)
 	_background_music_slider().set_value_no_signal(0.0)
 	_background_music_slider().value_changed.emit(0.0)

@@ -136,6 +136,9 @@ const SOUND_PATHS := {
 }
 const BACKGROUND_MUSIC_PATH := "res://assets/audio/dominion_board_game_ambience.mp3"
 const BACKGROUND_MUSIC_VOLUME_DB := 6.0
+const DEFAULT_AUDIO_VOLUME := 0.5
+const VOLUME_SLIDER_STEP := 0.01
+const VOLUME_RESPONSE_EXPONENT := 2.0
 
 var game_state := GameState.new()
 var turn_manager := TurnManager.new()
@@ -251,7 +254,7 @@ var fullscreen_toggle: CheckButton
 var noise_texture: Texture2D
 var lobby_pending_mode := "host"
 var lobby_max_players := NETWORK_MAX_PLAYERS
-var background_music_volume := 1.0
+var background_music_volume := DEFAULT_AUDIO_VOLUME
 
 @onready var turn_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/TurnStat/Value
 @onready var deck_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/DeckStat/ValueRow/Value
@@ -1716,7 +1719,7 @@ func _load_optional_assets() -> void:
 			background_music_player = AudioStreamPlayer.new()
 			background_music_player.name = "BackgroundMusic"
 			background_music_player.stream = music_stream
-			background_music_player.volume_db = BACKGROUND_MUSIC_VOLUME_DB
+			background_music_player.volume_db = _get_background_music_volume_db()
 			add_child(background_music_player)
 			_refresh_background_music()
 
@@ -2749,7 +2752,7 @@ func _build_settings_panel() -> void:
 		background_music_volume,
 		0.0,
 		1.0,
-		0.05,
+		VOLUME_SLIDER_STEP,
 		"pct"
 	)
 	background_music_slider.value_changed.connect(_on_background_music_changed)
@@ -7093,7 +7096,7 @@ func _refresh_background_music() -> void:
 		if background_music_volume <= 0.0:
 			background_music_player.stop()
 			return
-		if not background_music_player.playing:
+		if background_music_started_from_user_gesture and not background_music_player.playing:
 			background_music_player.play()
 	else:
 		background_music_player.stop()
@@ -7101,9 +7104,17 @@ func _refresh_background_music() -> void:
 
 
 func _get_background_music_volume_db() -> float:
-	if background_music_volume <= 0.0:
+	var linear_volume := _get_background_music_linear_volume()
+	if linear_volume <= 0.0:
 		return -80.0
-	return linear_to_db(background_music_volume) + BACKGROUND_MUSIC_VOLUME_DB
+	return linear_to_db(linear_volume) + BACKGROUND_MUSIC_VOLUME_DB
+
+
+func _get_background_music_linear_volume() -> float:
+	var slider_volume := clampf(background_music_volume, 0.0, 1.0)
+	if slider_volume <= 0.0:
+		return 0.0
+	return pow(slider_volume, VOLUME_RESPONSE_EXPONENT)
 
 
 func _keep_background_music_alive() -> void:
@@ -7124,7 +7135,9 @@ func _start_background_music_from_user_gesture() -> void:
 		return
 	if background_music_volume <= 0.0:
 		return
-	if background_music_started_from_user_gesture and background_music_player.playing:
+	if background_music_player.playing:
+		background_music_player.volume_db = _get_background_music_volume_db()
+		background_music_started_from_user_gesture = true
 		return
 	background_music_player.volume_db = _get_background_music_volume_db()
 	background_music_player.stop()
