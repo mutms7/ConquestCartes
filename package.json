@@ -7,8 +7,5 @@
   },
   "scripts": {
     "check:relay": "node --check api/relay.js"
-  },
-  "dependencies": {
-    "ws": "^8.18.0"
   }
 }

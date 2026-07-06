@@ -68,9 +68,9 @@ currently unavailable.
 Player 1. Up to three joined players enter the host's IP address in the
 home-screen address field and press `JOIN LOCAL`.
 
-`CREATE ONLINE` connects to the Vercel WebSocket relay at `/api/relay` and
+`CREATE ONLINE` connects to the Vercel HTTP polling relay at `/api/relay` and
 receives a 4-letter lobby code. Other players press `JOIN ONLINE` and enter that
-code. The host owns the authoritative game state and broadcasts every play, buy,
+code. The host owns the authoritative game state and relays every play, buy,
 choice, personal cooldown, cleanup, attack, and score update to clients. Players
 act in parallel; pressing End Turn immediately prepares that player's next hand
 and only starts that player's own End Turn cooldown.
@@ -146,7 +146,8 @@ See `assets/licenses/ASSET_SOURCES.md` for provenance details.
 
 - Local direct-IP multiplayer requires LAN reachability, port forwarding, or a VPN.
 - The Vercel online relay is in-memory prototype infrastructure; room durability
-  and reconnect/resume still need a production realtime backend.
+  across cold starts or multiple function instances still needs a production
+  realtime backend.
 - No save system or full accessibility menu.
 - Rival-only reaction clauses are omitted in the solo ruleset.
 - The art library contains 29 finished illustrations. The 63-card catalog

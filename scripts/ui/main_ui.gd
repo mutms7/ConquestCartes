@@ -45,8 +45,8 @@ const END_TURN_BUTTON_WIDTH := 188.0
 const PLAYER_STATUS_ROW_HEIGHT := 49.0
 const PLAYER_STATUS_COOLDOWN_BAR_HEIGHT := 5.0
 const PILE_FACE_SIZE := Vector2(105, 145)
-const PREVIEW_SIZE := Vector2(320, 540)
-const PREVIEW_ART_HEIGHT := 215.0
+const PREVIEW_SIZE := Vector2(252, 340)
+const PREVIEW_ART_HEIGHT := 184.0
 const PREVIEW_EDGE_MARGIN := 16.0
 const SHORT_RULE_BREAK_LIMIT := 72
 const HOME_ART_PATH := "res://assets/cards/sunspire_monument.png"
@@ -61,12 +61,13 @@ const NETWORK_MODE_ONLINE := "online"
 const ONLINE_RELAY_PATH := "/api/relay"
 # Desktop builds talk to the deployed relay; web builds derive the URL from the
 # page origin, and CONQUEST_CARTES_RELAY_URL overrides both (e.g. for a local
-# `node api/relay.js` server at ws://127.0.0.1:3000/api/relay).
-const ONLINE_RELAY_DEFAULT_URL := "wss://conquest-cartes.vercel.app/api/relay"
+# `node api/relay.js` server at http://127.0.0.1:3000/api/relay).
+const ONLINE_RELAY_DEFAULT_URL := "https://conquest-cartes.vercel.app/api/relay"
 const ONLINE_LOBBY_CODE_LENGTH := 4
 const ONLINE_RELAY_MAX_RECONNECT_ATTEMPTS := 3
 const ONLINE_RELAY_RECONNECT_DELAY_SECONDS := 2.0
 const ONLINE_RELAY_CONNECT_TIMEOUT_SECONDS := 10.0
+const ONLINE_RELAY_POLL_INTERVAL_SECONDS := 0.35
 const NETWORK_RELIC_INTERVAL_SECONDS := 45.0
 
 const COLOR_PARCHMENT := Color("#ecdcb6")
@@ -209,7 +210,6 @@ var network_is_host := false
 var network_mode := NETWORK_MODE_LOCAL
 var local_player_index := 0
 var network_peer_to_player: Dictionary = {}
-var online_relay_socket: WebSocketPeer
 var online_relay_connected := false
 var online_relay_role := ""
 var online_relay_lobby_code := ""
@@ -219,6 +219,8 @@ var online_relay_url_override := ""
 var online_relay_reconnect_attempts := 0
 var online_relay_reconnect_timer := 0.0
 var online_relay_connect_timer := 0.0
+var online_relay_poll_timer := 0.0
+var online_relay_poll_in_flight := false
 var network_ready_seats: Array[int] = []
 var lobby_ready_sent := false
 var lobby_code_banner: PanelContainer
@@ -389,7 +391,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_keep_background_music_alive()
 	_tick_online_relay_reconnect(delta)
-	_poll_online_relay()
+	_tick_online_relay_poll(delta)
 	if network_enabled:
 		if network_is_host:
 			_tick_network_cooldowns(delta)
@@ -568,24 +570,36 @@ func _join_online_lobby() -> void:
 
 
 func _connect_online_relay() -> void:
-	online_relay_socket = WebSocketPeer.new()
 	online_relay_connected = false
 	online_relay_connect_timer = ONLINE_RELAY_CONNECT_TIMEOUT_SECONDS
-	var relay_url := _get_online_relay_url()
-	var error := online_relay_socket.connect_to_url(relay_url)
-	if error != OK:
+	online_relay_poll_timer = 0.0
+	online_relay_poll_in_flight = false
+	_set_lobby_status("Contacting the online relay...")
+	if online_relay_role == "host":
+		_send_online_relay_message({
+			"type": "create",
+			"maxPlayers": lobby_max_players,
+		})
+	elif online_relay_role == "join":
+		_send_online_relay_message({
+			"type": "join",
+			"code": online_relay_lobby_code,
+		})
+	else:
 		_disconnect_network()
 		_refresh_home_controls()
-		_set_lobby_status("Could not connect to the online relay.")
-		return
-	_set_lobby_status("Connecting to the online relay...")
+		_set_lobby_status("Choose Create Online or Join Online first.")
 
 
 func _disconnect_network() -> void:
-	if online_relay_socket != null:
-		if online_relay_socket.get_ready_state() == WebSocketPeer.STATE_OPEN:
-			online_relay_socket.close(1000, "leaving")
-		online_relay_socket = null
+	var should_leave_online := (
+		network_enabled
+		and network_mode == NETWORK_MODE_ONLINE
+		and not online_relay_lobby_code.is_empty()
+		and not online_relay_client_id.is_empty()
+	)
+	if should_leave_online:
+		_send_online_relay_leave(online_relay_lobby_code, online_relay_client_id)
 	online_relay_connected = false
 	online_relay_role = ""
 	online_relay_lobby_code = ""
@@ -593,6 +607,8 @@ func _disconnect_network() -> void:
 	online_relay_host_id = ""
 	online_relay_reconnect_attempts = 0
 	online_relay_reconnect_timer = 0.0
+	online_relay_poll_timer = 0.0
+	online_relay_poll_in_flight = false
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = null
@@ -618,45 +634,35 @@ func _set_lobby_status(message: String) -> void:
 		lobby_panel_status_label.text = message
 
 
-func _poll_online_relay() -> void:
-	if online_relay_socket == null:
+func _tick_online_relay_poll(delta: float) -> void:
+	if not online_relay_connected:
 		return
-	online_relay_socket.poll()
-	var state := online_relay_socket.get_ready_state()
-	if state == WebSocketPeer.STATE_OPEN and not online_relay_connected:
-		online_relay_connected = true
-		online_relay_connect_timer = 0.0
-		_on_online_relay_connected()
-	if state == WebSocketPeer.STATE_OPEN:
-		while online_relay_socket.get_available_packet_count() > 0:
-			var raw_message := online_relay_socket.get_packet().get_string_from_utf8()
-			var parsed_message = JSON.parse_string(raw_message)
-			if typeof(parsed_message) == TYPE_DICTIONARY:
-				_handle_online_relay_message(parsed_message)
-	elif state == WebSocketPeer.STATE_CLOSED:
-		_on_online_relay_closed()
+	if not network_enabled or network_mode != NETWORK_MODE_ONLINE:
+		return
+	online_relay_poll_timer -= delta
+	if online_relay_poll_timer > 0.0:
+		return
+	online_relay_poll_timer = ONLINE_RELAY_POLL_INTERVAL_SECONDS
+	_poll_online_relay()
 
 
-func _on_online_relay_connected() -> void:
-	if online_relay_role == "host":
-		_send_online_relay_message({
-			"type": "create",
-			"maxPlayers": lobby_max_players,
-		})
-	elif online_relay_role == "join":
-		_send_online_relay_message({
-			"type": "join",
-			"code": online_relay_lobby_code,
-		})
+func _poll_online_relay() -> void:
+	if online_relay_poll_in_flight:
+		return
+	if online_relay_client_id.is_empty() or online_relay_lobby_code.is_empty():
+		return
+	online_relay_poll_in_flight = true
+	_send_online_relay_message({"type": "poll"})
 
 
 func _on_online_relay_closed() -> void:
 	var was_online := network_enabled and network_mode == NETWORK_MODE_ONLINE
 	var was_host := network_is_host
 	var never_connected := not online_relay_connected
-	online_relay_socket = null
 	online_relay_connected = false
 	online_relay_connect_timer = 0.0
+	online_relay_poll_timer = 0.0
+	online_relay_poll_in_flight = false
 	if not was_online:
 		_disconnect_network()
 		return
@@ -735,6 +741,10 @@ func _on_online_lobby_created(message: Dictionary) -> void:
 	online_relay_lobby_code = str(message.get("code", ""))
 	online_relay_client_id = str(message.get("clientId", online_relay_client_id))
 	online_relay_host_id = online_relay_client_id
+	online_relay_connected = true
+	online_relay_connect_timer = 0.0
+	online_relay_poll_timer = 0.0
+	online_relay_poll_in_flight = false
 	online_relay_reconnect_attempts = 0
 	network_peer_to_player.clear()
 	network_peer_to_player[online_relay_client_id] = 0
@@ -750,6 +760,10 @@ func _on_online_lobby_joined(message: Dictionary) -> void:
 	online_relay_lobby_code = str(message.get("code", online_relay_lobby_code))
 	online_relay_client_id = str(message.get("clientId", online_relay_client_id))
 	online_relay_host_id = str(message.get("hostId", online_relay_host_id))
+	online_relay_connected = true
+	online_relay_connect_timer = 0.0
+	online_relay_poll_timer = 0.0
+	online_relay_poll_in_flight = false
 	online_relay_reconnect_attempts = 0
 	if home_lobby_address_input != null:
 		home_lobby_address_input.text = online_relay_lobby_code
@@ -838,11 +852,100 @@ func _handle_online_relay_signal(sender_id: String, payload: Dictionary) -> void
 
 
 func _send_online_relay_message(message: Dictionary) -> void:
-	if online_relay_socket == null:
+	var relay_message := message.duplicate(true)
+	if not online_relay_client_id.is_empty() and not relay_message.has("clientId"):
+		relay_message["clientId"] = online_relay_client_id
+	if not online_relay_lobby_code.is_empty() and not relay_message.has("code"):
+		relay_message["code"] = online_relay_lobby_code
+	_send_online_relay_http_request(relay_message)
+
+
+func _send_online_relay_leave(lobby_code: String, client_id: String) -> void:
+	_send_online_relay_http_request(
+		{
+			"type": "leave",
+			"code": lobby_code,
+			"clientId": client_id,
+		},
+		true
+	)
+
+
+func _send_online_relay_http_request(message: Dictionary, ignore_response: bool = false) -> void:
+	var request := HTTPRequest.new()
+	request.timeout = ONLINE_RELAY_CONNECT_TIMEOUT_SECONDS
+	add_child(request)
+	var request_type := str(message.get("type", ""))
+	if ignore_response:
+		request_type = "leave"
+	request.request_completed.connect(
+		_on_online_relay_request_completed.bind(request, request_type)
+	)
+	var headers := PackedStringArray([
+		"Content-Type: application/json",
+		"Accept: application/json",
+	])
+	var error := request.request(
+		_get_online_relay_url(),
+		headers,
+		HTTPClient.METHOD_POST,
+		JSON.stringify(message)
+	)
+	if error != OK:
+		request.queue_free()
+		_handle_online_relay_request_failed(request_type)
+
+
+func _on_online_relay_request_completed(
+	result: int,
+	response_code: int,
+	_headers: PackedStringArray,
+	body: PackedByteArray,
+	request: HTTPRequest,
+	request_type: String
+) -> void:
+	if is_instance_valid(request):
+		request.queue_free()
+	if request_type == "poll":
+		online_relay_poll_in_flight = false
+	if request_type == "leave":
 		return
-	if online_relay_socket.get_ready_state() != WebSocketPeer.STATE_OPEN:
+	if not network_enabled or network_mode != NETWORK_MODE_ONLINE:
 		return
-	online_relay_socket.send_text(JSON.stringify(message))
+	if request_type == "create" and online_relay_role != "host":
+		return
+	if request_type == "join" and online_relay_role != "join":
+		return
+	var response_text := body.get_string_from_utf8()
+	var parsed_response = JSON.parse_string(response_text)
+	var handled_message := false
+	if typeof(parsed_response) == TYPE_DICTIONARY:
+		var messages = parsed_response.get("messages", [])
+		if typeof(messages) == TYPE_ARRAY:
+			for relay_message in messages:
+				if typeof(relay_message) == TYPE_DICTIONARY:
+					handled_message = true
+					_handle_online_relay_message(relay_message)
+		elif parsed_response.has("type"):
+			handled_message = true
+			_handle_online_relay_message(parsed_response)
+	if result != HTTPRequest.RESULT_SUCCESS or response_code < 200 or response_code >= 300:
+		if not handled_message:
+			_handle_online_relay_request_failed(request_type)
+
+
+func _handle_online_relay_request_failed(request_type: String) -> void:
+	if request_type == "poll":
+		online_relay_poll_in_flight = false
+	if request_type == "leave":
+		return
+	if request_type == "create" or request_type == "join":
+		_disconnect_network()
+		_refresh_home_controls()
+		_set_lobby_status("Could not reach the online relay. Check your connection and try again.")
+		return
+	if network_enabled and network_mode == NETWORK_MODE_ONLINE:
+		_on_online_relay_closed()
 
 
 func _send_online_signal(target: String, payload: Dictionary) -> void:
@@ -882,16 +985,16 @@ func _get_online_relay_url() -> String:
 		var origin = JavaScriptBridge.eval("window.location.origin", true)
 		if typeof(origin) == TYPE_STRING:
 			var relay_url := _relay_url_from_origin(str(origin))
-			if not relay_url.is_empty() and not relay_url.contains("localhost") and not relay_url.contains("127.0.0.1"):
+			if not relay_url.is_empty():
 				return relay_url
 	return ONLINE_RELAY_DEFAULT_URL
 
 
 func _relay_url_from_origin(origin_text: String) -> String:
 	if origin_text.begins_with("https://"):
-		return "wss://" + origin_text.substr("https://".length()) + ONLINE_RELAY_PATH
+		return origin_text + ONLINE_RELAY_PATH
 	if origin_text.begins_with("http://"):
-		return "ws://" + origin_text.substr("http://".length()) + ONLINE_RELAY_PATH
+		return origin_text + ONLINE_RELAY_PATH
 	return ""
 
 
@@ -1134,14 +1237,11 @@ func _tick_network_relic_timer(delta: float) -> void:
 
 
 func _tick_online_relay_reconnect(delta: float) -> void:
-	if online_relay_connect_timer > 0.0 and online_relay_socket != null and not online_relay_connected:
-		# A socket stuck in CONNECTING (unreachable relay) never reports CLOSED
-		# on its own; force it closed so the failure is visible instead of the
-		# lobby hanging forever with no code.
+	if online_relay_connect_timer > 0.0 and not online_relay_connected:
+		# The HTTP relay can be unreachable or slow; make that visible instead of
+		# leaving the lobby stuck forever with no code.
 		online_relay_connect_timer -= delta
 		if online_relay_connect_timer <= 0.0:
-			online_relay_socket.close()
-			online_relay_socket = null
 			_on_online_relay_closed()
 			return
 	if online_relay_reconnect_timer <= 0.0:
@@ -1149,7 +1249,7 @@ func _tick_online_relay_reconnect(delta: float) -> void:
 	online_relay_reconnect_timer -= delta
 	if online_relay_reconnect_timer > 0.0:
 		return
-	if network_enabled and online_relay_socket == null:
+	if network_enabled and not online_relay_connected:
 		_connect_online_relay()
 
 
@@ -4225,7 +4325,7 @@ func _refresh_kingdom_detail() -> void:
 	home_kingdom_detail_host.add_child(card_toggle)
 
 
-func _build_card_preview_view(card: CardDefinition) -> PanelContainer:
+func _build_legacy_card_preview_view(card: CardDefinition) -> PanelContainer:
 	# Recreates the in-game hover preview (CardPreview in Main.tscn) as a
 	# self-contained panel so menus can show the identical large card view.
 	var type_palette := _get_card_type_palette(card.card_type)
@@ -4314,6 +4414,106 @@ func _build_card_preview_view(card: CardDefinition) -> PanelContainer:
 	if body_bold_font != null:
 		effect_label.add_theme_font_override("bold_font", body_bold_font)
 	layout.add_child(effect_label)
+
+	return panel
+
+
+func _build_card_preview_view(card: CardDefinition) -> PanelContainer:
+	var type_palette := _get_card_type_palette(card.card_type)
+	var surface := _get_card_surface_color(card.card_type)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = PREVIEW_SIZE
+	panel.clip_contents = true
+	panel.add_theme_stylebox_override("panel", _make_preview_style(surface, type_palette.accent))
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 7)
+	margin.add_theme_constant_override("margin_top", 7)
+	margin.add_theme_constant_override("margin_right", 7)
+	margin.add_theme_constant_override("margin_bottom", 7)
+	panel.add_child(margin)
+
+	var layout := VBoxContainer.new()
+	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_theme_constant_override("separation", 4)
+	margin.add_child(layout)
+
+	var art_frame := PanelContainer.new()
+	art_frame.name = "PreviewArtFrame"
+	art_frame.clip_contents = true
+	art_frame.custom_minimum_size = Vector2(0, PREVIEW_ART_HEIGHT)
+	art_frame.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	art_frame.add_theme_stylebox_override(
+		"panel",
+		_make_card_art_style(surface.darkened(0.14))
+	)
+	layout.add_child(art_frame)
+
+	var art := TextureRect.new()
+	art.name = "PreviewArt"
+	art.texture = _load_card_texture(card.art_id)
+	art.modulate = Color(1, 1, 1, CARD_ART_OPACITY)
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	art_frame.add_child(art)
+	art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	art_frame.visible = art.texture != null
+
+	var name_label := Label.new()
+	name_label.name = "PreviewName"
+	name_label.text = card.card_name
+	name_label.custom_minimum_size = Vector2(0, 30)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_label.add_theme_color_override("font_color", type_palette.name_text)
+	name_label.add_theme_font_size_override("font_size", 17)
+	if title_font != null:
+		name_label.add_theme_font_override("font", title_font)
+	layout.add_child(name_label)
+
+	var effect_label := RichTextLabel.new()
+	effect_label.name = "PreviewEffect"
+	effect_label.bbcode_enabled = true
+	effect_label.fit_content = false
+	effect_label.scroll_active = false
+	effect_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	effect_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	effect_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	effect_label.custom_minimum_size = Vector2(0, 0)
+	effect_label.text = _get_card_rules_text(card.description)
+	effect_label.add_theme_color_override("default_color", type_palette.description_text)
+	var effect_font_size := _get_preview_effect_font_size(card.description)
+	effect_label.add_theme_font_size_override("normal_font_size", effect_font_size)
+	effect_label.add_theme_font_size_override("bold_font_size", effect_font_size)
+	if body_font != null:
+		effect_label.add_theme_font_override("normal_font", body_font)
+	if body_bold_font != null:
+		effect_label.add_theme_font_override("bold_font", body_bold_font)
+	layout.add_child(effect_label)
+
+	var meta_label := Label.new()
+	meta_label.name = "PreviewMeta"
+	meta_label.custom_minimum_size = Vector2(0, 18)
+	meta_label.text = (
+		"%s / COST %d / %s"
+		% [
+			card.card_type.to_upper(),
+			game_state.get_effective_cost(card),
+			_get_card_meta_chip_text(card).to_upper()
+		]
+	)
+	if not card.card_group.is_empty():
+		meta_label.text += " / %s" % card.card_group.to_upper()
+	meta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	meta_label.clip_text = true
+	meta_label.add_theme_color_override("font_color", type_palette.chip_text)
+	meta_label.add_theme_font_size_override("font_size", 9)
+	if body_bold_font != null:
+		meta_label.add_theme_font_override("font", body_bold_font)
+	layout.add_child(meta_label)
 
 	return panel
 
@@ -4601,22 +4801,42 @@ func _apply_scene_colors() -> void:
 func _configure_preview_layout() -> void:
 	card_preview.custom_minimum_size = PREVIEW_SIZE
 	card_preview.size = PREVIEW_SIZE
+	card_preview.clip_contents = true
 	var preview_margin := card_preview.get_node("Margin") as MarginContainer
-	preview_margin.add_theme_constant_override("margin_left", 14)
-	preview_margin.add_theme_constant_override("margin_top", 13)
-	preview_margin.add_theme_constant_override("margin_right", 14)
-	preview_margin.add_theme_constant_override("margin_bottom", 13)
+	preview_margin.add_theme_constant_override("margin_left", 7)
+	preview_margin.add_theme_constant_override("margin_top", 7)
+	preview_margin.add_theme_constant_override("margin_right", 7)
+	preview_margin.add_theme_constant_override("margin_bottom", 7)
 	var layout := preview_margin.get_node("Layout") as VBoxContainer
-	layout.add_theme_constant_override("separation", 6)
-	preview_name_label.custom_minimum_size = Vector2(0, 44)
-	preview_name_label.add_theme_font_size_override("font_size", 21)
-	preview_meta_label.add_theme_font_size_override("font_size", 11)
+	layout.add_theme_constant_override("separation", 4)
+	layout.move_child(preview_art_frame, 0)
+	layout.move_child(preview_name_label, 1)
+	layout.move_child(preview_effect_label, 2)
+	layout.move_child(preview_meta_label, 3)
+	preview_name_label.custom_minimum_size = Vector2(0, 30)
+	preview_name_label.add_theme_font_size_override("font_size", 17)
+	preview_meta_label.custom_minimum_size = Vector2(0, 18)
+	preview_meta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	preview_meta_label.clip_text = true
+	preview_meta_label.add_theme_font_size_override("font_size", 9)
 	preview_art_frame.custom_minimum_size = Vector2(0, PREVIEW_ART_HEIGHT)
+	preview_art_frame.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	preview_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	preview_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	preview_effect_label.custom_minimum_size = Vector2(0, 176)
+	preview_art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	preview_effect_label.custom_minimum_size = Vector2(0, 0)
+	preview_effect_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	preview_effect_label.add_theme_font_size_override("normal_font_size", 13)
 	preview_effect_label.add_theme_font_size_override("bold_font_size", 13)
 	preview_effect_label.scroll_active = false
+
+
+func _get_preview_effect_font_size(description: String) -> int:
+	if description.length() > 150:
+		return 12
+	if description.length() > 110:
+		return 13
+	return 14
 
 
 func _apply_body_font_recursive(node: Node) -> void:
@@ -5836,6 +6056,18 @@ func _show_card_preview(
 		preview_meta_label.text += " · %s" % card.card_group.to_upper()
 	if visual_state.begins_with("market_"):
 		preview_meta_label.text += " · %d LEFT" % game_state.get_supply_count(card.id)
+	preview_meta_label.text = (
+		"%s / COST %d / %s"
+		% [
+			card.card_type.to_upper(),
+			game_state.get_effective_cost(card),
+			_get_card_meta_chip_text(card).to_upper()
+		]
+	)
+	if not card.card_group.is_empty():
+		preview_meta_label.text += " / %s" % card.card_group.to_upper()
+	if visual_state.begins_with("market_"):
+		preview_meta_label.text += " / %d LEFT" % game_state.get_supply_count(card.id)
 	card_preview.set_meta("card_type", card.card_type)
 	card_preview.set_meta("card_base_color", _get_card_surface_color(card.card_type))
 	preview_name_label.add_theme_color_override("font_color", type_palette.name_text)
@@ -5847,6 +6079,9 @@ func _show_card_preview(
 		"panel",
 		_make_card_art_style(_get_card_surface_color(card.card_type).darkened(0.14))
 	)
+	var effect_font_size := _get_preview_effect_font_size(card.description)
+	preview_effect_label.add_theme_font_size_override("normal_font_size", effect_font_size)
+	preview_effect_label.add_theme_font_size_override("bold_font_size", effect_font_size)
 	preview_effect_label.text = _get_card_rules_text(card.description)
 	preview_effect_label.add_theme_color_override("default_color", type_palette.description_text)
 	card_preview.add_theme_stylebox_override(

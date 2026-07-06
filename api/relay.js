@@ -1,55 +1,53 @@
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { WebSocket, WebSocketServer } from 'ws';
+import { fileURLToPath } from 'node:url';
 
 const MAX_PLAYERS = 4;
 const MIN_PLAYERS = 2;
 const ROOM_CODE_LENGTH = 4;
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const ROOM_TTL_MS = 2 * 60 * 60 * 1000;
-const HEARTBEAT_MS = 25000;
+const CLIENT_TTL_MS = 45 * 1000;
+const MAX_QUEUE_MESSAGES = 128;
 
 const rooms = globalThis.__conquestCartesRooms ?? new Map();
 globalThis.__conquestCartesRooms = rooms;
 
-const server = http.createServer((_request, response) => {
-  response.statusCode = 200;
-  response.setHeader('content-type', 'application/json; charset=utf-8');
-  response.end(JSON.stringify({ ok: true, service: 'conquest-cartes-relay' }));
-});
+export default async function handler(request, response) {
+  setCorsHeaders(response);
 
-const wss = new WebSocketServer({ server });
+  if (request.method === 'OPTIONS') {
+    response.statusCode = 204;
+    response.end();
+    return;
+  }
 
-wss.on('connection', (ws) => {
-  const client = {
-    id: randomUUID(),
-    ws,
-    roomCode: '',
-    role: 'guest',
-    isAlive: true,
-  };
+  if (request.method === 'GET') {
+    sendJson(response, 200, {
+      ok: true,
+      service: 'conquest-cartes-relay',
+      transport: 'http-poll',
+      rooms: rooms.size,
+    });
+    return;
+  }
 
-  ws.on('pong', () => {
-    client.isAlive = true;
-  });
+  if (request.method !== 'POST') {
+    sendJson(response, 405, {
+      ok: false,
+      messages: [{ type: 'error', code: 'bad_method', message: 'Use POST for relay messages.' }],
+    });
+    return;
+  }
 
-  ws.on('message', (raw) => {
-    handleMessage(client, raw);
-  });
-
-  ws.on('close', () => {
-    handleClose(client);
-  });
-
-  send(client, { type: 'hello', clientId: client.id });
-});
-
-function handleMessage(client, raw) {
   let message;
   try {
-    message = JSON.parse(raw.toString());
+    message = await readJsonBody(request);
   } catch (_error) {
-    sendError(client, 'bad_json', 'Relay messages must be JSON.');
+    sendJson(response, 400, {
+      ok: false,
+      messages: [{ type: 'error', code: 'bad_json', message: 'Relay messages must be JSON.' }],
+    });
     return;
   }
 
@@ -57,26 +55,31 @@ function handleMessage(client, raw) {
 
   switch (String(message.type ?? '')) {
     case 'create':
-      createRoom(client, message);
+      createRoom(response, message);
       break;
     case 'join':
-      joinRoom(client, message);
+      joinRoom(response, message);
+      break;
+    case 'poll':
+      pollRoom(response, message);
       break;
     case 'signal':
-      relaySignal(client, message);
+      relaySignal(response, message);
+      break;
+    case 'leave':
+      leaveRoom(response, message);
       break;
     case 'ping':
-      send(client, { type: 'pong', now: Date.now() });
+      sendRelayMessages(response, [{ type: 'pong', now: Date.now() }]);
       break;
     default:
-      sendError(client, 'unknown_type', 'Unknown relay message type.');
+      sendRelayError(response, 'unknown_type', 'Unknown relay message type.');
   }
 }
 
-function createRoom(client, message) {
-  leaveCurrentRoom(client);
-
+function createRoom(response, message) {
   const maxPlayers = clampInt(message.maxPlayers, MIN_PLAYERS, MAX_PLAYERS, MAX_PLAYERS);
+  const client = createClient('host');
   const code = nextRoomCode();
   const room = {
     code,
@@ -87,170 +90,245 @@ function createRoom(client, message) {
     lastSeenAt: Date.now(),
   };
 
-  client.roomCode = code;
-  client.role = 'host';
   rooms.set(code, room);
 
-  send(client, {
-    type: 'created',
-    code,
-    clientId: client.id,
-    maxPlayers,
-  });
+  sendRelayMessages(response, [
+    { type: 'hello', clientId: client.id },
+    {
+      type: 'created',
+      code,
+      clientId: client.id,
+      maxPlayers,
+    },
+  ]);
 }
 
-function joinRoom(client, message) {
-  leaveCurrentRoom(client);
-
+function joinRoom(response, message) {
   const code = normalizeCode(message.code);
   if (code.length !== ROOM_CODE_LENGTH) {
-    sendError(client, 'bad_code', 'Enter a 4-letter lobby code.');
+    sendRelayError(response, 'bad_code', 'Enter a 4-letter lobby code.');
     return;
   }
 
   const room = rooms.get(code);
   if (!room || !room.clients.has(room.hostId)) {
-    sendError(client, 'not_found', 'No open lobby found for that code.');
+    sendRelayError(response, 'not_found', 'No open lobby found for that code.');
     return;
   }
+
+  pruneRoomClients(room);
   if (room.clients.size >= room.maxPlayers) {
-    sendError(client, 'full', 'That lobby is already full.');
+    sendRelayError(response, 'full', 'That lobby is already full.');
     return;
   }
 
-  client.roomCode = code;
-  client.role = 'client';
+  const client = createClient('client');
   room.clients.set(client.id, client);
-  room.lastSeenAt = Date.now();
+  touchRoom(room, client);
 
-  send(client, {
-    type: 'joined',
-    code,
-    clientId: client.id,
-    hostId: room.hostId,
-    maxPlayers: room.maxPlayers,
-  });
-
-  sendToId(room, room.hostId, {
+  enqueueForClient(room, room.hostId, {
     type: 'peer_joined',
     code,
     clientId: client.id,
     playerCount: room.clients.size,
   });
+
+  sendRelayMessages(response, [
+    { type: 'hello', clientId: client.id },
+    {
+      type: 'joined',
+      code,
+      clientId: client.id,
+      hostId: room.hostId,
+      maxPlayers: room.maxPlayers,
+    },
+  ]);
 }
 
-function relaySignal(client, message) {
-  const room = roomForClient(client);
-  if (!room) {
-    sendError(client, 'no_room', 'Join or create a lobby before sending game messages.');
+function pollRoom(response, message) {
+  const lookup = roomAndClientForMessage(message);
+  if (!lookup.room || !lookup.client) {
+    sendRelayError(response, 'not_found', 'No open lobby found for that code.');
     return;
   }
 
-  room.lastSeenAt = Date.now();
-  const target = String(message.target ?? (client.role === 'host' ? 'all' : 'host'));
+  touchRoom(lookup.room, lookup.client);
+  const messages = lookup.client.queue.splice(0, lookup.client.queue.length);
+  sendRelayMessages(response, messages);
+}
+
+function relaySignal(response, message) {
+  const lookup = roomAndClientForMessage(message);
+  if (!lookup.room || !lookup.client) {
+    sendRelayError(response, 'no_room', 'Join or create a lobby before sending game messages.');
+    return;
+  }
+
+  touchRoom(lookup.room, lookup.client);
+  const target = String(message.target ?? (lookup.client.role === 'host' ? 'all' : 'host'));
   const signal = {
     type: 'signal',
-    code: room.code,
-    from: client.id,
+    code: lookup.room.code,
+    from: lookup.client.id,
     payload: message.payload ?? {},
   };
 
-  if (client.role !== 'host') {
-    sendToId(room, room.hostId, signal);
+  if (lookup.client.role !== 'host') {
+    enqueueForClient(lookup.room, lookup.room.hostId, signal);
+    sendRelayMessages(response, []);
     return;
   }
 
   if (target === 'all') {
-    for (const peer of room.clients.values()) {
-      if (peer.id !== client.id) {
-        send(peer, signal);
+    for (const peer of lookup.room.clients.values()) {
+      if (peer.id !== lookup.client.id) {
+        enqueue(peer, signal);
       }
     }
+    sendRelayMessages(response, []);
     return;
   }
 
   if (target === 'host') {
-    sendToId(room, room.hostId, signal);
+    enqueueForClient(lookup.room, lookup.room.hostId, signal);
+    sendRelayMessages(response, []);
     return;
   }
 
-  sendToId(room, target, signal);
+  enqueueForClient(lookup.room, target, signal);
+  sendRelayMessages(response, []);
 }
 
-function handleClose(client) {
-  leaveCurrentRoom(client, true);
+function leaveRoom(response, message) {
+  const lookup = roomAndClientForMessage(message);
+  if (!lookup.room || !lookup.client) {
+    sendRelayMessages(response, []);
+    return;
+  }
+
+  removeClientFromRoom(lookup.room, lookup.client.id);
+  sendRelayMessages(response, []);
 }
 
-function leaveCurrentRoom(client, closing = false) {
-  if (!client.roomCode) {
-    return;
+function roomAndClientForMessage(message) {
+  const code = normalizeCode(message.code);
+  const clientId = String(message.clientId ?? '');
+  const room = rooms.get(code);
+  if (!room || clientId.length === 0) {
+    return { room: null, client: null };
   }
+  const client = room.clients.get(clientId);
+  return { room, client: client ?? null };
+}
 
-  const room = rooms.get(client.roomCode);
-  if (!room) {
-    client.roomCode = '';
-    client.role = 'guest';
-    return;
+function createClient(role) {
+  return {
+    id: randomUUID(),
+    role,
+    queue: [],
+    lastSeenAt: Date.now(),
+  };
+}
+
+function touchRoom(room, client) {
+  const now = Date.now();
+  room.lastSeenAt = now;
+  client.lastSeenAt = now;
+}
+
+function enqueueForClient(room, clientId, message) {
+  const target = room.clients.get(clientId);
+  if (target) {
+    enqueue(target, message);
   }
+}
 
-  room.clients.delete(client.id);
+function enqueue(client, message) {
+  client.queue.push(message);
+  if (client.queue.length > MAX_QUEUE_MESSAGES) {
+    client.queue.splice(0, client.queue.length - MAX_QUEUE_MESSAGES);
+  }
+}
 
-  if (client.id === room.hostId) {
+function removeClientFromRoom(room, clientId) {
+  room.clients.delete(clientId);
+
+  if (clientId === room.hostId) {
     for (const peer of room.clients.values()) {
-      send(peer, {
+      enqueue(peer, {
         type: 'closed',
         code: room.code,
         reason: 'host_disconnected',
       });
-      peer.roomCode = '';
-      peer.role = 'guest';
     }
     rooms.delete(room.code);
-  } else {
-    sendToId(room, room.hostId, {
-      type: 'peer_left',
-      code: room.code,
-      clientId: client.id,
-      playerCount: room.clients.size,
-    });
-    if (room.clients.size === 0) {
+    return;
+  }
+
+  enqueueForClient(room, room.hostId, {
+    type: 'peer_left',
+    code: room.code,
+    clientId,
+    playerCount: room.clients.size,
+  });
+
+  if (room.clients.size === 0) {
+    rooms.delete(room.code);
+  }
+}
+
+function pruneRooms() {
+  const now = Date.now();
+  for (const room of [...rooms.values()]) {
+    pruneRoomClients(room, now);
+    if (
+      now - room.lastSeenAt > ROOM_TTL_MS
+      || !room.clients.has(room.hostId)
+      || room.clients.size === 0
+    ) {
       rooms.delete(room.code);
     }
   }
+}
 
-  if (!closing) {
-    client.roomCode = '';
-    client.role = 'guest';
+function pruneRoomClients(room, now = Date.now()) {
+  for (const client of [...room.clients.values()]) {
+    if (now - client.lastSeenAt > CLIENT_TTL_MS) {
+      removeClientFromRoom(room, client.id);
+    }
   }
 }
 
-function roomForClient(client) {
-  if (!client.roomCode) {
-    return null;
-  }
-  const room = rooms.get(client.roomCode);
-  if (!room || !room.clients.has(client.id)) {
-    return null;
-  }
-  return room;
+function sendRelayMessages(response, messages, statusCode = 200) {
+  sendJson(response, statusCode, {
+    ok: statusCode >= 200 && statusCode < 300,
+    messages,
+  });
 }
 
-function sendToId(room, clientId, message) {
-  const target = room.clients.get(clientId);
-  if (target) {
-    send(target, message);
-  }
+function sendRelayError(response, code, message, statusCode = 200) {
+  sendRelayMessages(response, [{ type: 'error', code, message }], statusCode);
 }
 
-function send(client, message) {
-  if (client.ws.readyState !== WebSocket.OPEN) {
-    return;
-  }
-  client.ws.send(JSON.stringify(message));
+function setCorsHeaders(response) {
+  response.setHeader('Access-Control-Allow-Origin', '*');
+  response.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-function sendError(client, code, message) {
-  send(client, { type: 'error', code, message });
+function sendJson(response, statusCode, payload) {
+  response.statusCode = statusCode;
+  response.setHeader('content-type', 'application/json; charset=utf-8');
+  response.end(JSON.stringify(payload));
+}
+
+async function readJsonBody(request) {
+  const chunks = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.from(chunk));
+  }
+  const text = Buffer.concat(chunks).toString('utf8');
+  return text.length === 0 ? {} : JSON.parse(text);
 }
 
 function nextRoomCode() {
@@ -287,29 +365,19 @@ function clampInt(value, min, max, fallback) {
   return Math.max(min, Math.min(max, parsed));
 }
 
-function pruneRooms() {
-  const now = Date.now();
-  for (const room of rooms.values()) {
-    if (now - room.lastSeenAt > ROOM_TTL_MS || !room.clients.has(room.hostId)) {
-      rooms.delete(room.code);
-    }
-  }
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const port = Number.parseInt(process.env.PORT ?? '3000', 10);
+  const server = http.createServer((request, response) => {
+    handler(request, response).catch((error) => {
+      console.error(error);
+      sendJson(response, 500, {
+        ok: false,
+        messages: [{ type: 'error', code: 'server_error', message: 'Relay server error.' }],
+      });
+    });
+  });
+
+  server.listen(port, () => {
+    console.log(`Conquest Cartes relay listening on http://127.0.0.1:${port}/api/relay`);
+  });
 }
-
-const heartbeat = setInterval(() => {
-  for (const room of rooms.values()) {
-    for (const client of room.clients.values()) {
-      if (!client.isAlive) {
-        client.ws.terminate();
-        continue;
-      }
-      client.isAlive = false;
-      client.ws.ping();
-    }
-  }
-  pruneRooms();
-}, HEARTBEAT_MS);
-
-heartbeat.unref?.();
-
-export default server;

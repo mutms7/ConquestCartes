@@ -36,10 +36,10 @@ func _initialize() -> void:
 	)
 	_check(
 		main_ui._relay_url_from_origin("https://conquest-cartes.vercel.app")
-		== "wss://conquest-cartes.vercel.app/api/relay"
+		== "https://conquest-cartes.vercel.app/api/relay"
 		and main_ui._relay_url_from_origin("http://127.0.0.1:3000")
-		== "ws://127.0.0.1:3000/api/relay",
-		"Online relay URLs should use the browser origin, not the local fallback."
+		== "http://127.0.0.1:3000/api/relay",
+		"Online relay URLs should use the browser origin as an HTTP polling endpoint."
 	)
 	_home_join_online_button().pressed.emit()
 	await process_frame
@@ -633,6 +633,20 @@ func _initialize() -> void:
 		resource_button.mouse_entered.emit()
 		await create_timer(0.2).timeout
 		_check(_card_preview().visible, "Hovering a hand card should show its preview.")
+		_check(
+			_card_preview().custom_minimum_size.x > main_ui.CARD_FACE_SIZE.x
+			and _card_preview().custom_minimum_size.x <= 280.0
+			and absf(
+				(
+					_card_preview().custom_minimum_size.x
+					/ _card_preview().custom_minimum_size.y
+				)
+				- (main_ui.CARD_FACE_SIZE.x / main_ui.CARD_FACE_SIZE.y)
+			) < 0.02
+			and _preview_effect().get_theme_font_size("normal_font_size")
+			> _card_effect(resource_button).get_theme_font_size("normal_font_size"),
+			"Card previews should read as modestly enlarged card faces with scaled rules text."
+		)
 		_check(
 			main_ui.last_ui_sound_name == sound_before_hover,
 			"Card hover should not play a UI sound."
