@@ -59,9 +59,13 @@ const NETWORK_MAX_PLAYERS := 4
 const NETWORK_MODE_LOCAL := "local"
 const NETWORK_MODE_ONLINE := "online"
 const ONLINE_RELAY_PATH := "/api/relay"
-# Desktop builds talk to the deployed relay; web builds derive the URL from the
-# page origin, and CONQUEST_CARTES_RELAY_URL overrides both (e.g. for a local
-# `node api/relay.js` server at http://127.0.0.1:3000/api/relay).
+# The relay keeps lobby state in memory, so it must run as a single long-lived
+# process, NOT a serverless function (a second serverless instance can't see
+# rooms created by the first, which silently kicks the host out of the lobby).
+# Point every build at that one dedicated host below. CONQUEST_CARTES_RELAY_URL
+# overrides it for local dev (e.g. `node api/relay.js` at
+# http://127.0.0.1:3000/api/relay).
+# TODO: replace with your deployed relay host, e.g. https://conquest-cartes-relay.onrender.com/api/relay
 const ONLINE_RELAY_DEFAULT_URL := "https://conquest-cartes.vercel.app/api/relay"
 const ONLINE_LOBBY_CODE_LENGTH := 4
 const ONLINE_RELAY_MAX_RECONNECT_ATTEMPTS := 3
@@ -984,21 +988,11 @@ func _get_online_relay_url() -> String:
 	var env_url := OS.get_environment("CONQUEST_CARTES_RELAY_URL")
 	if not env_url.is_empty():
 		return env_url
-	if OS.has_feature("web"):
-		var origin = JavaScriptBridge.eval("window.location.origin", true)
-		if typeof(origin) == TYPE_STRING:
-			var relay_url := _relay_url_from_origin(str(origin))
-			if not relay_url.is_empty():
-				return relay_url
+	# Web builds used to derive the relay URL from window.location.origin, but the
+	# relay no longer lives alongside the static site (it needs a single long-lived
+	# process). Every build now targets the same dedicated relay host; CORS on the
+	# relay allows the cross-origin request.
 	return ONLINE_RELAY_DEFAULT_URL
-
-
-func _relay_url_from_origin(origin_text: String) -> String:
-	if origin_text.begins_with("https://"):
-		return origin_text + ONLINE_RELAY_PATH
-	if origin_text.begins_with("http://"):
-		return origin_text + ONLINE_RELAY_PATH
-	return ""
 
 
 func _normalize_online_lobby_code(raw_code: String) -> String:

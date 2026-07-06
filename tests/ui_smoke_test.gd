@@ -35,11 +35,8 @@ func _initialize() -> void:
 		"Online lobby codes should normalize to four letters."
 	)
 	_check(
-		main_ui._relay_url_from_origin("https://conquest-cartes.vercel.app")
-		== "https://conquest-cartes.vercel.app/api/relay"
-		and main_ui._relay_url_from_origin("http://127.0.0.1:3000")
-		== "http://127.0.0.1:3000/api/relay",
-		"Online relay URLs should use the browser origin as an HTTP polling endpoint."
+		main_ui._get_online_relay_url() == main_ui.ONLINE_RELAY_DEFAULT_URL,
+		"Every build should target the one dedicated relay host by default."
 	)
 	_home_join_online_button().pressed.emit()
 	await process_frame

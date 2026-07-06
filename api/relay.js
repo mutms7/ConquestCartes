@@ -377,7 +377,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     });
   });
 
-  server.listen(port, () => {
-    console.log(`Conquest Cartes relay listening on http://127.0.0.1:${port}/api/relay`);
+  // Bind on 0.0.0.0 so cloud hosts (Render/Fly/Railway) can route to us; they
+  // inject the port via PORT. Room state lives in this single process, so run
+  // exactly ONE instance (no serverless, no autoscaling to multiple replicas).
+  const host = process.env.HOST ?? '0.0.0.0';
+  server.listen(port, host, () => {
+    console.log(`Conquest Cartes relay listening on ${host}:${port} (POST /api/relay)`);
   });
 }
