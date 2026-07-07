@@ -1132,5 +1132,427 @@
         "label": "End your turn"
       }
     ]
+  },
+  {
+    "id": "witchs_bargain",
+    "name": "Witch's Bargain",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "briar_gate",
+    "cost": 2,
+    "description": "Gain 3 coins. Gain a Briar Hex to your hand.",
+    "gain_coins": 3,
+    "special_effects": [
+      {
+        "kind": "gain_card",
+        "card_id": "briar_hex",
+        "destination": "hand",
+        "label": "Gain Hex to Hand"
+      }
+    ]
+  },
+  {
+    "id": "hex_eater",
+    "name": "Hex Eater",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "firefly_supper",
+    "cost": 3,
+    "description": "Draw 1 card. Gain 1 action. You may trash up to 2 Briar Hexes from your hand. Draw 1 card and gain 1 coin for each one trashed this way.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "trash_filtered_bonus",
+        "card_type": "curse",
+        "amount": 2,
+        "per_draw_cards": 1,
+        "per_gain_coins": 1,
+        "prompt": "You may trash up to 2 Briar Hexes from your hand.",
+        "label": "Trash Hexes for Bonus"
+      }
+    ]
+  },
+  {
+    "id": "hedgewarden",
+    "name": "Hedgewarden",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "stone_wall",
+    "cost": 3,
+    "description": "Draw 1 card. Gain 1 action. While this is in your hand, attacks do not affect you.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "attack_immunity",
+        "trigger": "passive",
+        "zone": "hand",
+        "label": "Hand: Block Attacks"
+      }
+    ]
+  },
+  {
+    "id": "thornbinder",
+    "name": "Thornbinder",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "briar_gate",
+    "cost": 4,
+    "description": "Gain 2 coins. You may trash a Briar Hex from your hand. If you do, gain 2 coins. Attack: gain a Briar Hex.",
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "trash_filtered_bonus",
+        "card_type": "curse",
+        "amount": 1,
+        "per_gain_coins": 2,
+        "prompt": "You may trash a Briar Hex from your hand.",
+        "label": "Trash Hex for +2"
+      },
+      {
+        "kind": "attack",
+        "mode": "gain_curse",
+        "card_id": "briar_hex",
+        "label": "Attack: Gain Hex"
+      }
+    ]
+  },
+  {
+    "id": "bramble_idol",
+    "name": "Bramble Idol",
+    "type": "victory",
+    "group": "Witching Hour",
+    "art_id": "wishing_stone",
+    "cost": 4,
+    "description": "Worth 1 VP. Worth 1 more VP for each Briar Hex you own.",
+    "victory_points": 1,
+    "score_card_id": "briar_hex",
+    "score_card_points": 1
+  },
+  {
+    "id": "cursed_ingot",
+    "name": "Cursed Ingot",
+    "type": "resource",
+    "group": "Witching Hour",
+    "art_id": "moonwell_token",
+    "cost": 4,
+    "description": "Gain 3 coins. When you gain this, gain a Briar Hex.",
+    "coin_value": 3,
+    "special_effects": [
+      {
+        "kind": "gain_card",
+        "trigger": "gain",
+        "card_id": "briar_hex",
+        "destination": "discard",
+        "label": "Gain: Take Hex"
+      }
+    ]
+  },
+  {
+    "id": "hex_mill",
+    "name": "Hex Mill",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "weavers_loom",
+    "cost": 2,
+    "description": "Draw 1 card. Gain 1 action. You may discard a Briar Hex. If you do, gain 2 coins.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "discard_filtered_bonus",
+        "card_type": "curse",
+        "amount": 1,
+        "per_gain_coins": 2,
+        "prompt": "You may discard a Briar Hex.",
+        "label": "Discard Hex for +2"
+      }
+    ]
+  },
+  {
+    "id": "bone_cart",
+    "name": "Bone Cart",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "starlit_wagon",
+    "cost": 4,
+    "description": "Gain 1 coin. You may put a card costing up to 4 from your trash pile into your discard pile.",
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "gain_from_trash",
+        "max_cost": 4,
+        "prompt": "You may put a card costing up to 4 from your trash pile into your discard pile.",
+        "label": "Reclaim from Trash"
+      }
+    ]
+  },
+  {
+    "id": "bonepicker_crow",
+    "name": "Bonepicker Crow",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "tinker_wren",
+    "cost": 3,
+    "description": "Draw 1 card. Gain 1 action. If your trash pile has 5 or more cards, gain 2 coins.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "trash_size_bonus",
+        "threshold": 5,
+        "gain_coins": 2,
+        "label": "Full Trash: +2 Coins"
+      }
+    ]
+  },
+  {
+    "id": "moth_shrine",
+    "name": "Moth Shrine",
+    "type": "victory",
+    "group": "Witching Hour",
+    "art_id": "astral_vault",
+    "cost": 5,
+    "description": "Worth 1 VP. Worth 1 more VP per 4 cards in your trash pile.",
+    "victory_points": 1,
+    "score_per_trashed": 4
+  },
+  {
+    "id": "reliquary_key",
+    "name": "Reliquary Key",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "gilded_reliquary",
+    "cost": 5,
+    "description": "Draw 1 card for each relic you have. Gain 1 action.",
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "draw_per_relic",
+        "amount": 1,
+        "label": "Draw per Relic"
+      }
+    ]
+  },
+  {
+    "id": "pilgrim_stone",
+    "name": "Pilgrim Stone",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "sunspire_monument",
+    "cost": 4,
+    "description": "Gain 2 coins. Trash this. If you can hold another relic, draft a relic.",
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "trash_self",
+        "label": "Trash This"
+      },
+      {
+        "kind": "offer_relic_draft",
+        "label": "Draft a Relic"
+      }
+    ]
+  },
+  {
+    "id": "stolen_minute",
+    "name": "Stolen Minute",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "dawn_whistle",
+    "cost": 3,
+    "description": "Gain 1 action and 1 coin. Attack: your end-turn cooldown is 2 seconds longer this turn.",
+    "gain_actions": 1,
+    "gain_coins": 1,
+    "multiplayer_only": true,
+    "special_effects": [
+      {
+        "kind": "attack",
+        "mode": "extend_cooldown",
+        "amount": 2.0,
+        "label": "Attack: Slow Timer"
+      }
+    ]
+  },
+  {
+    "id": "lantern_vigil",
+    "name": "Lantern Vigil",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "lantern_parade",
+    "cost": 3,
+    "description": "Gain 1 coin. At the start of your next turn, reduce your end-turn cooldown by 2 seconds that turn. Keep this card in play until then.",
+    "gain_coins": 1,
+    "multiplayer_only": true,
+    "special_effects": [
+      {
+        "kind": "reduce_end_turn_cooldown",
+        "trigger": "next_turn",
+        "amount": 2.0,
+        "label": "Next Turn: Timer -2s"
+      }
+    ]
+  },
+  {
+    "id": "moonlit_caravan",
+    "name": "Moonlit Caravan",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "starlit_wagon",
+    "cost": 5,
+    "description": "Draw 1 card. Gain 1 coin. At the start of your next turn, draw 1 card and gain 1 coin. Keep this card in play until then.",
+    "draw_cards": 1,
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "draw_cards": 1,
+        "gain_coins": 1,
+        "label": "Next: +1 Card, +1 Coin"
+      }
+    ]
+  },
+  {
+    "id": "night_ferry",
+    "name": "Night Ferry",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "river_courier",
+    "cost": 4,
+    "description": "Gain 1 action. At the start of your next turn, draw 2 cards. Keep this card in play until then.",
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "draw_cards": 2,
+        "label": "Next Turn: +2 Cards"
+      }
+    ]
+  },
+  {
+    "id": "merchant_barge",
+    "name": "Merchant Barge",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "river_courier",
+    "cost": 5,
+    "description": "Gain 2 coins. At the start of your next turn, gain 2 coins. Keep this card in play until then.",
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "gain_coins": 2,
+        "label": "Next Turn: +2 Coins"
+      }
+    ]
+  },
+  {
+    "id": "fen_lighthouse",
+    "name": "Fen Lighthouse",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "candlecap",
+    "cost": 4,
+    "description": "Gain 1 coin. At the start of your next turn, gain 1 coin. Keep this card in play until then. While this is in play, attacks do not affect you.",
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "gain_coins": 1,
+        "label": "Next Turn: +1 Coin"
+      },
+      {
+        "kind": "attack_immunity",
+        "trigger": "passive",
+        "zone": "play",
+        "label": "In Play: Block Attacks"
+      }
+    ]
+  },
+  {
+    "id": "dream_courier",
+    "name": "Dream Courier",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "dawn_whistle",
+    "cost": 3,
+    "description": "At the start of your next turn, draw 1 card and gain 1 action and 1 coin. Keep this card in play until then.",
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "draw_cards": 1,
+        "gain_actions": 1,
+        "gain_coins": 1,
+        "label": "Next Turn: +1/+1/+1"
+      }
+    ]
+  },
+  {
+    "id": "owl_post",
+    "name": "Owl Post",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "moss_thread",
+    "cost": 4,
+    "description": "Draw 1 card. At the start of your next turn, gain 1 buy and 2 coins. Keep this card in play until then.",
+    "draw_cards": 1,
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "gain_buys": 1,
+        "gain_coins": 2,
+        "label": "Next: +1 Buy, +2 Coins"
+      }
+    ]
+  },
+  {
+    "id": "sowing_moon",
+    "name": "Sowing Moon",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "moonwell_token",
+    "cost": 3,
+    "description": "Draw 1 card. Gain 1 action. You may set a card from your hand aside. At the start of your next turn, put it into your hand. Keep this card in play until then.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "set_aside_from_hand",
+        "amount": 1,
+        "prompt": "You may set a card from your hand aside until your next turn.",
+        "label": "Set a Card Aside"
+      },
+      {
+        "kind": "return_set_aside",
+        "trigger": "next_turn",
+        "label": "Next Turn: Take It Back"
+      }
+    ]
+  },
+  {
+    "id": "long_causeway",
+    "name": "Long Causeway",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "stone_wall",
+    "cost": 5,
+    "description": "Gain 1 buy and 1 coin. At the start of your next turn, cards cost 1 less that turn. Keep this card in play until then.",
+    "gain_buys": 1,
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "reduce_costs",
+        "trigger": "next_turn",
+        "amount": 1,
+        "label": "Next Turn: Costs -1"
+      }
+    ]
   }
 ]

@@ -44,6 +44,48 @@ const RELICS := {
 		"description": "Start each turn with 1 extra action.",
 		"timed_only": false,
 	},
+	"ashen_urn": {
+		"name": "Ashen Urn",
+		"glyph": "A",
+		"description": "Whenever one of your cards is trashed, gain 1 coin.",
+		"timed_only": false,
+	},
+	"sunflower_metronome": {
+		"name": "Sunflower Metronome",
+		"glyph": "N",
+		"description": "The first action card you play from your hand each turn is played twice.",
+		"timed_only": false,
+	},
+	"thumbed_ledger": {
+		"name": "Thumbed Ledger",
+		"glyph": "L",
+		"description": "The first time you buy a card each turn, gain 1 coin.",
+		"timed_only": false,
+	},
+	"hex_ward": {
+		"name": "Hex Ward",
+		"glyph": "H",
+		"description": "The first Briar Hex you would gain each turn is trashed instead.",
+		"timed_only": false,
+	},
+	"tricksters_die": {
+		"name": "Trickster's Die",
+		"glyph": "T",
+		"description": "At the start of each turn, one random market pile costs you 1 less that turn.",
+		"timed_only": false,
+	},
+	"moonwake_mirror": {
+		"name": "Moonwake Mirror",
+		"glyph": "W",
+		"description": "Your start-of-turn duration effects resolve twice.",
+		"timed_only": false,
+	},
+	"patient_spider": {
+		"name": "Patient Spider",
+		"glyph": "P",
+		"description": "Relic drafts offer you 4 choices instead of 3.",
+		"timed_only": false,
+	},
 }
 
 

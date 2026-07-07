@@ -1319,6 +1319,9 @@ func _create_network_snapshot() -> Dictionary:
 			"play": _card_ids_from_zone(game_player.play_area),
 			"discard": _card_ids_from_zone(game_player.discard_pile),
 			"trash": _card_ids_from_zone(game_player.trash_pile),
+			"set_aside": _card_ids_from_zone(game_player.set_aside_pile),
+			"duration_hold": _card_ids_from_zone(game_player.duration_hold),
+			"pending_durations": _serialize_pending_durations(game_player),
 			"coins": game_player.coins,
 			"actions": game_player.actions,
 			"buys": game_player.buys,
@@ -1378,6 +1381,32 @@ func _card_ids_from_zone(zone: Array[CardDefinition]) -> Array[String]:
 	return card_ids
 
 
+func _serialize_pending_durations(game_player: PlayerState) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	for entry in game_player.pending_duration_effects:
+		var card: CardDefinition = entry.get("card") as CardDefinition
+		entries.append({
+			"card_id": card.id if card != null else "",
+			"effect": entry.get("effect", {}).duplicate(true),
+		})
+	return entries
+
+
+func _pending_durations_from_snapshot(data: Array) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	for entry in data:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var card_id := str(entry.get("card_id", ""))
+		if not game_state.card_catalog.has(card_id):
+			continue
+		entries.append({
+			"card": game_state.card_catalog[card_id],
+			"effect": entry.get("effect", {}).duplicate(true),
+		})
+	return entries
+
+
 func _serialize_turn_flags(flags: Dictionary) -> Dictionary:
 	var serialized: Dictionary = {}
 	for key in flags:
@@ -1432,6 +1461,11 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		synced_player.play_area = _cards_from_ids(player_data.get("play", []))
 		synced_player.discard_pile = _cards_from_ids(player_data.get("discard", []))
 		synced_player.trash_pile = _cards_from_ids(player_data.get("trash", []))
+		synced_player.set_aside_pile = _cards_from_ids(player_data.get("set_aside", []))
+		synced_player.duration_hold = _cards_from_ids(player_data.get("duration_hold", []))
+		synced_player.pending_duration_effects = _pending_durations_from_snapshot(
+			player_data.get("pending_durations", [])
+		)
 		synced_player.coins = int(player_data.get("coins", 0))
 		synced_player.actions = int(player_data.get("actions", 1))
 		synced_player.buys = int(player_data.get("buys", 1))

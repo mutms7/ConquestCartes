@@ -80,7 +80,13 @@ func _on_cleanup_completed() -> void:
 	if not ending_turn:
 		return
 	ending_turn = false
-	game_state.reset_turn_resources()
+	# In turn-based multiplayer this reset follows the ender's cleanup, but their
+	# next turn only starts when control returns to them, so duration payloads
+	# wait for the post-advance reset below.
+	var turn_based_multiplayer := (
+		game_state.turn_based_enabled and game_state.get_player_count() > 1
+	)
+	game_state.reset_turn_resources(not turn_based_multiplayer)
 
 	if game_state.is_game_end_condition_met():
 		cooldown_remaining = 0.0

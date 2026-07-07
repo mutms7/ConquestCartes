@@ -19,6 +19,9 @@ process.
 - `coin_value`: resource output.
 - `victory_points`: fixed final score.
 - `score_per_cards`: awards 1 VP per this many owned cards.
+- `score_per_trashed`: awards 1 VP per this many cards in the owner's trash pile.
+- `score_card_id` / `score_card_points`: awards `score_card_points` VP per owned
+  copy of the named card (e.g. Bramble Idol scores per owned Briar Hex).
 - `draw_cards`, `gain_actions`, `gain_buys`, `gain_coins`: standard outputs.
 - `market_enabled`: optional; defaults to `true`. Set it to `false` to retain a
   complete playable definition while excluding it from random market setup.
@@ -35,6 +38,13 @@ not branch on individual card IDs in UI code.
 Effects default to `trigger: "play"`. Reactive effects may instead use
 `gain`, `buy`, `gain_reaction`, `discard`, or `trash`. Cleanup effects register
 turn state during play and resolve through the cleanup choice flow.
+
+Duration effects use `trigger: "next_turn"`. A card with any `next_turn` effect
+stays in the play area through the next cleanup, and its deferred effects
+resolve at the start of the owner's next turn (a replayed duration queues its
+payload twice). `attack_immunity` is a passive marker with `trigger: "passive"`
+and a `zone` of `hand` or `play`; the attack resolver skips protected players
+and never queues the marker itself.
 
 Supported kinds:
 
@@ -86,16 +96,31 @@ Supported kinds:
 - `upgrade_exact_nonself`
 - `attack`
 - `register_gain_attack`
+- `turn_start_bonus`
+- `set_aside_from_hand`
+- `return_set_aside`
+- `gain_from_trash`
+- `trash_size_bonus`
+- `trash_filtered_bonus`
+- `discard_filtered_bonus`
+- `draw_per_relic`
+- `offer_relic_draft`
+- `attack_immunity`
 
 `reduce_end_turn_cooldown` lowers the active player's current end-turn cooldown
 by the configured float amount, such as `0.5`.
 
 `attack` resolves the configured attack mode against rival players in a lobby,
 or against the active player in solo fallback. Supported modes are
-`gain_curse`, `discard_down`, `topdeck_victory`, and
-`trash_revealed_resource`. `register_gain_attack` stores an attack for the turn
+`gain_curse`, `discard_down`, `topdeck_victory`, `trash_revealed_resource`, and
+`extend_cooldown` (lengthens each victim's end-turn cooldown this turn).
+`register_gain_attack` stores an attack for the turn
 and resolves it whenever a gained card matches the configured filter, such as
 an action card. Curse attacks gain `briar_hex`, a 0-cost curse worth -1 VP.
+
+The Witching Hour kingdom group extends the pool with a curse economy
+(self-hexing payoffs), trash-pile synergies, relic-scaling cards, and the
+duration cards described above.
 
 Effects resolve in array order. Descriptions and compact labels must present
 that same order.

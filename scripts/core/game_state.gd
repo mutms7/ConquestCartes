@@ -27,7 +27,8 @@ const MARKET_FIXED_VICTORY_IDS := ["briar_gate", "royal_charter"]
 const BASE_KINGDOM := "Base Kingdom"
 const BEGINNER_KINGDOM := "First Harvest"
 const HINTERLANDS_GROUP := "Hinterlands"
-const KINGDOM_ORDER := [BASE_KINGDOM, BEGINNER_KINGDOM, HINTERLANDS_GROUP]
+const WITCHING_HOUR_GROUP := "Witching Hour"
+const KINGDOM_ORDER := [BASE_KINGDOM, BEGINNER_KINGDOM, HINTERLANDS_GROUP, WITCHING_HOUR_GROUP]
 const REQUIRED_CARD_IDS := [
 	"pebble_coin",
 	"silver_leaf",
@@ -289,6 +290,8 @@ func get_card_kingdom(card: CardDefinition) -> String:
 		return BASE_KINGDOM
 	if card.card_group == HINTERLANDS_GROUP:
 		return HINTERLANDS_GROUP
+	if card.card_group == WITCHING_HOUR_GROUP:
+		return WITCHING_HOUR_GROUP
 	return BEGINNER_KINGDOM
 
 
@@ -382,7 +385,11 @@ func get_gain_candidates(max_cost: int, card_type: String = "") -> Array[CardDef
 func get_effective_cost(card: CardDefinition) -> int:
 	if card == null:
 		return 0
-	return maxi(0, card.cost - int(turn_flags.get("cost_reduction", 0)))
+	var cost := card.cost - int(turn_flags.get("cost_reduction", 0))
+	# Trickster's Die: one random market pile is 1 cheaper for the relic holder.
+	if str(turn_flags.get("die_discount_card_id", "")) == card.id:
+		cost -= 1
+	return maxi(0, cost)
 
 
 func _setup_random_market(previous_market_ids: Array[String]) -> bool:
@@ -502,10 +509,12 @@ func _has_same_card_ids(cards: Array[CardDefinition], card_ids: Array[String]) -
 	return true
 
 
-func reset_turn_resources() -> void:
+func reset_turn_resources(resolve_durations: bool = true) -> void:
 	player.reset_turn_resources()
 	turn_flags.clear()
 	apply_turn_start_relics(player)
+	if resolve_durations:
+		_resolve_pending_durations()
 
 
 func apply_turn_start_relics(target: PlayerState) -> void:
@@ -513,6 +522,36 @@ func apply_turn_start_relics(target: PlayerState) -> void:
 		target.coins += 1
 	if target.relics.has("marching_orders"):
 		target.actions += 1
+	if target.relics.has("tricksters_die") and not market.is_empty():
+		var discounted: CardDefinition = market[randi() % market.size()]
+		target.turn_flags["die_discount_card_id"] = discounted.id
+		print(
+			"[Game] Trickster's Die discounts %s for %s"
+			% [discounted.card_name, target.player_name]
+		)
+
+
+func _resolve_pending_durations() -> void:
+	# Duration cards queue their "next turn" payloads here; they resolve once at
+	# the start of the owner's next turn (twice with the Moonwake Mirror relic).
+	if player.pending_duration_effects.is_empty():
+		return
+	var entries := player.pending_duration_effects.duplicate()
+	player.pending_duration_effects.clear()
+	var repetitions := 2 if player.relics.has("moonwake_mirror") else 1
+	for _repeat_index in range(repetitions):
+		for entry in entries:
+			resolution_queue.push_back({
+				"kind": "special",
+				"effect": entry.get("effect", {}).duplicate(true),
+				"source_card": entry.get("card"),
+			})
+	print(
+		"[Game] Resolve %d duration effect(s) for %s"
+		% [entries.size() * repetitions, player.player_name]
+	)
+	_process_resolution_queue()
+	check_idle_relics()
 
 
 func get_turn_draw_count(target: PlayerState) -> int:
@@ -540,8 +579,11 @@ func generate_relic_offer(target: PlayerState) -> bool:
 	if available.is_empty():
 		return false
 	available.shuffle()
+	var offer_size := RelicCatalog.OFFER_SIZE
+	if target.relics.has("patient_spider"):
+		offer_size += 1
 	var offer: Array[String] = []
-	for index in range(mini(RelicCatalog.OFFER_SIZE, available.size())):
+	for index in range(mini(offer_size, available.size())):
 		offer.append(available[index])
 	target.pending_relic_offer = offer
 	print("[Game] Relic offer for %s: %s" % [target.player_name, ", ".join(offer)])
@@ -674,9 +716,21 @@ func _play_card_internal(
 			return false
 		player.actions -= 1
 
+	var total_repetitions := repetitions
+	# Sunflower Metronome: the first action played from hand each turn resolves twice.
+	if (
+		card.card_type == "action"
+		and repetitions == 1
+		and player.relics.has("sunflower_metronome")
+		and not bool(turn_flags.get("metronome_used", false))
+	):
+		turn_flags["metronome_used"] = true
+		total_repetitions = 2
+		print("[Game] Sunflower Metronome doubles %s" % card.card_name)
+
 	player.hand.remove_at(hand_index)
 	player.play_area.append(card)
-	_prepend_card_resolutions(card, repetitions)
+	_prepend_card_resolutions(card, total_repetitions)
 	_process_resolution_queue()
 	check_idle_relics()
 	print("[Game] Play card: %s" % card.card_name)
@@ -684,6 +738,7 @@ func _play_card_internal(
 
 
 func _prepend_card_resolutions(card: CardDefinition, repetitions: int) -> void:
+	_register_duration_effects(card, repetitions)
 	var sequence: Array[Dictionary] = []
 	for _repeat_index in range(repetitions):
 		sequence.append({"kind": "card_base", "card": card})
@@ -697,6 +752,25 @@ func _prepend_card_resolutions(card: CardDefinition, repetitions: int) -> void:
 			})
 	for index in range(sequence.size() - 1, -1, -1):
 		resolution_queue.push_front(sequence[index])
+
+
+func _register_duration_effects(card: CardDefinition, repetitions: int) -> void:
+	# A card with any "next_turn" effects stays in play through the next cleanup
+	# and queues one payload per repetition (a replayed duration pays out twice).
+	var payloads: Array[Dictionary] = []
+	for effect in card.special_effects:
+		if str(effect.get("trigger", "play")) == "next_turn":
+			payloads.append(effect)
+	if payloads.is_empty():
+		return
+	player.duration_hold.append(card)
+	for _repeat_index in range(repetitions):
+		for effect in payloads:
+			player.pending_duration_effects.append({
+				"card": card,
+				"effect": effect.duplicate(true),
+			})
+	print("[Game] %s stays in play until next turn" % card.card_name)
 
 
 func _prepend_triggered_effects(
@@ -1152,8 +1226,112 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 					"exclude_card_id": source_card.id,
 				}
 			)
+		"turn_start_bonus":
+			# Duration payload: resolves at the start of the owner's next turn.
+			draw_cards(int(effect.get("draw_cards", 0)))
+			player.actions += int(effect.get("gain_actions", 0))
+			player.buys += int(effect.get("gain_buys", 0))
+			player.coins += int(effect.get("gain_coins", 0))
+		"set_aside_from_hand":
+			_request_zone_choice(
+				player.hand,
+				str(effect.get(
+					"prompt",
+					"You may set a card from your hand aside until your next turn."
+				)),
+				0,
+				mini(int(effect.get("amount", 1)), player.hand.size()),
+				"set_aside_hand",
+				"SET ASIDE",
+				"SKIP"
+			)
+		"return_set_aside":
+			if not player.set_aside_pile.is_empty():
+				player.hand.append_array(player.set_aside_pile)
+				player.set_aside_pile.clear()
+		"gain_from_trash":
+			var reclaim_candidates: Array[CardDefinition] = []
+			var reclaim_max_cost := int(effect.get("max_cost", 99))
+			for card in player.trash_pile:
+				if get_effective_cost(card) <= reclaim_max_cost:
+					reclaim_candidates.append(card)
+			_request_zone_choice(
+				reclaim_candidates,
+				str(effect.get(
+					"prompt",
+					"You may put a card from your trash pile into your discard pile."
+				)),
+				0,
+				mini(1, reclaim_candidates.size()),
+				"gain_from_trash",
+				"RECLAIM",
+				"SKIP"
+			)
+		"trash_size_bonus":
+			if player.trash_pile.size() >= int(effect.get("threshold", 5)):
+				draw_cards(int(effect.get("draw_cards", 0)))
+				player.actions += int(effect.get("gain_actions", 0))
+				player.buys += int(effect.get("gain_buys", 0))
+				player.coins += int(effect.get("gain_coins", 0))
+		"trash_filtered_bonus":
+			var bonus_trash_candidates := _filter_hand_cards(effect)
+			var bonus_trash_amount := mini(
+				int(effect.get("amount", 1)),
+				bonus_trash_candidates.size()
+			)
+			_request_zone_choice(
+				bonus_trash_candidates,
+				str(effect.get("prompt", "Choose cards from your hand to trash.")),
+				0,
+				bonus_trash_amount,
+				"trash_hand_bonus",
+				"TRASH",
+				"SKIP",
+				_per_card_bonus_context(effect)
+			)
+		"discard_filtered_bonus":
+			var bonus_discard_candidates := _filter_hand_cards(effect)
+			var bonus_discard_amount := mini(
+				int(effect.get("amount", 1)),
+				bonus_discard_candidates.size()
+			)
+			_request_zone_choice(
+				bonus_discard_candidates,
+				str(effect.get("prompt", "Choose cards from your hand to discard.")),
+				0,
+				bonus_discard_amount,
+				"discard_hand_bonus",
+				"DISCARD",
+				"SKIP",
+				_per_card_bonus_context(effect)
+			)
+		"draw_per_relic":
+			draw_cards(player.relics.size() * int(effect.get("amount", 1)))
+		"offer_relic_draft":
+			generate_relic_offer(player)
+		"attack_immunity":
+			# Passive marker read by _is_attack_protected; nothing resolves on play.
+			pass
 		_:
 			push_warning("Unknown card effect kind: %s" % kind)
+
+
+func _per_card_bonus_context(effect: Dictionary) -> Dictionary:
+	return {
+		"per_draw_cards": int(effect.get("per_draw_cards", 0)),
+		"per_gain_actions": int(effect.get("per_gain_actions", 0)),
+		"per_gain_buys": int(effect.get("per_gain_buys", 0)),
+		"per_gain_coins": int(effect.get("per_gain_coins", 0)),
+	}
+
+
+func _apply_per_card_bonus(context: Dictionary, card_count: int) -> void:
+	if card_count <= 0:
+		return
+	draw_cards(int(context.get("per_draw_cards", 0)) * card_count)
+	player.actions += int(context.get("per_gain_actions", 0)) * card_count
+	player.buys += int(context.get("per_gain_buys", 0)) * card_count
+	player.coins += int(context.get("per_gain_coins", 0)) * card_count
 
 
 func resolve_choice(tokens: Array[String]) -> bool:
@@ -1223,6 +1401,7 @@ func _apply_choice_resolution(
 			for card in cards:
 				revealed.erase(card)
 			player.trash_pile.append_array(cards)
+			_notify_cards_trashed(player, cards.size())
 			_queue_zone_events(cards, "trash", "trash")
 			_request_inspect_discard(revealed)
 		"inspect_discard":
@@ -1254,6 +1433,7 @@ func _apply_choice_resolution(
 				var resource := cards[0]
 				revealed.erase(resource)
 				player.trash_pile.append(resource)
+				_notify_cards_trashed(player, 1)
 				_prepend_triggered_effects(resource, "trash", {"zone": "trash"})
 				player.coins += resource.coin_value
 			player.discard_pile.append_array(revealed)
@@ -1445,6 +1625,17 @@ func _apply_choice_resolution(
 			_finish_cleanup()
 		"attack_trash_resource":
 			_finish_attack_reveal_resource(choice.context.get("revealed", []), cards)
+		"set_aside_hand":
+			_move_cards(player.hand, player.set_aside_pile, cards)
+		"gain_from_trash":
+			_move_cards(player.trash_pile, player.discard_pile, cards)
+			_queue_zone_events(cards, "gain", "discard")
+		"trash_hand_bonus":
+			_move_cards(player.hand, player.trash_pile, cards, "trash")
+			_apply_per_card_bonus(choice.context, cards.size())
+		"discard_hand_bonus":
+			_move_cards(player.hand, player.discard_pile, cards, "discard")
+			_apply_per_card_bonus(choice.context, cards.size())
 
 
 func _new_choice(
@@ -1690,6 +1881,8 @@ func _move_cards(
 		source.erase(card)
 		destination.append(card)
 	if not event.is_empty():
+		if event == "trash":
+			_notify_cards_trashed(player, cards.size())
 		_queue_zone_events(cards, event, event)
 
 
@@ -1772,10 +1965,33 @@ func _default_supply_count(card: CardDefinition) -> int:
 			return ACTION_SUPPLY_COUNT
 
 
+func _hex_ward_intercepts(target: PlayerState, card: CardDefinition) -> bool:
+	# Hex Ward: the first curse a player would gain each turn is trashed instead.
+	if card.card_type != "curse" or not target.relics.has("hex_ward"):
+		return false
+	if bool(target.turn_flags.get("hex_ward_used", false)):
+		return false
+	target.turn_flags["hex_ward_used"] = true
+	target.trash_pile.append(card)
+	_notify_cards_trashed(target, 1)
+	print("[Game] Hex Ward deflects %s to %s's trash" % [card.card_name, target.player_name])
+	return true
+
+
+func _notify_cards_trashed(target: PlayerState, amount: int) -> void:
+	# Ashen Urn: a coin whenever one of the holder's cards is trashed.
+	if amount <= 0 or not target.relics.has("ashen_urn"):
+		return
+	target.coins += amount
+	print("[Game] Ashen Urn grants %s %d coin(s)" % [target.player_name, amount])
+
+
 func _gain_from_supply(card: CardDefinition, destination: String) -> bool:
 	if not supply_piles.has(card.id) or get_supply_count(card.id) <= 0:
 		return false
 	supply_piles[card.id] = get_supply_count(card.id) - 1
+	if _hex_ward_intercepts(player, card):
+		return true
 	match destination:
 		"hand":
 			player.hand.append(card)
@@ -1793,6 +2009,7 @@ func _trash_from_play(card: CardDefinition) -> void:
 	if player.play_area.has(card):
 		player.play_area.erase(card)
 		player.trash_pile.append(card)
+		_notify_cards_trashed(player, 1)
 		_prepend_triggered_effects(card, "trash", {"zone": "trash"})
 
 
@@ -1991,6 +2208,8 @@ func _gain_card_by_id_for_player(
 	if get_supply_count(card_id) <= 0:
 		return
 	supply_piles[card_id] = get_supply_count(card_id) - 1
+	if _hex_ward_intercepts(target, card):
+		return
 	match destination:
 		"hand":
 			target.hand.append(card)
@@ -2035,13 +2254,37 @@ func _trash_revealed_resource_for_player(
 		):
 			trashed_resource = card
 			target.trash_pile.append(card)
+			_notify_cards_trashed(target, 1)
 		else:
 			revealed.append(card)
 	target.discard_pile.append_array(revealed)
 
 
+func _is_attack_protected(target: PlayerState) -> bool:
+	return (
+		_zone_has_attack_immunity(target.play_area, "play")
+		or _zone_has_attack_immunity(target.hand, "hand")
+	)
+
+
+func _zone_has_attack_immunity(zone: Array[CardDefinition], zone_name: String) -> bool:
+	for card in zone:
+		for effect in card.special_effects:
+			if (
+				str(effect.get("kind", "")) == "attack_immunity"
+				and str(effect.get("zone", "")) == zone_name
+			):
+				return true
+	return false
+
+
 func _resolve_attack(effect: Dictionary, _source_card: CardDefinition) -> void:
-	var targets := _get_attack_targets()
+	var targets: Array[PlayerState] = []
+	for target in _get_attack_targets():
+		if _is_attack_protected(target):
+			print("[Game] %s is protected from the attack" % target.player_name)
+			continue
+		targets.append(target)
 	match str(effect.get("mode", "gain_curse")):
 		"gain_curse":
 			for target in targets:
@@ -2097,6 +2340,11 @@ func _resolve_attack(effect: Dictionary, _source_card: CardDefinition) -> void:
 						int(effect.get("amount", 2)),
 						str(effect.get("exclude_card_id", ""))
 					)
+		"extend_cooldown":
+			# A tempo attack: victims' end-turn cooldowns run longer this turn.
+			# The reduction field is per-turn, so a negative value is an extension.
+			for target in targets:
+				target.end_turn_cooldown_reduction -= float(effect.get("amount", 1.0))
 		_:
 			push_warning("Unknown attack mode: %s" % str(effect.get("mode", "")))
 
@@ -2180,6 +2428,7 @@ func _finish_attack_reveal_resource(
 	for card in trashed_cards:
 		revealed.erase(card)
 	player.trash_pile.append_array(trashed_cards)
+	_notify_cards_trashed(player, trashed_cards.size())
 	_queue_zone_events(trashed_cards, "trash", "trash")
 	_discard_revealed_cards(revealed)
 
@@ -2271,6 +2520,14 @@ func buy_card(card: CardDefinition) -> bool:
 		return false
 	player.coins -= effective_cost
 	player.buys -= 1
+	# Thumbed Ledger: the first purchase each turn rebates a coin.
+	if (
+		player.relics.has("thumbed_ledger")
+		and not bool(turn_flags.get("thumbed_ledger_used", false))
+	):
+		turn_flags["thumbed_ledger_used"] = true
+		player.coins += 1
+		print("[Game] Thumbed Ledger rebates %s 1 coin" % player.player_name)
 	_gain_from_supply(card, "discard")
 	_prepend_triggered_effects(card, "buy", {"zone": "discard"})
 	for _index in range(int(turn_flags.get("buy_bonus_count", 0))):
@@ -2319,12 +2576,21 @@ func begin_cleanup() -> void:
 
 
 func _finish_cleanup() -> void:
+	# Duration cards played this turn stay in play until the next cleanup.
+	var kept_durations: Array[CardDefinition] = []
+	for card in player.duration_hold:
+		var play_index := player.play_area.find(card)
+		if play_index != -1:
+			player.play_area.remove_at(play_index)
+			kept_durations.append(card)
+	player.duration_hold.clear()
 	var hand_count := player.hand.size()
 	var play_count := player.play_area.size()
 	player.discard_pile.append_array(player.hand)
 	player.discard_pile.append_array(player.play_area)
 	player.hand.clear()
 	player.play_area.clear()
+	player.play_area.append_array(kept_durations)
 	resolution_queue.clear()
 	pending_choice = null
 	player.pending_choice = null
@@ -2355,10 +2621,17 @@ func calculate_all_scores() -> Array[int]:
 func _calculate_score_for_player(scored_player: PlayerState) -> int:
 	var score := 0
 	var owned_cards := scored_player.get_all_cards()
+	var owned_counts := {}
+	for card in owned_cards:
+		owned_counts[card.id] = int(owned_counts.get(card.id, 0)) + 1
 	for card in owned_cards:
 		score += card.victory_points
 		if card.score_per_cards > 0:
 			score += owned_cards.size() / card.score_per_cards
+		if card.score_per_trashed > 0:
+			score += scored_player.trash_pile.size() / card.score_per_trashed
+		if not card.score_card_id.is_empty():
+			score += int(owned_counts.get(card.score_card_id, 0)) * card.score_card_points
 	print(
 		"[Game] Scoring %s: %d victory points (draw: %d, hand: %d, play: %d, discard: %d)"
 		% [

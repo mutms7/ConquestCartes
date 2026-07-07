@@ -386,11 +386,15 @@ func _initialize() -> void:
 	_kingdom_toggle(GameState.BEGINNER_KINGDOM).toggled.emit(false)
 	_kingdom_toggle(GameState.HINTERLANDS_GROUP).set_pressed_no_signal(false)
 	_kingdom_toggle(GameState.HINTERLANDS_GROUP).toggled.emit(false)
+	_kingdom_toggle(GameState.WITCHING_HOUR_GROUP).set_pressed_no_signal(false)
+	_kingdom_toggle(GameState.WITCHING_HOUR_GROUP).toggled.emit(false)
 	_check(_home_new_game_button().disabled, "New Game should lock when filters cannot fill a market.")
 	_kingdom_toggle(GameState.BEGINNER_KINGDOM).set_pressed_no_signal(true)
 	_kingdom_toggle(GameState.BEGINNER_KINGDOM).toggled.emit(true)
 	_kingdom_toggle(GameState.HINTERLANDS_GROUP).set_pressed_no_signal(true)
 	_kingdom_toggle(GameState.HINTERLANDS_GROUP).toggled.emit(true)
+	_kingdom_toggle(GameState.WITCHING_HOUR_GROUP).set_pressed_no_signal(true)
+	_kingdom_toggle(GameState.WITCHING_HOUR_GROUP).toggled.emit(true)
 	_home_new_game_button().pressed.emit()
 	await process_frame
 	await process_frame

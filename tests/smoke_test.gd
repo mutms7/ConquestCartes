@@ -1,7 +1,7 @@
 extends SceneTree
 
 const CARD_DATA_PATH := "res://data/cards/starter_cards.json"
-const EXPECTED_CARD_COUNT := 65
+const EXPECTED_CARD_COUNT := 87
 const WORDING_GUIDE_PATH := "res://docs/card_wording_conventions.md"
 const INACTIVE_CARD_IDS := [
 	"starpath_seeker",
@@ -16,6 +16,8 @@ const MULTIPLAYER_ONLY_CARD_IDS := [
 	"sunspire_bell",
 	"hourglass_reliquary",
 	"twilight_retreat",
+	"stolen_minute",
+	"lantern_vigil",
 ]
 const EXPECTED_ART_LINKED_NAMES := {
 	"wishing_garden": "Wishing Stone",
@@ -73,6 +75,30 @@ const HINTERLAND_CARD_IDS := [
 	"lantern_bazaar",
 	"tinker_wheelwright",
 ]
+const WITCHING_HOUR_CARD_IDS := [
+	"witchs_bargain",
+	"hex_eater",
+	"hedgewarden",
+	"thornbinder",
+	"bramble_idol",
+	"cursed_ingot",
+	"hex_mill",
+	"bone_cart",
+	"bonepicker_crow",
+	"moth_shrine",
+	"reliquary_key",
+	"pilgrim_stone",
+	"stolen_minute",
+	"lantern_vigil",
+	"moonlit_caravan",
+	"night_ferry",
+	"merchant_barge",
+	"fen_lighthouse",
+	"dream_courier",
+	"owl_post",
+	"sowing_moon",
+	"long_causeway",
+]
 
 var failure_count := 0
 
@@ -92,6 +118,7 @@ func _initialize() -> void:
 	_test_multiplayer_game_end()
 	_test_special_effects()
 	_test_hinterland_expansion()
+	_test_witching_hour_expansion()
 	_test_every_playable_card_resolves()
 	_test_random_market_setup()
 
@@ -137,6 +164,16 @@ func _test_card_catalog() -> void:
 			_check(
 				game_state.card_catalog[card_id].card_group == GameState.HINTERLANDS_GROUP,
 				"%s should belong to the named Hinterlands card group." % card_id
+			)
+	for card_id in WITCHING_HOUR_CARD_IDS:
+		_check(
+			game_state.card_catalog.has(card_id),
+			"Witching Hour card %s should exist." % card_id
+		)
+		if game_state.card_catalog.has(card_id):
+			_check(
+				game_state.card_catalog[card_id].card_group == GameState.WITCHING_HOUR_GROUP,
+				"%s should belong to the named Witching Hour card group." % card_id
 			)
 	for card_id in GameState.REQUIRED_CARD_IDS:
 		_check(game_state.card_catalog.has(card_id), "Required card %s should exist." % card_id)
@@ -1242,12 +1279,14 @@ func _test_random_market_setup() -> void:
 	game_state.set_card_enabled_for_market("river_magistrate", true)
 	game_state.set_kingdom_enabled(GameState.BEGINNER_KINGDOM, false)
 	game_state.set_kingdom_enabled(GameState.HINTERLANDS_GROUP, false)
+	game_state.set_kingdom_enabled(GameState.WITCHING_HOUR_GROUP, false)
 	_check(
 		not game_state.has_enough_market_candidates(),
 		"Market setup should know when kingdom filters cannot fill the action row."
 	)
 	game_state.set_kingdom_enabled(GameState.BEGINNER_KINGDOM, true)
 	game_state.set_kingdom_enabled(GameState.HINTERLANDS_GROUP, true)
+	game_state.set_kingdom_enabled(GameState.WITCHING_HOUR_GROUP, true)
 
 	_check(game_state.setup_starting_game(), "A second game should set up.")
 	_check(
@@ -1392,6 +1431,378 @@ func _test_relic_system() -> void:
 			compass.player.hand.size() == 3,
 			"The compass pick plus remaining draws should fill the requested hand."
 		)
+
+
+func _test_witching_hour_expansion() -> void:
+	_test_duration_cards()
+	_test_sowing_moon()
+	_test_hex_economy()
+	_test_trash_synergies()
+	_test_attack_immunity()
+	_test_relic_tempo_cards()
+	_test_new_relic_boons()
+
+
+func _test_duration_cards() -> void:
+	var game_state := _empty_game()
+	var caravan: CardDefinition = game_state.card_catalog["moonlit_caravan"]
+	game_state.player.hand.append(caravan)
+	for _index in range(6):
+		game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	_check(game_state.play_card(caravan), "Moonlit Caravan should play.")
+	_check(game_state.player.coins == 1, "Moonlit Caravan should grant a coin on play.")
+	_check(game_state.player.hand.size() == 1, "Moonlit Caravan should draw on play.")
+	game_state.begin_cleanup()
+	_check(
+		game_state.player.play_area.has(caravan),
+		"A duration card should stay in play through cleanup."
+	)
+	_check(game_state.player.hand.is_empty(), "Cleanup should still discard the hand.")
+	game_state.reset_turn_resources()
+	_check(
+		game_state.player.coins == 1,
+		"Moonlit Caravan should grant a coin at the next turn start."
+	)
+	_check(
+		game_state.player.hand.size() == 1,
+		"Moonlit Caravan should draw a card at the next turn start."
+	)
+	game_state.begin_cleanup()
+	_check(
+		not game_state.player.play_area.has(caravan),
+		"A spent duration card should leave play at the following cleanup."
+	)
+	_check(
+		game_state.player.discard_pile.has(caravan),
+		"A spent duration card should be discarded normally."
+	)
+
+	var causeway_game := _empty_game()
+	var causeway: CardDefinition = causeway_game.card_catalog["long_causeway"]
+	var silver: CardDefinition = causeway_game.card_catalog["silver_leaf"]
+	causeway_game.player.hand.append(causeway)
+	_check(causeway_game.play_card(causeway), "Long Causeway should play.")
+	_check(
+		causeway_game.player.buys == 2 and causeway_game.player.coins == 1,
+		"Long Causeway should grant a buy and a coin on play."
+	)
+	causeway_game.begin_cleanup()
+	causeway_game.reset_turn_resources()
+	_check(
+		causeway_game.get_effective_cost(silver) == silver.cost - 1,
+		"Long Causeway should reduce costs at the next turn start."
+	)
+
+
+func _test_sowing_moon() -> void:
+	var game_state := _empty_game()
+	var moon: CardDefinition = game_state.card_catalog["sowing_moon"]
+	var keepsake: CardDefinition = game_state.card_catalog["briar_gate"]
+	game_state.player.hand.assign([moon, keepsake])
+	game_state.player.draw_pile.append(game_state.card_catalog["pebble_coin"])
+	_check(game_state.play_card(moon), "Sowing Moon should play.")
+	_check(game_state.has_pending_choice(), "Sowing Moon should offer a set-aside choice.")
+	_resolve_choice_by_ids(game_state, ["briar_gate"])
+	_check(
+		game_state.player.set_aside_pile.has(keepsake),
+		"Sowing Moon should set the chosen card aside."
+	)
+	game_state.begin_cleanup()
+	_check(
+		game_state.player.set_aside_pile.has(keepsake),
+		"Set-aside cards should survive cleanup."
+	)
+	game_state.reset_turn_resources()
+	_check(
+		game_state.player.hand.has(keepsake),
+		"Sowing Moon should return the set-aside card next turn."
+	)
+	_check(
+		game_state.player.set_aside_pile.is_empty(),
+		"The set-aside pile should empty after returning cards."
+	)
+
+
+func _test_hex_economy() -> void:
+	var bargain_game := _empty_game()
+	var bargain: CardDefinition = bargain_game.card_catalog["witchs_bargain"]
+	var hex: CardDefinition = bargain_game.card_catalog["briar_hex"]
+	bargain_game.player.hand.append(bargain)
+	_check(bargain_game.play_card(bargain), "Witch's Bargain should play.")
+	_check(bargain_game.player.coins == 3, "Witch's Bargain should grant 3 coins.")
+	_check(bargain_game.player.hand.has(hex), "Witch's Bargain should gain a hex to hand.")
+
+	var eater_game := _empty_game()
+	var eater: CardDefinition = eater_game.card_catalog["hex_eater"]
+	eater_game.player.hand.assign([eater, hex, hex])
+	for _index in range(4):
+		eater_game.player.draw_pile.append(eater_game.card_catalog["pebble_coin"])
+	_check(eater_game.play_card(eater), "Hex Eater should play.")
+	_check(eater_game.has_pending_choice(), "Hex Eater should offer a hex trash choice.")
+	_resolve_choice_by_ids(eater_game, ["briar_hex", "briar_hex"])
+	_check(
+		eater_game.player.trash_pile.size() == 2,
+		"Hex Eater should trash the chosen hexes."
+	)
+	_check(eater_game.player.coins == 2, "Hex Eater should grant a coin per trashed hex.")
+
+	var mill_game := _empty_game()
+	var mill: CardDefinition = mill_game.card_catalog["hex_mill"]
+	mill_game.player.hand.assign([mill, hex])
+	mill_game.player.draw_pile.append(mill_game.card_catalog["pebble_coin"])
+	_check(mill_game.play_card(mill), "Hex Mill should play.")
+	_resolve_choice_by_ids(mill_game, ["briar_hex"])
+	_check(mill_game.player.coins == 2, "Hex Mill should pay for the discarded hex.")
+	_check(mill_game.player.discard_pile.has(hex), "Hex Mill should discard the hex.")
+
+	var ingot_game := _empty_game()
+	var ingot_hex: CardDefinition = ingot_game.card_catalog["briar_hex"]
+	ingot_game._gain_card_by_id("cursed_ingot", "discard")
+	ingot_game._process_resolution_queue()
+	_check(
+		ingot_game.player.discard_pile.has(ingot_game.card_catalog["cursed_ingot"])
+		and ingot_game.player.discard_pile.has(ingot_hex),
+		"Gaining a Cursed Ingot should also gain a Briar Hex."
+	)
+
+	var idol_game := _empty_game()
+	idol_game.player.draw_pile.append(idol_game.card_catalog["bramble_idol"])
+	idol_game.player.draw_pile.append(hex)
+	idol_game.player.draw_pile.append(hex)
+	_check(
+		idol_game.calculate_score() == 1,
+		"Bramble Idol should score 1 VP per owned hex against the hex penalty."
+	)
+
+	var binder_game := _empty_game()
+	var binder: CardDefinition = binder_game.card_catalog["thornbinder"]
+	binder_game.player.hand.assign([binder, hex])
+	_check(binder_game.play_card(binder), "Thornbinder should play.")
+	_resolve_choice_by_ids(binder_game, ["briar_hex"])
+	_check(
+		binder_game.player.coins == 4,
+		"Thornbinder should pay 2 extra coins for the trashed hex."
+	)
+
+
+func _test_trash_synergies() -> void:
+	var cart_game := _empty_game()
+	var cart: CardDefinition = cart_game.card_catalog["bone_cart"]
+	var silver: CardDefinition = cart_game.card_catalog["silver_leaf"]
+	cart_game.player.trash_pile.append(silver)
+	cart_game.player.hand.append(cart)
+	_check(cart_game.play_card(cart), "Bone Cart should play.")
+	_check(cart_game.has_pending_choice(), "Bone Cart should offer a reclaim choice.")
+	_resolve_choice_by_ids(cart_game, ["silver_leaf"])
+	_check(
+		cart_game.player.discard_pile.has(silver) and cart_game.player.trash_pile.is_empty(),
+		"Bone Cart should move the reclaimed card to the discard pile."
+	)
+
+	var crow_game := _empty_game()
+	var crow: CardDefinition = crow_game.card_catalog["bonepicker_crow"]
+	for _index in range(5):
+		crow_game.player.trash_pile.append(crow_game.card_catalog["pebble_coin"])
+	crow_game.player.hand.append(crow)
+	crow_game.player.draw_pile.append(crow_game.card_catalog["pebble_coin"])
+	_check(crow_game.play_card(crow), "Bonepicker Crow should play.")
+	_check(
+		crow_game.player.coins == 2,
+		"Bonepicker Crow should pay out with a full trash pile."
+	)
+
+	var quiet_crow_game := _empty_game()
+	var quiet_crow: CardDefinition = quiet_crow_game.card_catalog["bonepicker_crow"]
+	quiet_crow_game.player.hand.append(quiet_crow)
+	quiet_crow_game.player.draw_pile.append(quiet_crow_game.card_catalog["pebble_coin"])
+	_check(quiet_crow_game.play_card(quiet_crow), "Bonepicker Crow should still play.")
+	_check(
+		quiet_crow_game.player.coins == 0,
+		"Bonepicker Crow should stay quiet below the trash threshold."
+	)
+
+	var shrine_game := _empty_game()
+	shrine_game.player.draw_pile.append(shrine_game.card_catalog["moth_shrine"])
+	for _index in range(8):
+		shrine_game.player.trash_pile.append(shrine_game.card_catalog["pebble_coin"])
+	_check(
+		shrine_game.calculate_score() == 3,
+		"Moth Shrine should score 1 VP plus 1 per 4 trashed cards."
+	)
+
+
+func _test_attack_immunity() -> void:
+	var game_state := _create_game_state()
+	if game_state == null:
+		return
+	game_state.setup_starting_game(2)
+	var defender: PlayerState = game_state.players[1]
+	var witch: CardDefinition = game_state.card_catalog["briar_witch"]
+	var hex: CardDefinition = game_state.card_catalog["briar_hex"]
+
+	defender.hand.append(game_state.card_catalog["hedgewarden"])
+	game_state.player.hand.append(witch)
+	game_state.player.actions = 5
+	_check(game_state.play_card(witch), "Briar Witch should play against a warded rival.")
+	_check(
+		not defender.discard_pile.has(hex),
+		"Hedgewarden in hand should block the curse attack."
+	)
+
+	defender.hand.clear()
+	defender.play_area.append(game_state.card_catalog["fen_lighthouse"])
+	game_state.player.hand.append(witch)
+	_check(game_state.play_card(witch), "Briar Witch should play against the lighthouse.")
+	_check(
+		not defender.discard_pile.has(hex),
+		"Fen Lighthouse in play should block the curse attack."
+	)
+
+	defender.play_area.clear()
+	game_state.player.hand.append(witch)
+	_check(game_state.play_card(witch), "Briar Witch should play against an open rival.")
+	_check(
+		defender.discard_pile.has(hex),
+		"An unprotected rival should gain the curse."
+	)
+
+
+func _test_relic_tempo_cards() -> void:
+	var key_game := _empty_game()
+	var key: CardDefinition = key_game.card_catalog["reliquary_key"]
+	key_game.player.relics = ["dawn_banner", "gilded_purse"] as Array[String]
+	key_game.player.hand.append(key)
+	for _index in range(4):
+		key_game.player.draw_pile.append(key_game.card_catalog["pebble_coin"])
+	_check(key_game.play_card(key), "Reliquary Key should play.")
+	_check(
+		key_game.player.hand.size() == 2,
+		"Reliquary Key should draw one card per held relic."
+	)
+
+	var stone_game := _empty_game()
+	var stone: CardDefinition = stone_game.card_catalog["pilgrim_stone"]
+	stone_game.player.hand.append(stone)
+	_check(stone_game.play_card(stone), "Pilgrim Stone should play.")
+	_check(stone_game.player.trash_pile.has(stone), "Pilgrim Stone should trash itself.")
+	_check(
+		stone_game.player.pending_relic_offer.size() == 3,
+		"Pilgrim Stone should open a relic draft."
+	)
+
+	var minute_game := _create_game_state()
+	if minute_game == null:
+		return
+	minute_game.setup_starting_game(2)
+	var minute: CardDefinition = minute_game.card_catalog["stolen_minute"]
+	minute_game.player.hand.append(minute)
+	_check(minute_game.play_card(minute), "Stolen Minute should play.")
+	_check(
+		is_equal_approx(minute_game.players[1].end_turn_cooldown_reduction, -2.0),
+		"Stolen Minute should lengthen the rival end-turn cooldown."
+	)
+
+	var vigil_game := _empty_game()
+	var vigil: CardDefinition = vigil_game.card_catalog["lantern_vigil"]
+	vigil_game.player.hand.append(vigil)
+	_check(vigil_game.play_card(vigil), "Lantern Vigil should play.")
+	vigil_game.begin_cleanup()
+	vigil_game.reset_turn_resources()
+	_check(
+		is_equal_approx(vigil_game.player.end_turn_cooldown_reduction, 2.0),
+		"Lantern Vigil should pre-pay a cooldown reduction next turn."
+	)
+
+
+func _test_new_relic_boons() -> void:
+	# Sunflower Metronome doubles the first hand-played action each turn.
+	var metronome := _empty_game()
+	metronome.player.relics = ["sunflower_metronome"] as Array[String]
+	metronome.player.hand.append(metronome.card_catalog["forge_hall"])
+	for _index in range(7):
+		metronome.player.draw_pile.append(metronome.card_catalog["pebble_coin"])
+	_check(
+		metronome.play_card(metronome.card_catalog["forge_hall"]),
+		"A metronome action should play."
+	)
+	_check(
+		metronome.player.hand.size() == 6,
+		"Sunflower Metronome should double the first action's draws."
+	)
+
+	# Thumbed Ledger rebates a coin on the first buy.
+	var ledger := _create_game_state()
+	if ledger == null:
+		return
+	ledger.player.relics = ["thumbed_ledger"] as Array[String]
+	var bought: CardDefinition = ledger.market[0]
+	ledger.player.coins = ledger.get_effective_cost(bought)
+	_check(ledger.buy_card(bought), "A ledger buy should work.")
+	_check(ledger.player.coins == 1, "Thumbed Ledger should rebate 1 coin on the first buy.")
+
+	# Ashen Urn pays a coin per trashed card.
+	var urn := _empty_game()
+	urn.player.relics = ["ashen_urn"] as Array[String]
+	urn.player.hand.append(urn.card_catalog["quiet_chapel"])
+	urn.player.hand.append(urn.card_catalog["pebble_coin"])
+	urn.player.hand.append(urn.card_catalog["pebble_coin"])
+	_check(urn.play_card(urn.card_catalog["quiet_chapel"]), "Archive Purge should play.")
+	_resolve_choice_by_ids(urn, ["pebble_coin", "pebble_coin"])
+	_check(urn.player.coins == 2, "Ashen Urn should grant a coin per trashed card.")
+
+	# Trickster's Die discounts one random market pile each turn.
+	var die := _create_game_state()
+	if die == null:
+		return
+	die.player.relics = ["tricksters_die"] as Array[String]
+	die.reset_turn_resources()
+	var discount_id := str(die.turn_flags.get("die_discount_card_id", ""))
+	_check(not discount_id.is_empty(), "Trickster's Die should pick a market pile.")
+	if not discount_id.is_empty():
+		var discounted: CardDefinition = die.card_catalog[discount_id]
+		_check(
+			die.get_effective_cost(discounted) == maxi(0, discounted.cost - 1),
+			"Trickster's Die should shave 1 coin off its pile."
+		)
+
+	# Moonwake Mirror doubles duration payloads.
+	var mirror := _empty_game()
+	mirror.player.relics = ["moonwake_mirror"] as Array[String]
+	mirror.player.hand.append(mirror.card_catalog["merchant_barge"])
+	_check(
+		mirror.play_card(mirror.card_catalog["merchant_barge"]),
+		"Merchant Barge should play."
+	)
+	mirror.begin_cleanup()
+	mirror.reset_turn_resources()
+	_check(
+		mirror.player.coins == 4,
+		"Moonwake Mirror should double the duration coins."
+	)
+
+	# Patient Spider widens relic drafts to 4 options.
+	var spider := _empty_game()
+	spider.player.relics = ["patient_spider"] as Array[String]
+	_check(spider.generate_relic_offer(spider.player), "A spider draft should generate.")
+	_check(
+		spider.player.pending_relic_offer.size() == 4,
+		"Patient Spider should offer 4 relic choices."
+	)
+
+	# Hex Ward deflects the first curse gained each turn into the trash.
+	var ward := _empty_game()
+	ward.player.relics = ["hex_ward"] as Array[String]
+	var hex: CardDefinition = ward.card_catalog["briar_hex"]
+	ward._gain_card_by_id("briar_hex", "discard")
+	_check(
+		ward.player.trash_pile.has(hex) and not ward.player.discard_pile.has(hex),
+		"Hex Ward should trash the first gained hex."
+	)
+	ward._gain_card_by_id("briar_hex", "discard")
+	_check(
+		ward.player.discard_pile.has(hex),
+		"Hex Ward should only deflect one hex per turn."
+	)
 
 
 func _empty_game() -> GameState:

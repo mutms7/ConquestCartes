@@ -6,6 +6,12 @@ var hand: Array[CardDefinition] = []
 var play_area: Array[CardDefinition] = []
 var discard_pile: Array[CardDefinition] = []
 var trash_pile: Array[CardDefinition] = []
+# Cards set aside until the start of the owner's next turn (e.g. Sowing Moon).
+var set_aside_pile: Array[CardDefinition] = []
+# Duration bookkeeping: cards that stay in play through the next cleanup, and
+# the "next turn" effect payloads waiting to resolve at the next turn start.
+var duration_hold: Array[CardDefinition] = []
+var pending_duration_effects: Array[Dictionary] = []
 
 var player_name: String = "Player"
 var turn_number: int = 1
@@ -34,6 +40,9 @@ func clear_all() -> void:
 	play_area.clear()
 	discard_pile.clear()
 	trash_pile.clear()
+	set_aside_pile.clear()
+	duration_hold.clear()
+	pending_duration_effects.clear()
 	turn_number = 1
 	relics.clear()
 	pending_relic_offer.clear()
@@ -62,4 +71,5 @@ func get_all_cards() -> Array[CardDefinition]:
 	cards.append_array(hand)
 	cards.append_array(play_area)
 	cards.append_array(discard_pile)
+	cards.append_array(set_aside_pile)
 	return cards
