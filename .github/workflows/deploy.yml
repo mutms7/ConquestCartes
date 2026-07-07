@@ -16,10 +16,17 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Cap the job so a hung headless Godot run (e.g. a broken asset that leaves
+    # the smoke test waiting) fails fast instead of burning the full 6h ceiling.
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          # The background music is a Git LFS object; without this the runner
+          # only gets the LFS pointer text and Godot can't decode the "mp3".
+          lfs: true
 
       - name: Cache Godot
         id: godot-cache
