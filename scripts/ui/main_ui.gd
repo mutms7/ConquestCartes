@@ -153,7 +153,7 @@ var icon_textures: Dictionary = {}
 var ui_sound_players: Dictionary = {}
 var background_music_player: AudioStreamPlayer
 var background_music_loading := false
-var background_music_started_from_user_gesture := false
+var background_music_start_requested := false
 var last_ui_sound_name: String = ""
 var last_animation_event: String = ""
 var card_art_cache: Dictionary = {}
@@ -1737,19 +1737,17 @@ func _load_optional_assets() -> void:
 		ui_sound_players[sound_name] = player
 
 	if ResourceLoader.exists(BACKGROUND_MUSIC_PATH):
-		# The ambience track is large, so pull it in on a background thread and
-		# attach the stream once it is ready (see _poll_background_music_load).
-		# Loading it synchronously here would stall the main thread, which on the
-		# web build freezes the whole canvas while the file is read.
+		# Keep music loading off the main thread so entering or restarting a game
+		# never waits on the audio stream.
 		background_music_player = AudioStreamPlayer.new()
 		background_music_player.name = "BackgroundMusic"
 		background_music_player.volume_db = _get_background_music_volume_db()
 		add_child(background_music_player)
+		_request_background_music_playback()
 		if ResourceLoader.load_threaded_request(BACKGROUND_MUSIC_PATH) == OK:
 			background_music_loading = true
 		else:
-			# If the threaded request could not start, fall back to a blocking load.
-			_attach_background_music_stream(load(BACKGROUND_MUSIC_PATH) as AudioStream)
+			push_warning("Background music load request failed for %s." % BACKGROUND_MUSIC_PATH)
 
 
 func _build_bottom_docks() -> void:
@@ -7124,7 +7122,6 @@ func _clear_animation_layer() -> void:
 func _play_ui_sound(sound_name: String) -> void:
 	if not audio_enabled or not ui_sound_players.has(sound_name):
 		return
-	_start_background_music_from_user_gesture()
 	var player: AudioStreamPlayer = ui_sound_players[sound_name]
 	last_ui_sound_name = sound_name
 	player.stop()
@@ -7188,14 +7185,14 @@ func _refresh_background_music() -> void:
 			background_music_player.stop()
 			return
 		if (
-			background_music_started_from_user_gesture
+			background_music_start_requested
 			and background_music_player.stream != null
 			and not background_music_player.playing
 		):
 			background_music_player.play()
 	else:
 		background_music_player.stop()
-		background_music_started_from_user_gesture = false
+		background_music_start_requested = false
 
 
 func _get_background_music_volume_db() -> float:
@@ -7219,20 +7216,20 @@ func _keep_background_music_alive() -> void:
 		return
 	if background_music_volume <= 0.0:
 		return
-	if not background_music_started_from_user_gesture:
+	if not background_music_start_requested:
 		return
 	if background_music_player.stream != null and not background_music_player.playing:
 		background_music_player.play()
 
 
-func _start_background_music_from_user_gesture() -> void:
+func _request_background_music_playback() -> void:
 	if background_music_player == null or not audio_enabled:
 		return
 	if background_music_volume <= 0.0:
 		return
-	# Record the unlock even if the stream is still streaming in; once it attaches,
+	# Record the request even if the stream is still loading; once it attaches,
 	# _refresh_background_music picks up this flag and starts playback.
-	background_music_started_from_user_gesture = true
+	background_music_start_requested = true
 	if background_music_player.stream == null:
 		return
 	background_music_player.volume_db = _get_background_music_volume_db()
@@ -7609,7 +7606,7 @@ func _set_menu_overlay_active(active: bool) -> void:
 
 func _input(event: InputEvent) -> void:
 	if _is_audio_unlock_event(event):
-		_start_background_music_from_user_gesture()
+		_request_background_music_playback()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -7666,7 +7663,10 @@ func _is_audio_unlock_event(event: InputEvent) -> bool:
 
 func _on_home_audio_toggled(enabled: bool) -> void:
 	audio_enabled = enabled
-	_refresh_background_music()
+	if enabled:
+		_request_background_music_playback()
+	else:
+		_refresh_background_music()
 	_play_ui_sound("button_click")
 
 

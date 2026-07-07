@@ -173,8 +173,8 @@ func _initialize() -> void:
 		"Background music should use the supplied Dominion ambience MP3."
 	)
 	_check(
-		main_ui.background_music_started_from_user_gesture,
-		"Background music should be unlocked by the first UI sound."
+		main_ui.background_music_start_requested,
+		"Background music playback should be requested as soon as the scene loads."
 	)
 	_check(
 		is_equal_approx(main_ui.background_music_volume, main_ui.DEFAULT_AUDIO_VOLUME)
@@ -206,7 +206,7 @@ func _initialize() -> void:
 	main_ui.background_music_player.seek(2.0)
 	await process_frame
 	var position_before_settings: float = main_ui.background_music_player.get_playback_position()
-	main_ui.background_music_started_from_user_gesture = false
+	var start_requested_before_settings: bool = main_ui.background_music_start_requested
 	_home_settings_button().pressed.emit()
 	await process_frame
 	var position_after_settings: float = main_ui.background_music_player.get_playback_position()
@@ -214,11 +214,11 @@ func _initialize() -> void:
 	if position_before_settings > 1.0:
 		settings_preserved_position = position_after_settings > 1.0
 	_check(
-		main_ui.background_music_started_from_user_gesture
+		main_ui.background_music_start_requested == start_requested_before_settings
 		and main_ui.background_music_player != null
 		and main_ui.background_music_player.playing
 		and settings_preserved_position,
-		"Opening Settings should not restart background music that is already playing."
+		"Opening Settings should not restart or re-trigger background music."
 	)
 	_background_music_slider().set_value_no_signal(0.0)
 	_background_music_slider().value_changed.emit(0.0)
@@ -240,12 +240,22 @@ func _initialize() -> void:
 		),
 		"Raising the background music slider should restart the boosted music mix."
 	)
-	main_ui.background_music_started_from_user_gesture = false
+	main_ui.background_music_player.stop()
+	main_ui.background_music_start_requested = false
+	main_ui._play_ui_sound("button_click")
+	await process_frame
+	_check(
+		not main_ui.background_music_start_requested
+		and main_ui.background_music_player != null
+		and not main_ui.background_music_player.playing
+		and main_ui.last_ui_sound_name == "button_click",
+		"UI sound effects should not start or restart background music."
+	)
 	var unlock_click := InputEventMouseButton.new()
 	unlock_click.pressed = true
 	main_ui._input(unlock_click)
 	_check(
-		main_ui.background_music_started_from_user_gesture
+		main_ui.background_music_start_requested
 		and main_ui.background_music_player.playing,
 		"Background music should restart from a real input gesture for Web audio unlock."
 	)
@@ -263,7 +273,7 @@ func _initialize() -> void:
 		main_ui.audio_enabled
 		and main_ui.background_music_player != null
 		and main_ui.background_music_player.playing
-		and main_ui.background_music_started_from_user_gesture,
+		and main_ui.background_music_start_requested,
 		"Audio toggle should restart the background music."
 	)
 	_home_motion_toggle().set_pressed_no_signal(false)
