@@ -159,6 +159,10 @@ func _initialize() -> void:
 	await process_frame
 	_check(_home_settings_panel().visible, "Settings should open from the home menu.")
 	_check(_home_audio_toggle().button_pressed, "Audio should default to enabled.")
+	# The ambience track loads on a background thread; force it to finish before
+	# asserting on the stream so the test does not race the loader.
+	main_ui.ensure_background_music_loaded()
+	await process_frame
 	_check(
 		main_ui.background_music_player != null
 		and main_ui.background_music_player.stream != null,

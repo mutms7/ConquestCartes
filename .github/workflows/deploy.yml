@@ -86,23 +86,25 @@ jobs:
 
       - name: Configure generated static build
         run: |
-          mkdir -p web/api
-          cp api/relay.js web/api/relay.js
-          cp package.json web/package.json
-          if [ -f package-lock.json ]; then
-            cp package-lock.json web/package-lock.json
-          fi
+          # The lobby relay runs on its own always-on host now, so the Vercel
+          # deploy is pure static hosting: no serverless function, no npm deps.
+          # The COOP/COEP headers give the page the cross-origin isolation that
+          # the multi-threaded web export needs (SharedArrayBuffer); without them
+          # a threaded Godot build refuses to boot.
           cat > web/vercel.json <<'JSON'
           {
             "framework": null,
             "buildCommand": null,
-            "installCommand": "npm install --omit=dev",
             "outputDirectory": ".",
-            "functions": {
-              "api/relay.js": {
-                "maxDuration": 300
+            "headers": [
+              {
+                "source": "/(.*)",
+                "headers": [
+                  { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+                  { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" }
+                ]
               }
-            }
+            ]
           }
           JSON
 

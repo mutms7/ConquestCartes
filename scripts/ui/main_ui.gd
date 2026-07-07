@@ -152,6 +152,7 @@ var ui_textures: Dictionary = {}
 var icon_textures: Dictionary = {}
 var ui_sound_players: Dictionary = {}
 var background_music_player: AudioStreamPlayer
+var background_music_loading := false
 var background_music_started_from_user_gesture := false
 var last_ui_sound_name: String = ""
 var last_animation_event: String = ""
@@ -395,6 +396,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_poll_background_music_load()
 	_keep_background_music_alive()
 	_tick_online_relay_reconnect(delta)
 	_tick_online_relay_poll(delta)
@@ -1701,20 +1703,19 @@ func _load_optional_assets() -> void:
 		ui_sound_players[sound_name] = player
 
 	if ResourceLoader.exists(BACKGROUND_MUSIC_PATH):
-		var music_stream := load(BACKGROUND_MUSIC_PATH) as AudioStream
-		if music_stream != null:
-			if music_stream is AudioStreamWAV:
-				var wav_stream := music_stream as AudioStreamWAV
-				wav_stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-			elif music_stream is AudioStreamMP3:
-				var mp3_stream := music_stream as AudioStreamMP3
-				mp3_stream.loop = true
-			background_music_player = AudioStreamPlayer.new()
-			background_music_player.name = "BackgroundMusic"
-			background_music_player.stream = music_stream
-			background_music_player.volume_db = _get_background_music_volume_db()
-			add_child(background_music_player)
-			_refresh_background_music()
+		# The ambience track is large, so pull it in on a background thread and
+		# attach the stream once it is ready (see _poll_background_music_load).
+		# Loading it synchronously here would stall the main thread, which on the
+		# web build freezes the whole canvas while the file is read.
+		background_music_player = AudioStreamPlayer.new()
+		background_music_player.name = "BackgroundMusic"
+		background_music_player.volume_db = _get_background_music_volume_db()
+		add_child(background_music_player)
+		if ResourceLoader.load_threaded_request(BACKGROUND_MUSIC_PATH) == OK:
+			background_music_loading = true
+		else:
+			# If the threaded request could not start, fall back to a blocking load.
+			_attach_background_music_stream(load(BACKGROUND_MUSIC_PATH) as AudioStream)
 
 
 func _build_bottom_docks() -> void:
@@ -7096,6 +7097,54 @@ func _play_ui_sound(sound_name: String) -> void:
 	player.play()
 
 
+func _poll_background_music_load() -> void:
+	# Called each frame while the ambience track is still streaming in on the
+	# loader thread. Attach the stream the moment it is ready.
+	if not background_music_loading:
+		return
+	var status := ResourceLoader.load_threaded_get_status(BACKGROUND_MUSIC_PATH)
+	if status == ResourceLoader.THREAD_LOAD_LOADED:
+		_attach_background_music_stream(
+			ResourceLoader.load_threaded_get(BACKGROUND_MUSIC_PATH) as AudioStream
+		)
+	elif (
+		status == ResourceLoader.THREAD_LOAD_FAILED
+		or status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE
+	):
+		background_music_loading = false
+		push_warning("Background music failed to load from %s." % BACKGROUND_MUSIC_PATH)
+
+
+func ensure_background_music_loaded() -> void:
+	# Block until the threaded music load finishes, then attach it. Used by tests
+	# and any path that needs the stream present immediately rather than next frame.
+	if not background_music_loading:
+		return
+	var status := ResourceLoader.load_threaded_get_status(BACKGROUND_MUSIC_PATH)
+	while status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		OS.delay_msec(10)
+		status = ResourceLoader.load_threaded_get_status(BACKGROUND_MUSIC_PATH)
+	if status == ResourceLoader.THREAD_LOAD_LOADED:
+		_attach_background_music_stream(
+			ResourceLoader.load_threaded_get(BACKGROUND_MUSIC_PATH) as AudioStream
+		)
+	else:
+		background_music_loading = false
+
+
+func _attach_background_music_stream(music_stream: AudioStream) -> void:
+	background_music_loading = false
+	if music_stream == null or background_music_player == null:
+		return
+	if music_stream is AudioStreamWAV:
+		(music_stream as AudioStreamWAV).loop_mode = AudioStreamWAV.LOOP_FORWARD
+	elif music_stream is AudioStreamMP3:
+		(music_stream as AudioStreamMP3).loop = true
+	background_music_player.stream = music_stream
+	background_music_player.volume_db = _get_background_music_volume_db()
+	_refresh_background_music()
+
+
 func _refresh_background_music() -> void:
 	if background_music_player == null:
 		return
@@ -7104,7 +7153,11 @@ func _refresh_background_music() -> void:
 		if background_music_volume <= 0.0:
 			background_music_player.stop()
 			return
-		if background_music_started_from_user_gesture and not background_music_player.playing:
+		if (
+			background_music_started_from_user_gesture
+			and background_music_player.stream != null
+			and not background_music_player.playing
+		):
 			background_music_player.play()
 	else:
 		background_music_player.stop()
@@ -7143,14 +7196,16 @@ func _start_background_music_from_user_gesture() -> void:
 		return
 	if background_music_volume <= 0.0:
 		return
-	if background_music_player.playing:
-		background_music_player.volume_db = _get_background_music_volume_db()
-		background_music_started_from_user_gesture = true
+	# Record the unlock even if the stream is still streaming in; once it attaches,
+	# _refresh_background_music picks up this flag and starts playback.
+	background_music_started_from_user_gesture = true
+	if background_music_player.stream == null:
 		return
 	background_music_player.volume_db = _get_background_music_volume_db()
+	if background_music_player.playing:
+		return
 	background_music_player.stop()
 	background_music_player.play()
-	background_music_started_from_user_gesture = true
 
 
 func _clear_container(container: Container) -> void:

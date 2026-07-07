@@ -314,6 +314,9 @@ function setCorsHeaders(response) {
   response.setHeader('Access-Control-Allow-Origin', '*');
   response.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  // The web build is cross-origin isolated (COEP: require-corp) so it can use
+  // threads; this header lets that isolated page read the relay's responses.
+  response.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 }
 
 function sendJson(response, statusCode, payload) {
