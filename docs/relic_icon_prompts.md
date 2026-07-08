@@ -13,12 +13,20 @@ individual relic prompt asks for that subject.
 Generate each relic as a transparent PNG icon, then save it to
 `assets/icons/relics/<relic_id>.png`.
 
+The checked-in relic PNGs should contain a real alpha channel. Do not accept
+exports with a baked checkerboard "transparent" background; if a generator
+returns fake transparency, remove the checker/grid pixels before committing the
+asset.
+
 Shared constraints for every prompt:
 
 > transparent background, no scenery, no room, no floor, no wall, no border, no frame, no text, no lettering, single centered object, readable at small game-icon size, painterly fantasy relic icon, warm copper and old brass highlights, dark burnished metal edges, subtle amber underglow, soft visible brushwork, crisp silhouette, clean alpha channel
 
 If the generator cannot produce real transparency, generate the object isolated
 on a flat solid color so the background can be removed cleanly afterward.
+
+Current relic icons were cleaned from fake checkerboard transparency to true PNG
+alpha in July 2026.
 
 ## Prompts
 
