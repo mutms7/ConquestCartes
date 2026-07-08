@@ -146,8 +146,9 @@ func _test_card_catalog() -> void:
 			"%s should have a compact display name." % card.id
 		)
 		_check(not card.art_id.is_empty(), "%s should map to artwork." % card.card_name)
+		var art_path := "res://assets/cards/%s.png" % card.art_id
 		_check(
-			ResourceLoader.exists("res://assets/cards/%s.png" % card.art_id),
+			ResourceLoader.exists(art_path) or FileAccess.file_exists(art_path),
 			"%s should use an existing card illustration." % card.card_name
 		)
 	for card_id in EXPECTED_ART_LINKED_NAMES:

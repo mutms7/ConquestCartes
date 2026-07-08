@@ -494,6 +494,27 @@ func _initialize() -> void:
 	_check(main_ui.ui_sound_players.size() == 7, "All configured UI sounds should load.")
 	_check(_top_bar() != null, "The 2a table should render a top bar.")
 	_check(_relics_rail().get_child_count() > 0, "The top bar should include the relics rail.")
+	main_ui.game_state.player.relics.append("dawn_banner")
+	main_ui._refresh_relics_rail()
+	await process_frame
+	var relic_slot := main_ui.relics_rail_row.get_child(0) as Control
+	_check(
+		relic_slot != null and relic_slot.custom_minimum_size.x > 30.0,
+		"Claimed relic slots should render as larger board icons."
+	)
+	if relic_slot != null:
+		_right_click_control(relic_slot)
+		await process_frame
+		_check(
+			_relic_preview().visible
+			and main_ui.relic_preview_name_label.text == "Dawn Banner",
+			"Right-clicking a board relic should show its relic preview."
+		)
+		_right_click_control(relic_slot)
+		await process_frame
+		_check(not _relic_preview().visible, "Right-clicking the same relic again should hide its preview.")
+	main_ui.game_state.player.relics.clear()
+	main_ui._refresh_relics_rail()
 	_check(
 		_bazaar_button() == null
 		and _top_bar().find_child("BaseKingdomPill", true, false) == null,
@@ -706,7 +727,10 @@ func _initialize() -> void:
 		var sound_before_hover: String = main_ui.last_ui_sound_name
 		resource_button.mouse_entered.emit()
 		await create_timer(0.2).timeout
-		_check(_card_preview().visible, "Hovering a hand card should show its preview.")
+		_check(not _card_preview().visible, "Hovering a hand card should not show its preview.")
+		_right_click_control(resource_button)
+		await process_frame
+		_check(_card_preview().visible, "Right-clicking a hand card should show its preview.")
 		_check(
 			_card_preview().custom_minimum_size.x > main_ui.CARD_FACE_SIZE.x
 			and _card_preview().custom_minimum_size.x <= 280.0
@@ -755,7 +779,10 @@ func _initialize() -> void:
 		)
 		resource_button.mouse_exited.emit()
 		await process_frame
-		_check(not _card_preview().visible, "Leaving a hand card should hide its preview.")
+		_check(_card_preview().visible, "Leaving a hand card should leave its right-click preview open.")
+		_right_click_control(resource_button)
+		await process_frame
+		_check(not _card_preview().visible, "Right-clicking the same hand card again should hide its preview.")
 		var play_area_size_before_play := _play_area_panel().size
 		resource_button.pressed.emit()
 		await process_frame
@@ -773,12 +800,12 @@ func _initialize() -> void:
 			"Played cards should render as mini art/name cards."
 		)
 		if played_card_button != null:
-			played_card_button.mouse_entered.emit()
+			_right_click_control(played_card_button)
 			await process_frame
-			_check(_card_preview().visible, "Hovering a played mini card should show its preview.")
-			played_card_button.mouse_exited.emit()
+			_check(_card_preview().visible, "Right-clicking a played mini card should show its preview.")
+			_right_click_control(played_card_button)
 			await process_frame
-			_check(not _card_preview().visible, "Leaving a played mini card should hide its preview.")
+			_check(not _card_preview().visible, "Right-clicking the same played mini card again should hide its preview.")
 		_check(
 			_play_area_panel().size == play_area_size_before_play,
 			"Playing a card should not resize the play area or move the UI."
@@ -877,7 +904,10 @@ func _initialize() -> void:
 		)
 		market_button.mouse_entered.emit()
 		await process_frame
-		_check(_card_preview().visible, "Hovering a market card should show its preview.")
+		_check(not _card_preview().visible, "Hovering a market card should not show its preview.")
+		_right_click_control(market_button)
+		await process_frame
+		_check(_card_preview().visible, "Right-clicking a market card should show its preview.")
 		_check(
 			_preview_name_label().text == market_card.card_name,
 			"Market preview should show the hovered card name."
@@ -1589,6 +1619,10 @@ func _card_preview() -> PanelContainer:
 	return main_ui.get_node("CardPreview")
 
 
+func _relic_preview() -> PanelContainer:
+	return main_ui.get_node("RelicPreview")
+
+
 func _end_game_overlay() -> Control:
 	return main_ui.get_node("EndGameOverlay")
 
@@ -1788,6 +1822,23 @@ func _click_control(control: Control) -> void:
 	var release := InputEventMouseButton.new()
 	release.position = center
 	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	root.push_input(release, true)
+
+
+func _right_click_control(control: Control) -> void:
+	var center := control.get_global_rect().get_center()
+	var motion := InputEventMouseMotion.new()
+	motion.position = center
+	root.push_input(motion, true)
+	var press := InputEventMouseButton.new()
+	press.position = center
+	press.button_index = MOUSE_BUTTON_RIGHT
+	press.pressed = true
+	root.push_input(press, true)
+	var release := InputEventMouseButton.new()
+	release.position = center
+	release.button_index = MOUSE_BUTTON_RIGHT
 	release.pressed = false
 	root.push_input(release, true)
 

@@ -128,6 +128,10 @@ const ICON_PATHS := {
 	"discard": "res://assets/icons/ui/discard.png",
 	"victory": "res://assets/icons/ui/victory.png",
 }
+const RELIC_ICON_PATH_TEMPLATE := "res://assets/icons/relics/%s.png"
+const RELIC_RAIL_ICON_SIZE := Vector2(32, 32)
+const RELIC_DRAFT_ICON_SIZE := Vector2(74, 74)
+const RELIC_PREVIEW_ICON_SIZE := Vector2(110, 110)
 const SOUND_PATHS := {
 	"button_click": "res://assets/audio/ui/button_click.ogg",
 	"play_card": "res://assets/audio/ui/play_card.ogg",
@@ -150,6 +154,7 @@ var body_font: Font
 var body_bold_font: Font
 var ui_textures: Dictionary = {}
 var icon_textures: Dictionary = {}
+var relic_icon_cache: Dictionary = {}
 var ui_sound_players: Dictionary = {}
 var background_music_player: AudioStreamPlayer
 var background_music_loading := false
@@ -243,6 +248,13 @@ var relic_overlay: Control
 var relic_options_row: HBoxContainer
 var relic_overlay_offer: Array[String] = []
 var relics_rail_row: HBoxContainer
+var relic_preview: PanelContainer
+var relic_preview_icon_host: CenterContainer
+var relic_preview_name_label: Label
+var relic_preview_meta_label: Label
+var relic_preview_description_label: Label
+var active_preview_kind := ""
+var active_preview_id := ""
 var last_play_area_ids: Array[String] = []
 var last_play_area_owner: int = 0
 var home_noise_overlay: TextureRect
@@ -342,6 +354,7 @@ func _ready() -> void:
 	_build_market_board()
 	_build_home_screen()
 	_build_relic_overlay()
+	_build_relic_preview()
 	_apply_imported_theme()
 	home_button.pressed.connect(_on_home_pressed)
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
@@ -2165,7 +2178,7 @@ func _build_top_bar() -> void:
 func _create_relics_rail() -> PanelContainer:
 	var rail := PanelContainer.new()
 	rail.name = "RelicsRail"
-	rail.custom_minimum_size = Vector2(278, 42)
+	rail.custom_minimum_size = Vector2(306, 42)
 	rail.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	rail.add_theme_stylebox_override(
 		"panel",
@@ -2174,9 +2187,9 @@ func _create_relics_rail() -> PanelContainer:
 
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 12)
-	margin.add_theme_constant_override("margin_top", 5)
+	margin.add_theme_constant_override("margin_top", 3)
 	margin.add_theme_constant_override("margin_right", 12)
-	margin.add_theme_constant_override("margin_bottom", 5)
+	margin.add_theme_constant_override("margin_bottom", 3)
 	rail.add_child(margin)
 
 	var row := HBoxContainer.new()
@@ -2188,14 +2201,14 @@ func _create_relics_rail() -> PanelContainer:
 	var label := Label.new()
 	label.text = "RELICS"
 	label.add_theme_color_override("font_color", COLOR_BRASS)
-	label.add_theme_font_size_override("font_size", 9)
+	label.add_theme_font_size_override("font_size", 10)
 	if title_font != null:
 		label.add_theme_font_override("font", title_font)
 	row.add_child(label)
 
 	relics_rail_row = HBoxContainer.new()
 	relics_rail_row.name = "Slots"
-	relics_rail_row.add_theme_constant_override("separation", 8)
+	relics_rail_row.add_theme_constant_override("separation", 10)
 	row.add_child(relics_rail_row)
 	# Relic slots start empty; claimed relics fill them via _refresh_relics_rail.
 	for index in range(RelicCatalog.RELIC_CAP):
@@ -2223,7 +2236,7 @@ func _create_relic_slot(relic_id: String, index: int) -> PanelContainer:
 	var filled := not relic_id.is_empty()
 	var slot := PanelContainer.new()
 	slot.name = "RelicSlot%d" % (index + 1)
-	slot.custom_minimum_size = Vector2(30, 30)
+	slot.custom_minimum_size = Vector2(36, 36)
 	slot.add_theme_stylebox_override(
 		"panel",
 		_make_relic_slot_style(filled)
@@ -2234,19 +2247,9 @@ func _create_relic_slot(relic_id: String, index: int) -> PanelContainer:
 			RelicCatalog.get_relic_description(relic_id),
 		]
 		slot.mouse_filter = Control.MOUSE_FILTER_STOP
-	var glyph := Label.new()
-	glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	glyph.text = RelicCatalog.get_relic_glyph(relic_id) if filled else "+"
-	glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	glyph.add_theme_color_override(
-		"font_color",
-		Color("#3a2410") if filled else Color(0.835, 0.667, 0.314, 0.5)
-	)
-	glyph.add_theme_font_size_override("font_size", 15 if filled else 13)
-	if title_font != null:
-		glyph.add_theme_font_override("font", title_font)
-	slot.add_child(glyph)
+		slot.gui_input.connect(_on_relic_slot_gui_input.bind(relic_id, slot))
+		slot.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	slot.add_child(_create_relic_icon_or_glyph(relic_id, RELIC_RAIL_ICON_SIZE, filled, 18))
 	return slot
 
 
@@ -2324,10 +2327,80 @@ func _build_relic_overlay() -> void:
 	footer.add_child(skip_button)
 
 
+func _build_relic_preview() -> void:
+	relic_preview = PanelContainer.new()
+	relic_preview.name = "RelicPreview"
+	relic_preview.visible = false
+	relic_preview.z_index = 180
+	relic_preview.custom_minimum_size = Vector2(252, 286)
+	relic_preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	relic_preview.add_theme_stylebox_override(
+		"panel",
+		_make_preview_style(Color(0.13, 0.095, 0.055, 1.0), COLOR_BRASS)
+	)
+	add_child(relic_preview)
+
+	var margin := MarginContainer.new()
+	margin.name = "Margin"
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margin.add_theme_constant_override("margin_left", 18)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_right", 18)
+	margin.add_theme_constant_override("margin_bottom", 18)
+	relic_preview.add_child(margin)
+
+	var layout := VBoxContainer.new()
+	layout.name = "Layout"
+	layout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layout.add_theme_constant_override("separation", 8)
+	margin.add_child(layout)
+
+	relic_preview_icon_host = CenterContainer.new()
+	relic_preview_icon_host.name = "IconHost"
+	relic_preview_icon_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	relic_preview_icon_host.custom_minimum_size = Vector2(0, 116)
+	layout.add_child(relic_preview_icon_host)
+
+	relic_preview_name_label = Label.new()
+	relic_preview_name_label.name = "NameLabel"
+	relic_preview_name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	relic_preview_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	relic_preview_name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	relic_preview_name_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	relic_preview_name_label.add_theme_font_size_override("font_size", 20)
+	if title_font != null:
+		relic_preview_name_label.add_theme_font_override("font", title_font)
+	layout.add_child(relic_preview_name_label)
+
+	relic_preview_meta_label = Label.new()
+	relic_preview_meta_label.name = "MetaLabel"
+	relic_preview_meta_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	relic_preview_meta_label.text = "RELIC"
+	relic_preview_meta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	relic_preview_meta_label.add_theme_color_override("font_color", COLOR_BRASS)
+	relic_preview_meta_label.add_theme_font_size_override("font_size", 10)
+	if title_font != null:
+		relic_preview_meta_label.add_theme_font_override("font", title_font)
+	layout.add_child(relic_preview_meta_label)
+
+	relic_preview_description_label = Label.new()
+	relic_preview_description_label.name = "DescriptionLabel"
+	relic_preview_description_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	relic_preview_description_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	relic_preview_description_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	relic_preview_description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	relic_preview_description_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	relic_preview_description_label.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	relic_preview_description_label.add_theme_font_size_override("font_size", 13)
+	if body_font != null:
+		relic_preview_description_label.add_theme_font_override("font", body_font)
+	layout.add_child(relic_preview_description_label)
+
+
 func _create_relic_option_button(relic_id: String) -> Button:
 	var button := Button.new()
 	button.name = "Relic_%s" % relic_id
-	button.custom_minimum_size = Vector2(196, 212)
+	button.custom_minimum_size = Vector2(196, 230)
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	var surface := Color(0.13, 0.095, 0.055, 1.0)
 	button.add_theme_stylebox_override(
@@ -2343,6 +2416,7 @@ func _create_relic_option_button(relic_id: String) -> Button:
 		_make_card_style(surface.darkened(0.08), COLOR_BRASS, 2)
 	)
 	button.pressed.connect(_on_relic_option_pressed.bind(relic_id))
+	button.gui_input.connect(_on_relic_slot_gui_input.bind(relic_id, button))
 	button.mouse_entered.connect(_on_hud_button_hovered.bind(button))
 	button.mouse_exited.connect(_on_hud_button_unhovered.bind(button))
 
@@ -2360,15 +2434,7 @@ func _create_relic_option_button(relic_id: String) -> Button:
 	stack.add_theme_constant_override("separation", 8)
 	margin.add_child(stack)
 
-	var glyph := Label.new()
-	glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	glyph.text = RelicCatalog.get_relic_glyph(relic_id)
-	glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	glyph.add_theme_color_override("font_color", COLOR_BRASS)
-	glyph.add_theme_font_size_override("font_size", 34)
-	if title_font != null:
-		glyph.add_theme_font_override("font", title_font)
-	stack.add_child(glyph)
+	stack.add_child(_create_relic_icon_or_glyph(relic_id, RELIC_DRAFT_ICON_SIZE, true, 34))
 
 	var name_label := Label.new()
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2394,6 +2460,45 @@ func _create_relic_option_button(relic_id: String) -> Button:
 		description.add_theme_font_override("font", body_font)
 	stack.add_child(description)
 	return button
+
+
+func _create_relic_icon_or_glyph(
+	relic_id: String,
+	size: Vector2,
+	filled: bool,
+	fallback_font_size: int
+) -> Control:
+	var holder := CenterContainer.new()
+	holder.name = "RelicIconHost"
+	holder.custom_minimum_size = size
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var texture := _load_relic_icon_texture(relic_id) if filled else null
+	if texture != null:
+		var icon := TextureRect.new()
+		icon.name = "RelicIcon"
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon.texture = texture
+		icon.custom_minimum_size = size
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		holder.add_child(icon)
+		return holder
+
+	var glyph := Label.new()
+	glyph.name = "RelicGlyph"
+	glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glyph.text = RelicCatalog.get_relic_glyph(relic_id) if filled else "+"
+	glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	glyph.add_theme_color_override(
+		"font_color",
+		Color("#3a2410") if filled else Color(0.835, 0.667, 0.314, 0.5)
+	)
+	glyph.add_theme_font_size_override("font_size", fallback_font_size)
+	if title_font != null:
+		glyph.add_theme_font_override("font", title_font)
+	holder.add_child(glyph)
+	return holder
 
 
 func _local_view_player() -> PlayerState:
@@ -3985,7 +4090,7 @@ func _set_noise_amount(rect: TextureRect, amount: float) -> void:
 
 
 func _show_home_screen(_from_game: bool) -> void:
-	_hide_card_preview()
+	_hide_all_previews()
 	_refresh_home_controls()
 	if not _home_modal_is_visible():
 		_set_menu_overlay_active(false)
@@ -4928,7 +5033,7 @@ func _apply_button_asset_styles(button: Button, texture: Texture2D) -> void:
 
 
 func _refresh_ui() -> void:
-	_hide_card_preview()
+	_hide_all_previews()
 	var player := game_state.player
 	turn_label.text = (
 		"%s  T%d" % [game_state.get_active_player_name(), player.turn_number]
@@ -5599,6 +5704,7 @@ func _create_card_button(
 			_on_card_mouse_entered.bind(card, button, visual_state)
 		)
 		button.mouse_exited.connect(_on_card_mouse_exited.bind(button))
+		button.gui_input.connect(_on_card_gui_input.bind(card, button, visual_state))
 	button.add_theme_stylebox_override(
 		"normal",
 		_make_card_style(card_surface, border_color, outline_width, is_affordable_face)
@@ -6018,6 +6124,22 @@ func _load_card_texture(card_id: String) -> Texture2D:
 	return texture
 
 
+func _load_relic_icon_texture(relic_id: String) -> Texture2D:
+	var icon_id := RelicCatalog.get_relic_icon_id(relic_id)
+	if relic_icon_cache.has(icon_id):
+		return relic_icon_cache[icon_id]
+	var path := RELIC_ICON_PATH_TEMPLATE % icon_id
+	var texture: Texture2D = null
+	if ResourceLoader.exists(path):
+		texture = load(path) as Texture2D
+	elif FileAccess.file_exists(path):
+		var image := Image.new()
+		if image.load(path) == OK:
+			texture = ImageTexture.create_from_image(image)
+	relic_icon_cache[icon_id] = texture
+	return texture
+
+
 func _update_card_pivot(button: Button) -> void:
 	if button.get_meta("hand_fan", false):
 		# Hand cards share a fan pivot below the row; recompute the whole fan so
@@ -6039,13 +6161,37 @@ func _on_card_mouse_entered(
 		# hovered card clearly pops above its neighbours.
 		_animate_card_scale(button, HAND_HOVER_SCALE if is_hand else CARD_HOVER_SCALE)
 		button.z_index = 30 if is_hand else 10
-	_show_card_preview(card, button, visual_state)
 
 
 func _on_card_mouse_exited(button: Button) -> void:
 	_animate_card_scale(button, CARD_NORMAL_SCALE)
 	button.z_index = 0
-	_hide_card_preview()
+
+
+func _on_card_gui_input(
+	event: InputEvent,
+	card: CardDefinition,
+	button: Control,
+	visual_state: String
+) -> void:
+	if not _is_right_click_pressed(event):
+		return
+	_toggle_card_preview(card, button, visual_state)
+	button.accept_event()
+
+
+func _on_relic_slot_gui_input(event: InputEvent, relic_id: String, source: Control) -> void:
+	if not _is_right_click_pressed(event):
+		return
+	_toggle_relic_preview(relic_id, source)
+	source.accept_event()
+
+
+func _is_right_click_pressed(event: InputEvent) -> bool:
+	if event is InputEventMouseButton:
+		var mouse_event := event as InputEventMouseButton
+		return mouse_event.pressed and mouse_event.button_index == MOUSE_BUTTON_RIGHT
+	return false
 
 
 func _on_hud_button_hovered(button: Button) -> void:
@@ -6090,9 +6236,13 @@ func _animate_control_scale(control: Control, target_scale: Vector2, duration: f
 
 func _show_card_preview(
 	card: CardDefinition,
-	source_button: Button,
+	source_button: Control,
 	visual_state: String
 ) -> void:
+	if relic_preview != null:
+		relic_preview.hide()
+	active_preview_kind = "card"
+	active_preview_id = card.id
 	var type_palette := _get_card_type_palette(card.card_type)
 	preview_name_label.text = card.card_name
 	preview_meta_label.text = (
@@ -6139,11 +6289,46 @@ func _show_card_preview(
 	card_preview.show()
 
 
-func _get_preview_position(source_button: Button) -> Vector2:
+func _toggle_card_preview(
+	card: CardDefinition,
+	source_button: Control,
+	visual_state: String
+) -> void:
+	if card_preview.visible and active_preview_kind == "card" and active_preview_id == card.id:
+		_hide_card_preview()
+		return
+	_show_card_preview(card, source_button, visual_state)
+
+
+func _show_relic_preview(relic_id: String, source: Control) -> void:
+	if card_preview != null:
+		card_preview.hide()
+	active_preview_kind = "relic"
+	active_preview_id = relic_id
+	relic_preview_name_label.text = RelicCatalog.get_relic_name(relic_id)
+	relic_preview_meta_label.text = "RELIC / CONQUEST BOON"
+	relic_preview_description_label.text = RelicCatalog.get_relic_description(relic_id)
+	_clear_container(relic_preview_icon_host)
+	relic_preview_icon_host.add_child(
+		_create_relic_icon_or_glyph(relic_id, RELIC_PREVIEW_ICON_SIZE, true, 48)
+	)
+	relic_preview.position = _get_preview_position(source, relic_preview)
+	relic_preview.show()
+
+
+func _toggle_relic_preview(relic_id: String, source: Control) -> void:
+	if relic_preview.visible and active_preview_kind == "relic" and active_preview_id == relic_id:
+		_hide_relic_preview()
+		return
+	_show_relic_preview(relic_id, source)
+
+
+func _get_preview_position(source_button: Control, preview_control: Control = null) -> Vector2:
 	var viewport_size := get_viewport_rect().size
+	var target_preview := preview_control if preview_control != null else card_preview
 	var preview_size := Vector2(
-		maxf(PREVIEW_SIZE.x, card_preview.size.x),
-		maxf(PREVIEW_SIZE.y, card_preview.size.y)
+		maxf(PREVIEW_SIZE.x, target_preview.size.x),
+		maxf(PREVIEW_SIZE.y, target_preview.size.y)
 	)
 	var source_rect := source_button.get_global_rect()
 	var source_center := source_rect.get_center()
@@ -6171,6 +6356,26 @@ func _get_preview_position(source_button: Button) -> Vector2:
 
 func _hide_card_preview() -> void:
 	card_preview.hide()
+	if active_preview_kind == "card":
+		active_preview_kind = ""
+		active_preview_id = ""
+
+
+func _hide_relic_preview() -> void:
+	if relic_preview != null:
+		relic_preview.hide()
+	if active_preview_kind == "relic":
+		active_preview_kind = ""
+		active_preview_id = ""
+
+
+func _hide_all_previews() -> void:
+	if card_preview != null:
+		card_preview.hide()
+	if relic_preview != null:
+		relic_preview.hide()
+	active_preview_kind = ""
+	active_preview_id = ""
 
 
 func _create_played_card_chip(card: CardDefinition) -> Button:
@@ -6190,6 +6395,7 @@ func _create_played_card_chip(card: CardDefinition) -> Button:
 	chip.resized.connect(_update_card_pivot.bind(chip))
 	chip.mouse_entered.connect(_on_card_mouse_entered.bind(card, chip, "played_card"))
 	chip.mouse_exited.connect(_on_card_mouse_exited.bind(chip))
+	chip.gui_input.connect(_on_card_gui_input.bind(card, chip, "played_card"))
 	chip.add_theme_stylebox_override(
 		"normal",
 		_make_card_style(surface, type_palette.accent.darkened(0.06), 2)
@@ -7255,7 +7461,7 @@ func _on_choice_requested(choice: CardChoice) -> void:
 	selected_choice_tokens.clear()
 	choice_buttons.clear()
 	_clear_container(choice_options)
-	_hide_card_preview()
+	_hide_all_previews()
 	card_preview.z_index = 180
 	choice_prompt_label.text = choice.prompt
 	choice_confirm_button.text = choice.confirm_text
