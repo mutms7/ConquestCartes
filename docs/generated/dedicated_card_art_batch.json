@@ -1,0 +1,382 @@
+[
+  {
+    "id": "starlit_causeway",
+    "name": "Star Causeway",
+    "type": "action",
+    "group": "Hinterlands",
+    "current_art_id": "starlit_wagon",
+    "target_file": "assets/cards/starlit_causeway.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. starlit_causeway , a raised stone causeway crossing quiet fields under a bright starlit sky, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "hearthside_lodge",
+    "name": "Hearth Lodge",
+    "type": "action",
+    "group": "Hinterlands",
+    "current_art_id": "hearthsong",
+    "target_file": "assets/cards/hearthside_lodge.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. hearthside_lodge , a welcoming hearthside lodge with boots by the fire and wooden beams glowing amber, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "village_handyman",
+    "name": "Handyman",
+    "type": "action",
+    "group": "Hinterlands",
+    "current_art_id": "village_bell",
+    "target_file": "assets/cards/village_handyman.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. village_handyman , a village handyman's workbench with a hammer, bell rope, patched stool, and tidy tools, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "moonwell_rest",
+    "name": "Moonwell Rest",
+    "type": "action",
+    "group": "Hinterlands",
+    "current_art_id": "moonwell_token",
+    "target_file": "assets/cards/moonwell_rest.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. moonwell_rest , a peaceful moonwell rest stop with a blanket, glowing token, and still water under moonlight, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "quiet_stratagem",
+    "name": "Quiet Stratagem",
+    "type": "action",
+    "group": "Hinterlands",
+    "current_art_id": "quiet_archive",
+    "target_file": "assets/cards/quiet_stratagem.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. quiet_stratagem , a quiet strategy table in an old archive with cards, candles, and a half-open book, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "acorn_spicebroker",
+    "name": "Spicebroker",
+    "type": "action",
+    "group": "Hinterlands",
+    "current_art_id": "acorn_purse",
+    "target_file": "assets/cards/acorn_spicebroker.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. acorn_spicebroker , an acorn-shaped spice purse spilling saffron threads, cloves, and tiny coins, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "mosswood_stable",
+    "name": "Mosswood Stable",
+    "type": "action",
+    "group": "Hinterlands",
+    "current_art_id": "starlit_wagon",
+    "target_file": "assets/cards/mosswood_stable.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. mosswood_stable , a mossy woodland stable with a small wagon wheel, hay, and green light through trees, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "candlecap_kettle",
+    "name": "Cap Kettle",
+    "type": "resource",
+    "group": "Hinterlands",
+    "current_art_id": "candlecap",
+    "target_file": "assets/cards/candlecap_kettle.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. candlecap_kettle , a blackened kettle simmering among glowing candlecap mushrooms on a forest floor, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "briar_hound",
+    "name": "Briar Hound",
+    "type": "action",
+    "group": "Hinterlands",
+    "current_art_id": "briar_gate",
+    "target_file": "assets/cards/briar_hound.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. briar_hound , a loyal hound with a briar-rose collar standing before an overgrown garden gate, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "river_trail",
+    "name": "River Trail",
+    "type": "action",
+    "group": "Hinterlands",
+    "current_art_id": "river_courier",
+    "target_file": "assets/cards/river_trail.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. river_trail , a winding river trail with stepping stones, reeds, and a small courier satchel on a post, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "moss_weaver",
+    "name": "Moss Weaver",
+    "type": "action",
+    "group": "Hinterlands",
+    "current_art_id": "weavers_loom",
+    "target_file": "assets/cards/moss_weaver.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. moss_weaver , a moss weaver's loom strung with green luminous thread and tiny leaves caught in the warp, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "briar_hut",
+    "name": "Briar Hut",
+    "type": "action",
+    "group": "Hinterlands",
+    "current_art_id": "briar_gate",
+    "target_file": "assets/cards/briar_hut.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. briar_hut , a small hut woven from briars and branches with warm light glowing from a round window, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "starlit_caravan",
+    "name": "Star Caravan",
+    "type": "action",
+    "group": "Hinterlands",
+    "current_art_id": "starlit_wagon",
+    "target_file": "assets/cards/starlit_caravan.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. starlit_caravan , a starlit caravan wagon with hanging lanterns and bundled trade goods on a country road, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "lantern_bazaar",
+    "name": "Lantern Bazaar",
+    "type": "action",
+    "group": "Hinterlands",
+    "current_art_id": "lantern_parade",
+    "target_file": "assets/cards/lantern_bazaar.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. lantern_bazaar , a bustling lantern bazaar stall with warm paper lanterns and neatly arranged wares, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "tinker_wheelwright",
+    "name": "Cartwright",
+    "type": "action",
+    "group": "Hinterlands",
+    "current_art_id": "tinker_wren",
+    "target_file": "assets/cards/tinker_wheelwright.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. tinker_wheelwright , a wheelwright's bench with a wooden cart wheel, brass fittings, and careful tinker tools, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "hourglass_reliquary",
+    "name": "Time Relic",
+    "type": "action",
+    "group": "",
+    "current_art_id": "gilded_reliquary",
+    "target_file": "assets/cards/hourglass_reliquary.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. hourglass_reliquary , a small hourglass set inside a gilded reliquary, golden sand glowing softly, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "twilight_retreat",
+    "name": "Dusk Retreat",
+    "type": "action",
+    "group": "",
+    "current_art_id": "starlit_wagon",
+    "target_file": "assets/cards/twilight_retreat.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. twilight_retreat , a quiet retreat path leading toward a covered wagon under lavender twilight, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "witchs_bargain",
+    "name": "Witch's Bargain",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "briar_gate",
+    "target_file": "assets/cards/witchs_bargain.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. witchs_bargain , a witch's bargain table with coins, briar thorns, a sealed note, and a small smoking candle, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "hex_eater",
+    "name": "Hex Eater",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "firefly_supper",
+    "target_file": "assets/cards/hex_eater.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. hex_eater , a humble supper bowl where dark briar hex tokens dissolve into warm firefly light, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "hedgewarden",
+    "name": "Hedgewarden",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "stone_wall",
+    "target_file": "assets/cards/hedgewarden.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. hedgewarden , a hedgewarden's lantern and staff leaning against a mossy stone wall covered in protective herbs, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "thornbinder",
+    "name": "Thornbinder",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "briar_gate",
+    "target_file": "assets/cards/thornbinder.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. thornbinder , a bundle of thorny briars bound with red thread around a small wooden charm, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "bramble_idol",
+    "name": "Bramble Idol",
+    "type": "victory",
+    "group": "Witching Hour",
+    "current_art_id": "wishing_stone",
+    "target_file": "assets/cards/bramble_idol.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. bramble_idol , a small bramble idol carved from dark wood, surrounded by wishing coins and thorn blossoms, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "cursed_ingot",
+    "name": "Cursed Ingot",
+    "type": "resource",
+    "group": "Witching Hour",
+    "current_art_id": "moonwell_token",
+    "target_file": "assets/cards/cursed_ingot.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. cursed_ingot , a heavy dark ingot stamped with a faint curse mark, glowing from within on a worktable, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "hex_mill",
+    "name": "Hex Mill",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "weavers_loom",
+    "target_file": "assets/cards/hex_mill.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. hex_mill , a tiny hand mill grinding brittle briar hex tokens into harmless gray dust, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "bone_cart",
+    "name": "Bone Cart",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "starlit_wagon",
+    "target_file": "assets/cards/bone_cart.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. bone_cart , a small moonlit handcart carrying old bones, reclaimed tools, and a covered lantern, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "bonepicker_crow",
+    "name": "Bonepicker Crow",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "tinker_wren",
+    "target_file": "assets/cards/bonepicker_crow.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. bonepicker_crow , a brass mechanical crow perched on a cart rail beside carefully sorted found objects, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "moth_shrine",
+    "name": "Moth Shrine",
+    "type": "victory",
+    "group": "Witching Hour",
+    "current_art_id": "astral_vault",
+    "target_file": "assets/cards/moth_shrine.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. moth_shrine , a quiet moth shrine beneath a celestial dome, pale wings gathered around a soft blue flame, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "reliquary_key",
+    "name": "Reliquary Key",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "gilded_reliquary",
+    "target_file": "assets/cards/reliquary_key.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. reliquary_key , an ornate key lying beside a gilded reliquary, its teeth shaped like tiny arches, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "pilgrim_stone",
+    "name": "Pilgrim Stone",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "sunspire_monument",
+    "target_file": "assets/cards/pilgrim_stone.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. pilgrim_stone , a pilgrim's walking staff and small pack resting against a sunlit standing stone, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "stolen_minute",
+    "name": "Stolen Minute",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "dawn_whistle",
+    "target_file": "assets/cards/stolen_minute.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. stolen_minute , a carved wooden whistle beside a tiny hourglass with a few grains of glowing stolen time, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "lantern_vigil",
+    "name": "Lantern Vigil",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "lantern_parade",
+    "target_file": "assets/cards/lantern_vigil.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. lantern_vigil , a single lantern kept burning through the night on a village windowsill, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "moonlit_caravan",
+    "name": "Moonlit Caravan",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "starlit_wagon",
+    "target_file": "assets/cards/moonlit_caravan.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. moonlit_caravan , a moonlit caravan wagon with blue lanterns and quiet horses on a pale road, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "night_ferry",
+    "name": "Night Ferry",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "river_courier",
+    "target_file": "assets/cards/night_ferry.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. night_ferry , a small night ferry crossing dark water with one warm lantern at the bow, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "merchant_barge",
+    "name": "Merchant Barge",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "river_courier",
+    "target_file": "assets/cards/merchant_barge.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. merchant_barge , a low merchant barge stacked with crates, apples, and lanterns on a calm river, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "fen_lighthouse",
+    "name": "Fen Lighthouse",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "candlecap",
+    "target_file": "assets/cards/fen_lighthouse.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. fen_lighthouse , a squat fen lighthouse glowing through mist with candlecap mushrooms at its base, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "dream_courier",
+    "name": "Dream Courier",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "dawn_whistle",
+    "target_file": "assets/cards/dream_courier.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. dream_courier , a dream courier's sealed letter floating above a windowsill in soft dawn light, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "sowing_moon",
+    "name": "Sowing Moon",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "moonwell_token",
+    "target_file": "assets/cards/sowing_moon.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. sowing_moon , a moonlit seed tray with tiny sprouts, a silver token, and rich dark soil, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  },
+  {
+    "id": "long_causeway",
+    "name": "Long Causeway",
+    "type": "action",
+    "group": "Witching Hour",
+    "current_art_id": "stone_wall",
+    "target_file": "assets/cards/long_causeway.png",
+    "has_dedicated_file": false,
+    "prompt": "Generate square or 4:5 portrait at high resolution, then crop in-engine. No text and no border in the image. The card UI already draws the name, cost, and type, so baked-in lettering would just fight the layout. long_causeway , a long stone causeway stretching over marshland toward warm lights in the distance, painterly fantasy illustration, traditional digital oil painting with soft visible brushwork, warm earthy muted palette, parchment and amber tones, gentle golden-hour light, single central subject, simple uncluttered background, subtle vignette, cozy storybook medieval European countryside mood, no text, no lettering, no border, no frame"
+  }
+]
