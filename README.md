@@ -69,17 +69,21 @@ Player 1. Up to three joined players enter the host's IP address in the
 home-screen address field and press `JOIN LOCAL`.
 
 `CREATE ONLINE` opens the online lobby setup. Press `CREATE LOBBY` there to
-connect to the Vercel HTTP polling relay at `/api/relay` and receive a 4-letter
-lobby code. Other players press `JOIN ONLINE` and enter that code. The host owns
-the authoritative game state and relays every play, buy, choice, personal
-cooldown, cleanup, attack, and score update to clients. Players act in parallel;
-pressing End Turn immediately prepares that player's next hand and only starts
-that player's own End Turn cooldown.
+connect to the online HTTP polling relay and receive a 4-letter lobby code.
+Other players press `JOIN ONLINE` and enter that code. The relay is a standalone
+Node service (`api/relay.js`) that runs as a single always-on instance on its
+own host, separate from the static web build; every build targets its URL
+directly (currently `https://conquest-cartes-relay.onrender.com/api/relay`, with
+CORS allowing the cross-origin request). The host owns the authoritative game
+state and relays every play, buy, choice, personal cooldown, cleanup, attack,
+and score update to clients. Players act in parallel; pressing End Turn
+immediately prepares that player's next hand and only starts that player's own
+End Turn cooldown.
 
-The bundled Vercel relay is a prototype path for browser play. For public
-low-ping multiplayer at scale, replace or harden it with a room-affine realtime
-service such as Durable Objects/PartyKit, Ably, Pusher, or a Redis-backed Vercel
-relay. See `docs/online_multiplayer_plan.md`.
+The relay keeps room state in memory in one process, so it is still a prototype
+path for browser play. For public low-ping multiplayer at scale, replace or
+harden it with a room-affine realtime service such as Durable Objects/PartyKit,
+Ably, or Pusher. See `docs/online_multiplayer_plan.md`.
 
 ## Run Locally
 
@@ -137,11 +141,14 @@ Every push to `main` starts `.github/workflows/deploy.yml`. GitHub Actions:
 2. Imports the project and builds Godot's script-class cache.
 3. Runs both smoke tests.
 4. Exports the Web build.
-5. Deploys the generated files to Vercel.
+5. Deploys the generated files to Vercel as a pure static site (COOP/COEP
+   headers for cross-origin isolation; no serverless function).
 
 The production deployment is available at
 https://conquest-cartes.vercel.app/. Repository secrets hold the Vercel token and
-project identifiers; no deployment credentials are committed.
+project identifiers; no deployment credentials are committed. The online relay
+(`api/relay.js`) is deployed separately on its own always-on host and is not
+part of this workflow.
 
 ## Asset Organization
 
@@ -158,9 +165,10 @@ See `assets/licenses/ASSET_SOURCES.md` for provenance details.
 ## Current Limitations
 
 - Local direct-IP multiplayer requires LAN reachability, port forwarding, or a VPN.
-- The Vercel online relay is in-memory prototype infrastructure; room durability
-  across cold starts or multiple function instances still needs a production
-  realtime backend.
+- The online relay keeps rooms in memory in a single process, so it must run as
+  exactly one always-on instance (no serverless, no horizontal scaling) and open
+  rooms are lost on a restart or redeploy. Durable public multiplayer still needs
+  a production realtime backend.
 - No save system or full accessibility menu.
 - Rival-only reaction clauses are omitted in the solo ruleset.
 - The art library contains 29 finished illustrations. The 63-card catalog

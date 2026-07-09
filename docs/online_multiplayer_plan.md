@@ -18,15 +18,23 @@ wire.
 
 ## Shipped Prototype Path
 
-- `api/relay.js` is a Vercel HTTP polling relay with in-memory 4-letter rooms.
+- `api/relay.js` is a standalone Node HTTP polling relay with in-memory 4-letter
+  rooms. It binds `0.0.0.0:$PORT` and must run as exactly one always-on instance
+  (no serverless, no autoscaling), because all room state lives in that one
+  process.
 - `scripts/ui/main_ui.gd` now has an online HTTP polling transport alongside the
-  existing local ENet transport.
-- The GitHub deploy workflow copies `api/relay.js` and `package.json` into the
-  generated `web/` deployment bundle so `/api/relay` exists on Vercel.
+  existing local ENet transport. Every build targets a fixed relay URL
+  (`ONLINE_RELAY_DEFAULT_URL`, currently the Render deployment), overridable via
+  the `CONQUEST_CARTES_RELAY_URL` environment variable or `online_relay_url_override`
+  for tests. The relay sets permissive CORS so the cross-origin isolated web
+  build can reach it.
+- The relay is deployed on its own always-on host (currently Render). The GitHub
+  deploy workflow publishes only the static web build to Vercel (with COOP/COEP
+  headers); it does not bundle or deploy the relay.
 
-This should be enough for a production smoke test on Vercel, but it is still a
-prototype relay because Vercel can move HTTP requests to different function
-instances and in-memory rooms disappear on cold starts.
+This is enough for a production smoke test, but it is still a prototype relay:
+rooms are held in memory in a single process, so any restart or redeploy drops
+open lobbies, and the service cannot scale horizontally.
 
 ## Production-Hardening Path
 
@@ -36,10 +44,11 @@ service that guarantees room affinity:
 - Best fit: Cloudflare Durable Objects or PartyKit, because each room code maps
   naturally to one durable room object near the users.
 - Strong managed alternative: Ably or Pusher Channels, using the same Godot JSON
-  protocol but replacing `/api/relay`.
-- Vercel-only hardening: add Redis-backed room presence and pub/sub, client
-  reconnects, and deployment-aware resume. This is workable, but more moving
-  pieces than a room-native realtime backend.
+  protocol but replacing the relay endpoint.
+- Single-host hardening: keep the standalone Node relay but add persistent room
+  presence (e.g. Redis), client reconnect/resume, and a process manager or
+  managed always-on runtime. This is workable, but more moving pieces than a
+  room-native realtime backend.
 
 ## Prompt For The Next Pass
 
@@ -49,8 +58,8 @@ must only send action requests, and the host must remain the only process that
 mutates `GameState`. Preserve local ENet multiplayer. For online play, use
 4-letter uppercase lobby codes, realtime transport, player assignment, host
 snapshots, client reconnect handling, room-full errors, host-disconnect errors,
-and lobby-code copy/join UI. If staying on Vercel, make `/api/relay` durable
-across function instances with Redis/pubsub and handle reconnects. If moving to
-Durable Objects or PartyKit, keep the same
-JSON message schema already used by `api/relay.js` so the Godot client changes
-stay small. Update README, deployment workflow, and smoke tests.
+and lobby-code copy/join UI. If keeping the standalone Node relay, make its room
+state durable (e.g. Redis-backed presence and pub/sub) and handle reconnects. If
+moving to Durable Objects or PartyKit, keep the same JSON message schema already
+used by `api/relay.js` so the Godot client changes stay small. Update README,
+deployment workflow, and smoke tests.
