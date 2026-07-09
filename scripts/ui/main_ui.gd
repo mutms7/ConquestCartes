@@ -5873,30 +5873,6 @@ func _create_card_button(
 	effect_center.add_theme_constant_override("separation", 2)
 	effect_slot.add_child(effect_center)
 
-	var meta_chip := PanelContainer.new()
-	meta_chip.name = "MetaChip"
-	meta_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	meta_chip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	meta_chip.custom_minimum_size = Vector2(0, 14)
-	meta_chip.add_theme_stylebox_override(
-		"panel",
-		_make_meta_chip_style(type_palette.chip_bg)
-	)
-	effect_center.add_child(meta_chip)
-
-	var meta_chip_label := Label.new()
-	meta_chip_label.name = "MetaChipLabel"
-	meta_chip_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	meta_chip_label.text = _get_card_meta_chip_text(card)
-	meta_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	meta_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	meta_chip_label.clip_text = true
-	meta_chip_label.add_theme_color_override("font_color", type_palette.chip_text)
-	meta_chip_label.add_theme_font_size_override("font_size", 7)
-	if title_font != null:
-		meta_chip_label.add_theme_font_override("font", title_font)
-	meta_chip.add_child(meta_chip_label)
-
 	var effect_label := RichTextLabel.new()
 	effect_label.name = "EffectLabel"
 	effect_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
