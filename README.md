@@ -105,6 +105,18 @@ focused multi-step effects, finite supplies, and market composition. The UI smok
 checks rendering, artwork, medieval UI assets, interactions, animations, audio,
 preview placement, and the final-score overlay.
 
+There is also an end-to-end online multiplayer test that runs a host and a
+guest client against the real relay server over local HTTP. Start the relay,
+then run the test:
+
+```powershell
+$env:PORT = '3123'; node api/relay.js   # keep running in another terminal
+godot --headless --path . --script res://tests/relay_e2e_test.gd
+```
+
+It covers lobby create/join, seat assignment, the host's seat list, ready-up,
+table start, and that each player's card plays resolve from their own hand.
+
 ## Web Export
 
 The committed `export_presets.cfg` contains a single-threaded Web preset. Export

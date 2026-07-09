@@ -809,6 +809,9 @@ func _on_online_relay_peer_joined(client_id: String) -> void:
 		% [game_state.players[player_index].player_name, online_relay_lobby_code]
 	)
 	_broadcast_network_snapshot()
+	# Rebuild the host's seat list right away; without this the host only sees
+	# the new player once they press I'M READY.
+	_refresh_lobby_panel()
 
 
 func _on_online_relay_peer_left(client_id: String) -> void:
@@ -1037,11 +1040,16 @@ func _can_control_active_player() -> bool:
 
 
 func _can_interact_with_local_player() -> bool:
+	# Must stay a pure read. This runs inside _refresh_ui (via _can_play_card
+	# and friends), and _refresh_ui fires from active_player_changed while the
+	# host is processing a client request. Restoring the local view here used
+	# to snap the active player back to the host's seat mid-request, so guest
+	# plays resolved out of the host's hand. Click handlers that want the view
+	# restored call _restore_local_network_view() themselves first.
 	if not network_enabled:
 		return true
 	if game_state.players.is_empty():
 		return false
-	_restore_local_network_view()
 	return _can_control_active_player()
 
 
@@ -1112,6 +1120,7 @@ func _on_network_peer_connected(peer_id: int) -> void:
 	rpc_id(peer_id, "_rpc_set_local_player_index", player_index)
 	_set_lobby_status("%s connected." % game_state.players[player_index].player_name)
 	_broadcast_network_snapshot()
+	_refresh_lobby_panel()
 
 
 func _on_network_peer_disconnected(peer_id: int) -> void:
@@ -1143,10 +1152,11 @@ func _next_open_network_player_index() -> int:
 
 @rpc("authority", "call_remote", "reliable")
 func _rpc_set_local_player_index(player_index: int) -> void:
-	var highest_seat := NETWORK_MAX_PLAYERS - 1
-	if not game_state.players.is_empty():
-		highest_seat = game_state.players.size() - 1
-	local_player_index = clampi(player_index, 0, highest_seat)
+	# The host's seat assignment is authoritative. Never clamp it against the
+	# local players array: a joiner can still hold a stale solo game (one
+	# player), which would squash any assigned seat down to seat 0 and leave
+	# the client viewing and playing the host's hand.
+	local_player_index = clampi(player_index, 0, NETWORK_MAX_PLAYERS - 1)
 	_set_lobby_status("Connected as Player %d." % (local_player_index + 1))
 	if network_enabled and not game_state.players.is_empty():
 		_restore_local_network_view()
@@ -7561,6 +7571,7 @@ func _submit_choice(tokens: Array[String]) -> void:
 
 
 func _on_hand_card_pressed(card: CardDefinition) -> void:
+	_restore_local_network_view()
 	if network_enabled and not _can_interact_with_local_player():
 		return
 	if _is_network_client():
@@ -7612,6 +7623,7 @@ func _end_turn_from_card(player_index: int) -> void:
 
 
 func _on_market_card_pressed(card: CardDefinition) -> void:
+	_restore_local_network_view()
 	if network_enabled and not _can_interact_with_local_player():
 		return
 	if _is_network_client():
@@ -7650,6 +7662,7 @@ func _on_market_card_pressed(card: CardDefinition) -> void:
 
 
 func _on_end_turn_pressed() -> void:
+	_restore_local_network_view()
 	if game_state.has_pending_choice() or not _can_control_active_player():
 		return
 	_play_ui_sound("end_turn")

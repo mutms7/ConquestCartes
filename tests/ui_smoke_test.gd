@@ -79,6 +79,15 @@ func _initialize() -> void:
 		and _lobby_start_button().text == "ENTER TABLE",
 		"Create online should keep the generated code visible before entering the table."
 	)
+	# Regression: the host's seat list must show a joiner immediately, not only
+	# once the joiner presses I'M READY.
+	main_ui._on_online_relay_peer_joined("guest-relay-id")
+	await process_frame
+	_check(
+		int(main_ui.network_peer_to_player.get("guest-relay-id", -1)) == 1
+		and _lobby_seat_title(1).begins_with("Player 2"),
+		"A joining guest should appear in the host's seat list before readying up."
+	)
 	main_ui._disconnect_network()
 	main_ui.has_active_game = false
 	main_ui.game_state.multiplayer_enabled = false
@@ -1245,6 +1254,28 @@ func _initialize() -> void:
 		and _player_row(4) != null,
 		"Player status should render one row for each lobby seat."
 	)
+	# Regression: while the host processes a guest's play request, the
+	# active_player_changed refresh must not snap the view back to seat 0,
+	# which made guest plays resolve out of the host's own hand.
+	var host_seat0_hand: int = main_ui.game_state.players[0].hand.size()
+	var host_seat1_hand: int = main_ui.game_state.players[1].hand.size()
+	main_ui._handle_network_play_card_request(1, "pebble_coin")
+	await process_frame
+	_check(
+		main_ui.game_state.players[1].hand.size() == host_seat1_hand - 1
+		and main_ui.game_state.players[1].play_area.has(
+			main_ui.game_state.card_catalog["pebble_coin"]
+		),
+		"A guest's play request should resolve from the guest's own hand."
+	)
+	_check(
+		main_ui.game_state.players[0].hand.size() == host_seat0_hand,
+		"A guest's play request must not touch the host's hand."
+	)
+	_check(
+		main_ui.game_state.active_player_index == 0,
+		"The host view should return to its own seat after handling a request."
+	)
 	var client_race_snapshot: Dictionary = main_ui._create_network_snapshot()
 	main_ui.network_is_host = false
 	main_ui.local_player_index = 0
@@ -1260,6 +1291,26 @@ func _initialize() -> void:
 		_player_row(3) != null
 		and (_player_row(3).find_child("Name", true, false) as Label).text.begins_with("Player 3"),
 		"Player status should update when a client receives its assigned slot."
+	)
+	# Regression: a joiner that still holds a stale one-player solo game must
+	# keep the seat the host assigned instead of clamping down to the host's
+	# seat 0 (which made guests view and play the host's hand).
+	var stale_solo_players: Array[PlayerState] = [main_ui.game_state.players[0]]
+	main_ui.game_state.players = stale_solo_players
+	main_ui.game_state.active_player_index = 0
+	main_ui.game_state.player = main_ui.game_state.players[0]
+	main_ui._rpc_set_local_player_index(1)
+	await process_frame
+	_check(
+		main_ui.local_player_index == 1,
+		"A stale solo game must not clamp a client's assigned network seat."
+	)
+	main_ui._apply_network_snapshot(client_race_snapshot)
+	await process_frame
+	_check(
+		main_ui.game_state.active_player_index == 1
+		and main_ui.game_state.player.player_name == "Player 2",
+		"Once the snapshot lands, the reassigned client should view its own hand."
 	)
 	_check(
 		_active_ui_uses_original_assets(),
@@ -1437,6 +1488,17 @@ func _action_speed_slider() -> HSlider:
 
 func _lobby_start_button() -> Button:
 	return main_ui.home_lobby_start_button
+
+
+func _lobby_seat_title(index: int) -> String:
+	var seat_list: VBoxContainer = main_ui.home_lobby_seat_list
+	if seat_list == null or index >= seat_list.get_child_count():
+		return ""
+	var labels := seat_list.get_child(index).find_children("*", "Label", true, false)
+	if labels.size() < 2:
+		return ""
+	# Row layout: avatar letter label, then the seat title label.
+	return (labels[1] as Label).text
 
 
 func _home_noise_overlay() -> TextureRect:
