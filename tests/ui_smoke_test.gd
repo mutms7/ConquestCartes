@@ -624,8 +624,8 @@ func _initialize() -> void:
 			resource_button.has_node("CardContent/CardLayout/ArtFrame/ArtScrim")
 			and resource_button.has_node("CardContent/CardLayout/ArtFrame/AccentLine")
 			and resource_button.has_node("CardContent/CardLayout/TextScrim")
-			and resource_button.has_node("CardContent/CardLayout/EffectSlot/EffectCenter/MetaChip"),
-			"Card faces should include the art scrim, text scrim, accent line, and meta chip."
+			and not resource_button.has_node("CardContent/CardLayout/EffectSlot/EffectCenter/MetaChip"),
+			"Card faces should include the art/text scrims and accent line without a rules meta chip."
 		)
 		_check(
 			_card_art(resource_button).modulate.a >= 0.9
@@ -1729,7 +1729,6 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 	var effect_label := _card_effect(button)
 	var meta_row := button.get_node("CardContent/CardLayout/MetaRow") as Control
 	var price_badge := button.get_node("PriceBadge") as Control
-	var meta_chip := button.get_node("CardContent/CardLayout/EffectSlot/EffectCenter/MetaChip") as Control
 	var text_scrim := _card_text_scrim(button)
 	var price_label := _card_price(button)
 	var button_rect := button.get_global_rect()
@@ -1739,7 +1738,6 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 		text_scrim,
 		name_label,
 		effect_slot,
-		meta_chip,
 		effect_label,
 		meta_row,
 	]
@@ -1774,7 +1772,7 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 		and art_frame.get_global_rect().end.y <= text_scrim.get_global_rect().position.y + 1.0
 		and text_scrim.get_global_rect().position.y <= name_label.get_global_rect().position.y
 		and name_label.get_global_rect().end.y <= effect_slot.get_global_rect().position.y + 1.0
-		and meta_chip.get_global_rect().end.y <= effect_label.get_global_rect().position.y
+		and effect_label.get_global_rect().position.y >= effect_slot.get_global_rect().position.y
 		and effect_label.get_global_rect().end.y <= meta_row.get_global_rect().position.y + 4.0
 		and footer_gap >= 0.0
 		and footer_gap <= 12.0
