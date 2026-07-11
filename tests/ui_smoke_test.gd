@@ -420,6 +420,21 @@ func _initialize() -> void:
 	_check(not _home_overlay().visible, "New Game should leave the home screen.")
 	_check(main_ui.has_active_game, "Starting from the home menu should create an active game.")
 	_check(
+		main_ui._respite_active() and _end_turn_button().disabled,
+		"A fresh game should open in the reading respite with play locked."
+	)
+	var respite_hand_button := _find_card_button(_hand_container(), "pebble_coin")
+	_check(
+		respite_hand_button != null and respite_hand_button.disabled,
+		"Hand cards should be locked while the opening respite is active."
+	)
+	main_ui._end_respite()
+	await process_frame
+	_check(
+		not main_ui._respite_active(),
+		"Skipping the respite should unlock play immediately."
+	)
+	_check(
 		_hud_value("DeckStat") == str(main_ui.game_state.player.draw_pile.size())
 		and _hud_value("DiscardStat") == str(main_ui.game_state.player.discard_pile.size()),
 		"Physical draw and discard pile badges should mirror game-state counts."
@@ -1043,6 +1058,7 @@ func _initialize() -> void:
 	main_ui._start_new_game(true)
 	await process_frame
 	await process_frame
+	main_ui._end_respite()
 	_click_control(_end_turn_button())
 	await process_frame
 	_check(
@@ -1084,6 +1100,7 @@ func _initialize() -> void:
 	_home_new_game_button().pressed.emit()
 	await process_frame
 	await process_frame
+	main_ui._end_respite()
 	_check(main_ui.last_ui_sound_name == "draw", "Home New Game should finish with draw feedback.")
 	var market_after_restart: Array[String] = main_ui.game_state.get_market_card_ids()
 	_check(
@@ -1137,6 +1154,7 @@ func _initialize() -> void:
 	main_ui._start_new_game(true)
 	await process_frame
 	await process_frame
+	main_ui._end_respite()
 	for index in range(3):
 		main_ui.game_state.set_supply_count(main_ui.game_state.market[index].id, 0)
 	_end_turn_button().pressed.emit()
@@ -1175,6 +1193,7 @@ func _initialize() -> void:
 		and main_ui.game_state.get_player_count() == 4,
 		"Lobby Start Game should start a four-player table."
 	)
+	main_ui._end_respite()
 	var player_row_height_before_cooldown := _player_row(1).custom_minimum_size.y
 	var player_panel_height_before_cooldown := _players_turn_panel().get_global_rect().size.y
 	_click_control(_end_turn_button())

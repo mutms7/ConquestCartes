@@ -71,7 +71,8 @@ const ONLINE_RELAY_MAX_RECONNECT_ATTEMPTS := 3
 const ONLINE_RELAY_RECONNECT_DELAY_SECONDS := 2.0
 const ONLINE_RELAY_CONNECT_TIMEOUT_SECONDS := 10.0
 const ONLINE_RELAY_POLL_INTERVAL_SECONDS := 0.35
-const NETWORK_RELIC_INTERVAL_SECONDS := 45.0
+# Players get one minute to read the board before the opening round begins.
+const RESPITE_SECONDS := 60.0
 
 const COLOR_PARCHMENT := Color("#ecdcb6")
 const COLOR_PARCHMENT_LIGHT := Color("#f4e6c4")
@@ -192,6 +193,7 @@ var menu_backdrop: Control
 var home_menu_root: Control
 var home_new_game_button: Button
 var home_continue_button: Button
+var home_resign_button: Button
 var home_create_lobby_button: Button
 var home_join_lobby_button: Button
 var home_create_online_button: Button
@@ -243,7 +245,11 @@ var kingdom_return_tab := ""
 # lobby panel until the snapshot says the game started.
 var network_table_open := false
 var network_connected_seats: Array[int] = []
-var network_relic_timer := NETWORK_RELIC_INTERVAL_SECONDS
+# Opening-round respite (client-local; it changes no game state, just gates
+# input so each player can read the market and starting hand before playing).
+var respite_remaining := 0.0
+var respite_banner: Control
+var respite_countdown_label: Label
 var relic_overlay: Control
 var relic_options_row: HBoxContainer
 var relic_overlay_offer: Array[String] = []
@@ -355,6 +361,7 @@ func _ready() -> void:
 	_build_home_screen()
 	_build_relic_overlay()
 	_build_relic_preview()
+	_build_respite_banner()
 	_apply_imported_theme()
 	home_button.pressed.connect(_on_home_pressed)
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
@@ -416,7 +423,6 @@ func _process(delta: float) -> void:
 	if network_enabled:
 		if network_is_host:
 			_tick_network_cooldowns(delta)
-			_tick_network_relic_timer(delta)
 		elif game_state.player.cooldown_remaining > 0.0:
 			game_state.player.cooldown_remaining = maxf(
 				0.0,
@@ -427,6 +433,8 @@ func _process(delta: float) -> void:
 		_sync_turn_manager_to_local_player()
 	else:
 		turn_manager.tick(delta)
+	if respite_remaining > 0.0:
+		_tick_respite(delta)
 	_refresh_end_turn_button()
 	_refresh_player_status()
 
@@ -450,6 +458,7 @@ func _start_new_game(_is_restart: bool) -> void:
 
 	has_active_game = true
 	turn_manager.start_first_turn()
+	_start_respite()
 	_refresh_ui()
 	call_deferred("_animate_draw_cards", game_state.player.hand.size())
 
@@ -471,6 +480,7 @@ func _start_lobby_game(player_count: int = 2) -> void:
 		return
 	has_active_game = true
 	turn_manager.start_first_turn()
+	_start_respite()
 	_refresh_ui()
 	call_deferred("_animate_draw_cards", game_state.player.hand.size())
 
@@ -513,7 +523,6 @@ func _host_network_lobby() -> void:
 	network_peer_to_player = {1: 0}
 	_start_lobby_game(max_players)
 	network_table_open = has_active_game
-	network_relic_timer = NETWORK_RELIC_INTERVAL_SECONDS
 	_set_lobby_status("Hosting on port %d. Give players your IP address." % NETWORK_PORT)
 	_queue_network_ui_refresh()
 	_broadcast_network_snapshot()
@@ -643,7 +652,6 @@ func _disconnect_network() -> void:
 	network_ready_seats.clear()
 	lobby_ready_sent = false
 	online_relay_connect_timer = 0.0
-	network_relic_timer = NETWORK_RELIC_INTERVAL_SECONDS
 
 
 func _set_lobby_status(message: String) -> void:
@@ -1234,29 +1242,6 @@ func _tick_network_cooldowns(delta: float) -> void:
 		_broadcast_network_snapshot()
 
 
-func _tick_network_relic_timer(delta: float) -> void:
-	# Timed lobbies draft relics on a shared 45-second cadence. Only the host
-	# ticks this; each player gets their own independent offer.
-	if (
-		not network_table_open
-		or turn_manager.game_over
-		or game_state.players.is_empty()
-		or game_state.turn_based_enabled
-	):
-		return
-	network_relic_timer -= delta
-	if network_relic_timer > 0.0:
-		return
-	network_relic_timer = NETWORK_RELIC_INTERVAL_SECONDS
-	var offered := false
-	for game_player in game_state.players:
-		if game_state.generate_relic_offer(game_player):
-			offered = true
-	if offered:
-		_refresh_ui()
-		_broadcast_network_snapshot()
-
-
 func _tick_online_relay_reconnect(delta: float) -> void:
 	if online_relay_connect_timer > 0.0 and not online_relay_connected:
 		# The HTTP relay can be unreachable or slow; make that visible instead of
@@ -1309,6 +1294,7 @@ func _complete_network_player_cleanup(player_index: int) -> void:
 		return
 	game_player.turn_number += 1
 	game_state.draw_cards(game_state.get_turn_draw_count(game_player))
+	game_state.maybe_offer_turn_relic(game_player)
 	game_state.check_idle_relics()
 	_restore_local_network_view()
 	if player_index == local_player_index:
@@ -1521,7 +1507,11 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 	game_state.turn_based_enabled = bool(
 		snapshot.get("turn_based_enabled", game_state.turn_based_enabled)
 	)
+	var table_was_open := network_table_open
 	network_table_open = bool(snapshot.get("started", true))
+	if network_table_open and not table_was_open and not network_is_host:
+		# The host just opened the table; give this guest the reading respite too.
+		_start_respite()
 	network_connected_seats.clear()
 	for seat in snapshot.get("connected_seats", []):
 		network_connected_seats.append(int(seat))
@@ -2337,6 +2327,123 @@ func _build_relic_overlay() -> void:
 	footer.add_child(skip_button)
 
 
+func _build_respite_banner() -> void:
+	# A non-blocking banner near the top of the table. Its root ignores the mouse
+	# so players can still hover cards to read them; only the panel and its skip
+	# button capture clicks.
+	respite_banner = Control.new()
+	respite_banner.name = "RespiteBanner"
+	respite_banner.visible = false
+	respite_banner.z_index = 140
+	respite_banner.set_anchors_preset(Control.PRESET_FULL_RECT)
+	respite_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(respite_banner)
+
+	var panel := PanelContainer.new()
+	panel.name = "RespitePanel"
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel.add_theme_stylebox_override("panel", _make_parchment_panel_style())
+	panel.anchor_left = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_top = 0.0
+	panel.anchor_bottom = 0.0
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_END
+	panel.offset_top = 64
+	respite_banner.add_child(panel)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 30)
+	margin.add_theme_constant_override("margin_top", 18)
+	margin.add_theme_constant_override("margin_right", 30)
+	margin.add_theme_constant_override("margin_bottom", 16)
+	panel.add_child(margin)
+
+	var layout := VBoxContainer.new()
+	layout.add_theme_constant_override("separation", 8)
+	margin.add_child(layout)
+
+	var title := Label.new()
+	title.name = "Title"
+	title.text = "RESPITE"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", COLOR_PARCHMENT_INK)
+	title.add_theme_font_size_override("font_size", 24)
+	if title_font != null:
+		title.add_theme_font_override("font", title_font)
+	layout.add_child(title)
+
+	var subtitle := Label.new()
+	subtitle.name = "Subtitle"
+	subtitle.text = "Take a moment to read the cards."
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
+	subtitle.add_theme_font_size_override("font_size", 13)
+	if body_font != null:
+		subtitle.add_theme_font_override("font", body_font)
+	layout.add_child(subtitle)
+
+	respite_countdown_label = Label.new()
+	respite_countdown_label.name = "Countdown"
+	respite_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	respite_countdown_label.add_theme_color_override("font_color", COLOR_BRASS)
+	respite_countdown_label.add_theme_font_size_override("font_size", 30)
+	if title_font != null:
+		respite_countdown_label.add_theme_font_override("font", title_font)
+	layout.add_child(respite_countdown_label)
+
+	var footer := HBoxContainer.new()
+	footer.alignment = BoxContainer.ALIGNMENT_CENTER
+	layout.add_child(footer)
+	var start_button := _create_parchment_button("RespiteStartButton", "START NOW", true)
+	start_button.pressed.connect(_on_respite_skip_pressed)
+	footer.add_child(start_button)
+
+
+func _start_respite() -> void:
+	respite_remaining = RESPITE_SECONDS
+	_update_respite_banner()
+	if respite_banner != null:
+		respite_banner.visible = true
+
+
+func _end_respite() -> void:
+	respite_remaining = 0.0
+	if respite_banner != null:
+		respite_banner.visible = false
+	_refresh_ui()
+
+
+func _respite_active() -> bool:
+	return respite_remaining > 0.0 and has_active_game and not turn_manager.game_over
+
+
+func _tick_respite(delta: float) -> void:
+	if not has_active_game or turn_manager.game_over:
+		_end_respite()
+		return
+	respite_remaining = maxf(0.0, respite_remaining - delta)
+	if respite_remaining <= 0.0:
+		_end_respite()
+	else:
+		_update_respite_banner()
+
+
+func _update_respite_banner() -> void:
+	if respite_countdown_label != null:
+		respite_countdown_label.text = _format_respite_clock()
+
+
+func _format_respite_clock() -> String:
+	var seconds := int(ceilf(respite_remaining))
+	return "%d:%02d" % [seconds / 60, seconds % 60]
+
+
+func _on_respite_skip_pressed() -> void:
+	_play_ui_sound("button_click")
+	_end_respite()
+
+
 func _build_relic_preview() -> void:
 	relic_preview = PanelContainer.new()
 	relic_preview.name = "RelicPreview"
@@ -2714,6 +2821,17 @@ func _build_home_screen() -> void:
 	home_continue_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	home_continue_button.pressed.connect(_on_home_continue_pressed)
 	button_stack.add_child(home_continue_button)
+
+	# Resign leaves the current game (and closes/leaves any lobby). Only shown
+	# while a game is in progress; see _refresh_home_controls.
+	home_resign_button = _create_home_ghost_button("RESIGN")
+	home_resign_button.name = "ResignButton"
+	home_resign_button.visible = false
+	home_resign_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	home_resign_button.add_theme_color_override("font_color", Color("#e0a07a"))
+	home_resign_button.add_theme_color_override("font_hover_color", Color("#ffd0b0"))
+	home_resign_button.pressed.connect(_on_home_resign_pressed)
+	button_stack.add_child(home_resign_button)
 
 	var button_row := HBoxContainer.new()
 	button_row.name = "ButtonRow"
@@ -4124,6 +4242,8 @@ func _refresh_home_controls() -> void:
 		home_new_game_button.disabled = not can_start
 	if home_continue_button != null:
 		home_continue_button.disabled = not has_active_game
+	if home_resign_button != null:
+		home_resign_button.visible = has_active_game
 	if home_create_lobby_button != null:
 		home_create_lobby_button.disabled = not can_start
 	if home_join_lobby_button != null:
@@ -5287,6 +5407,11 @@ func _refresh_end_turn_button() -> void:
 		end_turn_button.disabled = true
 		end_turn_button.modulate = Color.WHITE
 		return
+	if _respite_active():
+		end_turn_button.text = "RESPITE %s" % _format_respite_clock()
+		end_turn_button.disabled = true
+		end_turn_button.modulate = Color(0.72, 0.74, 0.78, 1.0)
+		return
 	if turn_manager.is_cooling_down():
 		end_turn_button.text = "COOLDOWN %.1fs" % turn_manager.cooldown_remaining
 		end_turn_button.disabled = true
@@ -5647,7 +5772,8 @@ func _pop_in_control(control: Control) -> void:
 
 func _can_play_card(card: CardDefinition) -> bool:
 	if (
-		not _can_interact_with_local_player()
+		_respite_active()
+		or not _can_interact_with_local_player()
 		or turn_manager.game_over
 		or game_state.has_pending_choice()
 		or not card.is_playable()
@@ -5660,7 +5786,8 @@ func _can_play_card(card: CardDefinition) -> bool:
 
 func _can_buy_card(card: CardDefinition) -> bool:
 	return (
-		_can_interact_with_local_player()
+		not _respite_active()
+		and _can_interact_with_local_player()
 		and not turn_manager.game_over
 		and not game_state.has_pending_choice()
 		and game_state.player.buys > 0
@@ -7572,6 +7699,8 @@ func _submit_choice(tokens: Array[String]) -> void:
 
 func _on_hand_card_pressed(card: CardDefinition) -> void:
 	_restore_local_network_view()
+	if _respite_active():
+		return
 	if network_enabled and not _can_interact_with_local_player():
 		return
 	if _is_network_client():
@@ -7624,6 +7753,8 @@ func _end_turn_from_card(player_index: int) -> void:
 
 func _on_market_card_pressed(card: CardDefinition) -> void:
 	_restore_local_network_view()
+	if _respite_active():
+		return
 	if network_enabled and not _can_interact_with_local_player():
 		return
 	if _is_network_client():
@@ -7663,7 +7794,7 @@ func _on_market_card_pressed(card: CardDefinition) -> void:
 
 func _on_end_turn_pressed() -> void:
 	_restore_local_network_view()
-	if game_state.has_pending_choice() or not _can_control_active_player():
+	if _respite_active() or game_state.has_pending_choice() or not _can_control_active_player():
 		return
 	_play_ui_sound("end_turn")
 	if _is_network_client():
@@ -7714,6 +7845,33 @@ func _on_home_continue_pressed() -> void:
 		return
 	_play_ui_sound("button_click")
 	_hide_home_screen()
+
+
+func _on_home_resign_pressed() -> void:
+	if not has_active_game:
+		return
+	_play_ui_sound("button_click")
+	_resign_game()
+
+
+func _resign_game() -> void:
+	# Abandon the current game. In a network lobby this also leaves/closes the
+	# room (the relay notifies any seated guests), so it never leaves a zombie
+	# table behind. Drops the player back to the main menu.
+	_disconnect_network()
+	has_active_game = false
+	turn_manager.game_over = false
+	respite_remaining = 0.0
+	if respite_banner != null:
+		respite_banner.visible = false
+	_hide_end_game_overlay()
+	_hide_choice_overlay()
+	_clear_animation_layer()
+	end_turn_button.disabled = true
+	lobby_pending_mode = "host"
+	_hide_home_modals()
+	_refresh_home_controls()
+	_show_home_screen(false)
 
 
 func _on_home_multiplayer_pressed() -> void:
@@ -8003,7 +8161,7 @@ func _on_lobby_start_pressed() -> void:
 	elif lobby_pending_mode == "host_online":
 		if network_enabled and network_mode == NETWORK_MODE_ONLINE and has_active_game:
 			network_table_open = true
-			network_relic_timer = NETWORK_RELIC_INTERVAL_SECONDS
+			_start_respite()
 			_hide_home_screen()
 			_broadcast_network_snapshot()
 		else:

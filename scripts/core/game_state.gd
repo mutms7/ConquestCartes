@@ -48,9 +48,8 @@ const SIX_VP_CARD_ID := "royal_charter"
 const SUPPLY_EMPTY_END_COUNT := 3
 const DEFAULT_END_TURN_COOLDOWN_SECONDS := 5.0
 const BASE_TURN_DRAW_COUNT := 5
-# Solo and pass-and-play games offer a relic draft between every 5 turns.
-# Timed network lobbies use a 45-second cadence driven by the host instead.
-const RELIC_TURN_INTERVAL := 5
+# Every table, solo or networked, offers a relic draft once every 7 turns.
+const RELIC_TURN_INTERVAL := 7
 
 var player := PlayerState.new()
 var players: Array[PlayerState] = []
@@ -561,9 +560,9 @@ func get_turn_draw_count(target: PlayerState) -> int:
 	return draw_count
 
 
-func uses_timed_relic_cadence() -> bool:
-	# Timed (simultaneous) multiplayer drafts relics on the host's 45-second
-	# timer; solo and turn-based tables draft between every RELIC_TURN_INTERVAL turns.
+func relic_pool_includes_cooldown() -> bool:
+	# Only tables with an end-turn cooldown (timed multiplayer) may offer the
+	# cooldown-shortening relic; solo and turn-based tables have no timer.
 	return multiplayer_enabled and not turn_based_enabled
 
 
@@ -573,7 +572,7 @@ func generate_relic_offer(target: PlayerState) -> bool:
 	if not target.pending_relic_offer.is_empty():
 		return false
 	var available: Array[String] = []
-	for relic_id in RelicCatalog.get_pool(uses_timed_relic_cadence()):
+	for relic_id in RelicCatalog.get_pool(relic_pool_includes_cooldown()):
 		if not target.relics.has(relic_id):
 			available.append(relic_id)
 	if available.is_empty():
@@ -591,8 +590,7 @@ func generate_relic_offer(target: PlayerState) -> bool:
 
 
 func maybe_offer_turn_relic(target: PlayerState) -> void:
-	if uses_timed_relic_cadence():
-		return
+	# Every mode drafts on the same 7-turn cadence (turns 8, 15, 22, ...).
 	if target.turn_number <= 1 or (target.turn_number - 1) % RELIC_TURN_INTERVAL != 0:
 		return
 	generate_relic_offer(target)

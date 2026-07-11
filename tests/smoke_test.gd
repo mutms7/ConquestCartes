@@ -1297,19 +1297,19 @@ func _test_random_market_setup() -> void:
 
 
 func _test_relic_system() -> void:
-	# Draft cadence: solo games offer a relic between every 5 turns.
+	# Draft cadence: every table offers a relic once every 7 turns (turn 8, 15, ...).
 	var solo := _empty_game()
 	solo.player.turn_number = 3
 	solo.maybe_offer_turn_relic(solo.player)
 	_check(
 		solo.player.pending_relic_offer.is_empty(),
-		"No relic offer should appear outside the 5-turn cadence."
+		"No relic offer should appear outside the 7-turn cadence."
 	)
-	solo.player.turn_number = 6
+	solo.player.turn_number = 8
 	solo.maybe_offer_turn_relic(solo.player)
 	_check(
 		solo.player.pending_relic_offer.size() == 3,
-		"A solo relic offer should present 3 relics before turn 6."
+		"A solo relic offer should present 3 relics at turn 8."
 	)
 	_check(
 		not solo.player.pending_relic_offer.has("swift_hourglass"),
@@ -1325,7 +1325,7 @@ func _test_relic_system() -> void:
 		solo.player.relics.has(chosen) and solo.player.pending_relic_offer.is_empty(),
 		"A claimed relic should join the player's relics and clear the offer."
 	)
-	solo.player.turn_number = 11
+	solo.player.turn_number = 15
 	solo.maybe_offer_turn_relic(solo.player)
 	_check(solo.choose_relic(solo.player, ""), "Declining a relic offer should be allowed.")
 	_check(
@@ -1333,17 +1333,24 @@ func _test_relic_system() -> void:
 		"Declining should clear the offer without claiming a relic."
 	)
 
-	# Timed multiplayer uses the host timer, not the turn cadence, and may
-	# offer the cooldown relic.
+	# Timed multiplayer shares the same 7-turn cadence, and its pool may include
+	# the cooldown relic (it is the only mode with an end-turn timer).
 	var timed := _empty_game()
 	timed.multiplayer_enabled = true
 	timed.player.turn_number = 6
 	timed.maybe_offer_turn_relic(timed.player)
 	_check(
 		timed.player.pending_relic_offer.is_empty(),
-		"Timed multiplayer should not use the turn-based relic cadence."
+		"No timed relic offer should appear off the 7-turn cadence."
 	)
-	_check(timed.generate_relic_offer(timed.player), "The host timer should generate offers.")
+	timed.player.turn_number = 8
+	timed.maybe_offer_turn_relic(timed.player)
+	_check(
+		timed.player.pending_relic_offer.size() == 3,
+		"Timed multiplayer should offer relics on the 7-turn cadence."
+	)
+	timed.player.pending_relic_offer.clear()
+	_check(timed.generate_relic_offer(timed.player), "Generating a timed offer should work.")
 	timed.player.pending_relic_offer = ["swift_hourglass"] as Array[String]
 	_check(
 		timed.choose_relic(timed.player, "swift_hourglass"),

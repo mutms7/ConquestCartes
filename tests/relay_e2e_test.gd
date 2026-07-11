@@ -92,6 +92,11 @@ func _initialize() -> void:
 	await _wait_until(func(): return guest_ui.network_table_open, 10.0)
 	_check(guest_ui.network_table_open, "Guest should enter the table when the host starts.")
 
+	# Both seats open in the reading respite; skip it so the play regressions run.
+	host_ui._end_respite()
+	guest_ui._end_respite()
+	await process_frame
+
 	# The guest must be viewing its own seat, not the host's hand.
 	_check(
 		guest_ui.game_state.active_player_index == 1,
