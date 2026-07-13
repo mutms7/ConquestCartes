@@ -2332,6 +2332,10 @@ func _start_respite() -> void:
 	# The opening 60-second turn timer: play stays locked so everyone can read
 	# the board first. It shows as a countdown on the End Turn button and ends on
 	# its own; no modal, no skip. Client-local and changes no game state.
+	# Solo games skip it entirely: there's no one to wait on, so play starts now.
+	if not game_state.multiplayer_enabled:
+		respite_remaining = 0.0
+		return
 	respite_remaining = RESPITE_SECONDS
 	_refresh_end_turn_button()
 

@@ -420,19 +420,13 @@ func _initialize() -> void:
 	_check(not _home_overlay().visible, "New Game should leave the home screen.")
 	_check(main_ui.has_active_game, "Starting from the home menu should create an active game.")
 	_check(
-		main_ui._respite_active() and _end_turn_button().disabled,
-		"A fresh game should open in the reading respite with play locked."
+		not main_ui._respite_active(),
+		"A solo game should skip the opening timer and start playable at once."
 	)
 	var respite_hand_button := _find_card_button(_hand_container(), "pebble_coin")
 	_check(
-		respite_hand_button != null and respite_hand_button.disabled,
-		"Hand cards should be locked while the opening respite is active."
-	)
-	main_ui._end_respite()
-	await process_frame
-	_check(
-		not main_ui._respite_active(),
-		"Skipping the respite should unlock play immediately."
+		respite_hand_button != null and not respite_hand_button.disabled,
+		"Hand cards should be playable immediately in a solo game (no opening timer)."
 	)
 	_check(
 		_hud_value("DeckStat") == str(main_ui.game_state.player.draw_pile.size())
