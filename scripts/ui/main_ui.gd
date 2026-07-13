@@ -245,11 +245,10 @@ var kingdom_return_tab := ""
 # lobby panel until the snapshot says the game started.
 var network_table_open := false
 var network_connected_seats: Array[int] = []
-# Opening-round respite (client-local; it changes no game state, just gates
-# input so each player can read the market and starting hand before playing).
+# Opening 60-second turn timer (client-local; it changes no game state, just
+# gates play so each player can read the market and starting hand first). It is
+# shown as a countdown on the End Turn button.
 var respite_remaining := 0.0
-var respite_banner: Control
-var respite_countdown_label: Label
 var relic_overlay: Control
 var relic_options_row: HBoxContainer
 var relic_overlay_offer: Array[String] = []
@@ -361,7 +360,6 @@ func _ready() -> void:
 	_build_home_screen()
 	_build_relic_overlay()
 	_build_relic_preview()
-	_build_respite_banner()
 	_apply_imported_theme()
 	home_button.pressed.connect(_on_home_pressed)
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
@@ -1807,6 +1805,9 @@ func _build_bottom_docks() -> void:
 	home_button.custom_minimum_size = Vector2(34, 34)
 	end_turn_button.custom_minimum_size = Vector2(END_TURN_BUTTON_WIDTH, 48)
 	end_turn_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Keep the button a constant width: without this the button grows to fit
+	# longer labels (the countdown timer, "COOLDOWN 5.0s"), stretching the dock.
+	end_turn_button.clip_text = true
 
 	# Left dock: compact Coins / Actions / Buys ledger, rows split by hairlines.
 	left_stats.add_theme_constant_override("separation", 4)
@@ -2327,90 +2328,16 @@ func _build_relic_overlay() -> void:
 	footer.add_child(skip_button)
 
 
-func _build_respite_banner() -> void:
-	# A non-blocking banner near the top of the table. Its root ignores the mouse
-	# so players can still hover cards to read them; only the panel and its skip
-	# button capture clicks.
-	respite_banner = Control.new()
-	respite_banner.name = "RespiteBanner"
-	respite_banner.visible = false
-	respite_banner.z_index = 140
-	respite_banner.set_anchors_preset(Control.PRESET_FULL_RECT)
-	respite_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(respite_banner)
-
-	var panel := PanelContainer.new()
-	panel.name = "RespitePanel"
-	panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	panel.add_theme_stylebox_override("panel", _make_parchment_panel_style())
-	panel.anchor_left = 0.5
-	panel.anchor_right = 0.5
-	panel.anchor_top = 0.0
-	panel.anchor_bottom = 0.0
-	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	panel.grow_vertical = Control.GROW_DIRECTION_END
-	panel.offset_top = 64
-	respite_banner.add_child(panel)
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 30)
-	margin.add_theme_constant_override("margin_top", 18)
-	margin.add_theme_constant_override("margin_right", 30)
-	margin.add_theme_constant_override("margin_bottom", 16)
-	panel.add_child(margin)
-
-	var layout := VBoxContainer.new()
-	layout.add_theme_constant_override("separation", 8)
-	margin.add_child(layout)
-
-	var title := Label.new()
-	title.name = "Title"
-	title.text = "RESPITE"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_color_override("font_color", COLOR_PARCHMENT_INK)
-	title.add_theme_font_size_override("font_size", 24)
-	if title_font != null:
-		title.add_theme_font_override("font", title_font)
-	layout.add_child(title)
-
-	var subtitle := Label.new()
-	subtitle.name = "Subtitle"
-	subtitle.text = "Take a moment to read the cards."
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
-	subtitle.add_theme_font_size_override("font_size", 13)
-	if body_font != null:
-		subtitle.add_theme_font_override("font", body_font)
-	layout.add_child(subtitle)
-
-	respite_countdown_label = Label.new()
-	respite_countdown_label.name = "Countdown"
-	respite_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	respite_countdown_label.add_theme_color_override("font_color", COLOR_BRASS)
-	respite_countdown_label.add_theme_font_size_override("font_size", 30)
-	if title_font != null:
-		respite_countdown_label.add_theme_font_override("font", title_font)
-	layout.add_child(respite_countdown_label)
-
-	var footer := HBoxContainer.new()
-	footer.alignment = BoxContainer.ALIGNMENT_CENTER
-	layout.add_child(footer)
-	var start_button := _create_parchment_button("RespiteStartButton", "START NOW", true)
-	start_button.pressed.connect(_on_respite_skip_pressed)
-	footer.add_child(start_button)
-
-
 func _start_respite() -> void:
+	# The opening 60-second turn timer: play stays locked so everyone can read
+	# the board first. It shows as a countdown on the End Turn button and ends on
+	# its own; no modal, no skip. Client-local and changes no game state.
 	respite_remaining = RESPITE_SECONDS
-	_update_respite_banner()
-	if respite_banner != null:
-		respite_banner.visible = true
+	_refresh_end_turn_button()
 
 
 func _end_respite() -> void:
 	respite_remaining = 0.0
-	if respite_banner != null:
-		respite_banner.visible = false
 	_refresh_ui()
 
 
@@ -2425,23 +2352,11 @@ func _tick_respite(delta: float) -> void:
 	respite_remaining = maxf(0.0, respite_remaining - delta)
 	if respite_remaining <= 0.0:
 		_end_respite()
-	else:
-		_update_respite_banner()
-
-
-func _update_respite_banner() -> void:
-	if respite_countdown_label != null:
-		respite_countdown_label.text = _format_respite_clock()
 
 
 func _format_respite_clock() -> String:
 	var seconds := int(ceilf(respite_remaining))
 	return "%d:%02d" % [seconds / 60, seconds % 60]
-
-
-func _on_respite_skip_pressed() -> void:
-	_play_ui_sound("button_click")
-	_end_respite()
 
 
 func _build_relic_preview() -> void:
@@ -5408,7 +5323,7 @@ func _refresh_end_turn_button() -> void:
 		end_turn_button.modulate = Color.WHITE
 		return
 	if _respite_active():
-		end_turn_button.text = "RESPITE %s" % _format_respite_clock()
+		end_turn_button.text = "STARTS %s" % _format_respite_clock()
 		end_turn_button.disabled = true
 		end_turn_button.modulate = Color(0.72, 0.74, 0.78, 1.0)
 		return
@@ -7862,8 +7777,6 @@ func _resign_game() -> void:
 	has_active_game = false
 	turn_manager.game_over = false
 	respite_remaining = 0.0
-	if respite_banner != null:
-		respite_banner.visible = false
 	_hide_end_game_overlay()
 	_hide_choice_overlay()
 	_clear_animation_layer()
