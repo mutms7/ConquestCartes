@@ -519,7 +519,7 @@ func _initialize() -> void:
 	_check(main_ui.title_font != null, "Imported title font should load.")
 	_check(main_ui.body_font != null, "Imported body font should load.")
 	_check(main_ui.body_bold_font != null, "Imported bold effect font should load.")
-	_check(main_ui.ui_textures.size() == 8, "All original medieval UI textures should load.")
+	_check(main_ui.ui_textures.size() == 9, "All original medieval UI textures should load.")
 	_check(_hud_icon("CoinStat").texture != null, "Coin HUD icon should load.")
 	_check(_hud_icon("ActionStat").texture != null, "Action HUD icon should load.")
 	_check(_hud_icon("BuyStat").texture != null, "Buy HUD icon should load.")

@@ -120,6 +120,7 @@ const UI_ASSET_PATHS := {
 	"button_primary": "res://assets/ui/button_primary.svg",
 	"preview": "res://assets/ui/preview_frame.svg",
 	"endgame": "res://assets/ui/endgame_frame.svg",
+	"logo": "res://assets/ui/logo_crest.svg",
 }
 const ICON_PATHS := {
 	"coin": "res://assets/icons/ui/coin.png",
@@ -2039,16 +2040,8 @@ func _configure_physical_pile(
 		face.add_child(discard_pile_scrim)
 		discard_pile_scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	else:
-		var emblem := Label.new()
+		var emblem := _create_logo_emblem(40)
 		emblem.name = "Sunburst"
-		emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		emblem.text = "*"
-		emblem.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		emblem.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		emblem.add_theme_color_override("font_color", COLOR_BRASS)
-		emblem.add_theme_font_size_override("font_size", 40)
-		if title_font != null:
-			emblem.add_theme_font_override("font", title_font)
 		face.add_child(emblem)
 		emblem.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
@@ -2144,14 +2137,9 @@ func _build_top_bar() -> void:
 	brand_row.add_theme_constant_override("separation", 10)
 	row.add_child(brand_row)
 
-	var star := Label.new()
+	var star := _create_logo_emblem(26)
 	star.name = "Star"
-	star.text = "*"
-	star.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	star.add_theme_color_override("font_color", COLOR_BRASS)
-	star.add_theme_font_size_override("font_size", 24)
-	if title_font != null:
-		star.add_theme_font_override("font", title_font)
+	star.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	brand_row.add_child(star)
 
 	var title := Label.new()
@@ -3296,13 +3284,9 @@ func _create_parchment_title(title_text: String, subtitle: String) -> VBoxContai
 	var stack := VBoxContainer.new()
 	stack.name = "%sTitleBlock" % _node_key(title_text)
 	stack.add_theme_constant_override("separation", 3)
-	var crest := Label.new()
-	crest.text = "*"
-	crest.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	crest.add_theme_color_override("font_color", COLOR_MENU_ACCENT)
-	crest.add_theme_font_size_override("font_size", 18)
-	if title_font != null:
-		crest.add_theme_font_override("font", title_font)
+	var crest := _create_logo_emblem(30)
+	crest.name = "Crest"
+	crest.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	stack.add_child(crest)
 	var title := Label.new()
 	title.name = "Title"
@@ -6996,7 +6980,8 @@ func _make_asset_style(
 func _create_moving_card(
 	card: CardDefinition,
 	source_rect: Rect2,
-	color: Color
+	color: Color,
+	as_card_back := false
 ) -> PanelContainer:
 	var ghost := PanelContainer.new()
 	ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -7004,6 +6989,20 @@ func _create_moving_card(
 	ghost.position = source_rect.position
 	ghost.size = source_rect.size
 	ghost.pivot_offset = source_rect.size * 0.5
+
+	if as_card_back:
+		# A face-down draw: the crest card back instead of a bright fill.
+		ghost.add_theme_stylebox_override(
+			"panel",
+			_make_card_style(COLOR_WALNUT_DARK, COLOR_BRASS, 2)
+		)
+		var crest := _create_logo_emblem(28)
+		crest.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		crest.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		ghost.add_child(crest)
+		animation_layer.add_child(ghost)
+		return ghost
+
 	ghost.add_theme_stylebox_override(
 		"panel",
 		_make_card_style(color, color.lightened(0.35), 2)
@@ -7114,7 +7113,8 @@ func _animate_draw_cards(card_count: int) -> void:
 		var ghost := _create_moving_card(
 			game_state.card_catalog[card_id],
 			source_rect,
-			COLOR_SLATE
+			COLOR_SLATE,
+			true
 		)
 		ghost.scale = Vector2(0.35, 0.35)
 		ghost.modulate.a = 0.35
@@ -7405,6 +7405,32 @@ func _get_sfx_volume_db() -> float:
 	if level <= 0.0:
 		return -80.0
 	return linear_to_db(pow(level, VOLUME_RESPONSE_EXPONENT)) + SFX_VOLUME_DB
+
+
+func _create_logo_emblem(logo_size: float) -> Control:
+	# The ConquestCartes crest brand mark, replacing the old brass asterisk.
+	# Falls back to that asterisk if the texture ever fails to load.
+	var logo_texture: Texture2D = ui_textures.get("logo")
+	if logo_texture != null:
+		var rect := TextureRect.new()
+		rect.name = "LogoCrest"
+		rect.texture = logo_texture
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		rect.custom_minimum_size = Vector2(logo_size, logo_size)
+		return rect
+	var fallback := Label.new()
+	fallback.name = "LogoFallback"
+	fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fallback.text = "*"
+	fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	fallback.add_theme_color_override("font_color", COLOR_BRASS)
+	fallback.add_theme_font_size_override("font_size", maxi(12, int(logo_size)))
+	if title_font != null:
+		fallback.add_theme_font_override("font", title_font)
+	return fallback
 
 
 func _poll_background_music_load() -> void:
