@@ -1887,6 +1887,9 @@ func _lock_play_area_height() -> void:
 	play_area_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	play_area_label.custom_minimum_size = Vector2(74, 0)
 	play_area_label.add_theme_font_size_override("font_size", 10)
+	play_area_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	play_area_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	play_area_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	var play_area_scroll := play_area_container.get_parent() as ScrollContainer
 	if play_area_scroll != null:
 		play_area_scroll.custom_minimum_size = Vector2(0, PLAY_AREA_CONTENT_HEIGHT)
@@ -5660,7 +5663,7 @@ func _arrange_action_market(
 func _refresh_play_area() -> void:
 	_clear_container(play_area_container)
 	var played_cards := game_state.player.play_area
-	play_area_label.text = "IN PLAY  %d" % played_cards.size()
+	play_area_label.text = "IN PLAY\n%d" % played_cards.size()
 
 	var new_ids: Array[String] = []
 	for card in played_cards:
@@ -5981,7 +5984,7 @@ func _create_card_button(
 	type_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	type_label.custom_minimum_size = Vector2(0, 10)
 	type_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	type_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	type_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	type_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	type_label.text = card.card_type.to_upper()
 	type_label.add_theme_color_override("font_color", type_palette.footer_text)
@@ -6009,7 +6012,7 @@ func _create_price_badge(cost: int) -> Control:
 	badge.custom_minimum_size = Vector2(30, 30)
 	badge.size = Vector2(30, 30)
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	badge.position = Vector2(7, 7)
+	badge.position = Vector2(5, 5)
 	badge.z_index = 4
 
 	var coin_face := PanelContainer.new()
@@ -6074,7 +6077,7 @@ func _create_pile_badge(count: int, accent: Color) -> Control:
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.custom_minimum_size = Vector2(38, 18)
 	badge.size = Vector2(38, 18)
-	badge.position = Vector2(CARD_FACE_SIZE.x - 45, 8)
+	badge.position = Vector2(CARD_FACE_SIZE.x - 43, 6)
 	badge.z_index = 4
 	badge.add_theme_stylebox_override(
 		"panel",
@@ -6294,26 +6297,15 @@ func _show_card_preview(
 	active_preview_id = card.id
 	var type_palette := _get_card_type_palette(card.card_type)
 	preview_name_label.text = card.card_name
-	preview_meta_label.text = (
-		"%s · COST %d COINS · %s"
-		% [card.card_type.to_upper(), game_state.get_effective_cost(card), _get_card_meta_chip_text(card).to_upper()]
-	)
-	if not card.card_group.is_empty():
-		preview_meta_label.text += " · %s" % card.card_group.to_upper()
-	if visual_state.begins_with("market_"):
-		preview_meta_label.text += " · %d LEFT" % game_state.get_supply_count(card.id)
+	# The preview meta line stays lean: card type, cost, and kingdom only.
 	preview_meta_label.text = (
 		"%s / COST %d / %s"
 		% [
 			card.card_type.to_upper(),
 			game_state.get_effective_cost(card),
-			_get_card_meta_chip_text(card).to_upper()
+			game_state.get_card_kingdom(card).to_upper()
 		]
 	)
-	if not card.card_group.is_empty():
-		preview_meta_label.text += " / %s" % card.card_group.to_upper()
-	if visual_state.begins_with("market_"):
-		preview_meta_label.text += " / %d LEFT" % game_state.get_supply_count(card.id)
 	card_preview.set_meta("card_type", card.card_type)
 	card_preview.set_meta("card_base_color", _get_card_surface_color(card.card_type))
 	preview_name_label.add_theme_color_override("font_color", type_palette.name_text)
