@@ -2306,6 +2306,7 @@ func _resolve_attack(effect: Dictionary, _source_card: CardDefinition) -> void:
 		if _is_attack_protected(target):
 			print("[Game] %s is protected from the attack" % target.player_name)
 			continue
+		target.times_attacked += 1
 		targets.append(target)
 	match str(effect.get("mode", "gain_curse")):
 		"gain_curse":

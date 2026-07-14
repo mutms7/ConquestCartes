@@ -36,6 +36,9 @@ var coins: int = 0
 var actions: int = 1
 var buys: int = 1
 
+# Tallies kept for the end-game fun awards (not scored).
+var times_attacked: int = 0
+
 
 func clear_all() -> void:
 	draw_pile.clear()
@@ -50,6 +53,7 @@ func clear_all() -> void:
 	relics.clear()
 	pending_relic_offer.clear()
 	scoring_relic = ""
+	times_attacked = 0
 	turn_flags.clear()
 	pending_choice = null
 	resolution_queue.clear()

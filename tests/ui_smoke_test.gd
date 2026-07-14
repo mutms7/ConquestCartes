@@ -59,8 +59,7 @@ func _initialize() -> void:
 		"Create online should wait in the lobby until a code is assigned."
 	)
 	_check(
-		_home_lobby_rules_summary().text.contains("press CREATE LOBBY")
-		and main_ui.lobby_panel_status_label.text.contains("CREATE LOBBY"),
+		main_ui.lobby_panel_status_label.text.contains("CREATE LOBBY"),
 		"Create online should explain that the CREATE LOBBY button generates the code."
 	)
 	main_ui.network_enabled = true
@@ -1168,22 +1167,44 @@ func _initialize() -> void:
 	_end_turn_button().pressed.emit()
 	main_ui.turn_manager.tick(GameState.DEFAULT_END_TURN_COOLDOWN_SECONDS)
 	await process_frame
-	_check(_end_game_overlay().visible, "Final scoring should show an intentional overlay.")
 	_check(
-		_final_score_label().text == str(main_ui.turn_manager.final_score),
-		"Final score overlay should show the calculated score."
+		main_ui.scoring_relic_overlay.visible,
+		"A solo game should open the scoring-relic draft when it ends."
+	)
+	_check(
+		main_ui.scoring_relic_options_row.get_child_count() == 2,
+		"The scoring-relic draft should offer two choices."
 	)
 	_check(main_ui.last_animation_event == "game_end", "Final scoring should animate its reveal.")
 	_check(main_ui.last_ui_sound_name == "game_end", "Final scoring should trigger its sound.")
 
-	_play_again_button().pressed.emit()
+	var chosen_scoring_relic: String = main_ui.scoring_relic_offer[0]
+	main_ui._on_scoring_relic_chosen(chosen_scoring_relic)
+	await process_frame
+	_check(
+		not main_ui.scoring_relic_overlay.visible and main_ui.summary_overlay.visible,
+		"Choosing a scoring relic should close the draft and open the summary."
+	)
+	_check(
+		main_ui.game_state.player.scoring_relic == chosen_scoring_relic,
+		"The chosen scoring relic should be recorded on the player."
+	)
+	_check(
+		main_ui.summary_content.get_child_count() >= 1,
+		"The summary should list the player's deck and score."
+	)
+
+	main_ui._on_play_again_pressed()
 	await process_frame
 	await process_frame
-	_check(not _end_game_overlay().visible, "Play Again should close the final score overlay.")
+	_check(not main_ui.summary_overlay.visible, "Play Again should close the summary overlay.")
 	_check(_hud_value("TurnStat") == "Turn 1", "Play Again should start a fresh game.")
+
 	main_ui._show_final_score(11)
 	await process_frame
-	_end_game_home_button().pressed.emit()
+	main_ui._on_scoring_relic_chosen(main_ui.scoring_relic_offer[0])
+	await process_frame
+	main_ui._on_end_game_home_pressed()
 	await process_frame
 	_check(_home_overlay().visible, "End-game Home should return to the home screen.")
 	_check(

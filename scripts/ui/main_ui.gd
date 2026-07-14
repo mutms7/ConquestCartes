@@ -262,6 +262,14 @@ var respite_remaining := 0.0
 var relic_overlay: Control
 var relic_options_row: HBoxContainer
 var relic_overlay_offer: Array[String] = []
+
+# End-of-game summary and the solo scoring-relic draft (both built in code).
+var summary_overlay: Control
+var summary_content: VBoxContainer
+var summary_title_label: Label
+var scoring_relic_overlay: Control
+var scoring_relic_options_row: HBoxContainer
+var scoring_relic_offer: Array[String] = []
 var relics_rail_row: HBoxContainer
 var relic_preview: PanelContainer
 var relic_preview_icon_host: CenterContainer
@@ -374,6 +382,8 @@ func _ready() -> void:
 	_build_home_screen()
 	_build_relic_overlay()
 	_build_relic_preview()
+	_build_scoring_relic_overlay()
+	_build_summary_overlay()
 	_apply_imported_theme()
 	home_button.pressed.connect(_on_home_pressed)
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
@@ -1356,6 +1366,7 @@ func _create_network_snapshot() -> Dictionary:
 			"ending_turn": game_player.ending_turn,
 			"cooldown_remaining": game_player.cooldown_remaining,
 			"cooldown_duration": game_player.cooldown_duration,
+			"times_attacked": game_player.times_attacked,
 		})
 	return {
 		"players": player_snapshots,
@@ -1498,6 +1509,7 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		)
 		synced_player.relics = _string_array(player_data.get("relics", []))
 		synced_player.pending_relic_offer = _string_array(player_data.get("relic_offer", []))
+		synced_player.times_attacked = int(player_data.get("times_attacked", 0))
 		synced_player.turn_flags = player_data.get("turn_flags", {}).duplicate(true)
 		synced_player.pending_choice = _choice_from_snapshot(player_data.get("pending_choice", {}))
 		synced_player.cleanup_in_progress = bool(player_data.get("cleanup_in_progress", false))
@@ -3626,8 +3638,7 @@ func _refresh_lobby_panel() -> void:
 	if home_lobby_rules_summary != null:
 		if lobby_pending_mode == "host_online":
 			home_lobby_rules_summary.text = (
-				"Online setup: choose rules, then press CREATE LOBBY to generate a 4-letter code. "
-				+ "Cooldown %.1fs, up to %d players, attacks on."
+				"Cooldown %.1fs, up to %d players, attacks on."
 				% [game_state.end_turn_cooldown_seconds, lobby_max_players]
 			)
 		elif lobby_pending_mode == "join_online":
@@ -8232,6 +8243,7 @@ func _on_kingdom_card_toggled(enabled: bool, card_id: String) -> void:
 
 func _on_play_again_pressed() -> void:
 	_play_ui_sound("button_click")
+	_hide_end_game_overlay()
 	_start_new_game(true)
 
 
@@ -8242,37 +8254,549 @@ func _on_end_game_home_pressed() -> void:
 	_show_home_screen(true)
 
 
-func _show_final_score(score: int) -> void:
-	last_animation_event = "game_end"
-	_play_ui_sound("game_end")
-	final_score_label.text = str(score)
-	if game_state.multiplayer_enabled and not turn_manager.final_scores.is_empty():
-		var parts: Array[String] = []
-		for index in range(turn_manager.final_scores.size()):
-			parts.append("P%d %d VP" % [index + 1, turn_manager.final_scores[index]])
-		final_summary_label.text = "Scores: %s." % ", ".join(parts)
-	else:
-		final_summary_label.text = "Supply end reached. Every card in your collection was counted."
-	end_game_overlay.modulate.a = 0.0
-	end_game_panel.scale = Vector2(0.9, 0.9)
-	end_game_panel.pivot_offset = end_game_panel.size * 0.5
-	end_game_overlay.show()
-	if not motion_enabled:
-		end_game_overlay.modulate.a = 1.0
-		end_game_panel.scale = Vector2.ONE
-		return
-	var tween := create_tween()
-	tween.set_trans(Tween.TRANS_BACK)
-	tween.set_ease(Tween.EASE_OUT)
-	tween.set_parallel(true)
-	tween.tween_property(end_game_overlay, "modulate:a", 1.0, 0.2)
-	tween.tween_property(end_game_panel, "scale", Vector2.ONE, 0.24)
+func _show_final_score(_score: int) -> void:
+	# Kept for the existing turn/network call sites; the rich summary (and the
+	# solo scoring-relic draft that precedes it) lives in _begin_end_game.
+	_begin_end_game()
 
 
 func _hide_end_game_overlay() -> void:
 	end_game_overlay.hide()
 	end_game_overlay.modulate.a = 1.0
 	end_game_panel.scale = Vector2.ONE
+	if summary_overlay != null:
+		summary_overlay.visible = false
+	if scoring_relic_overlay != null:
+		scoring_relic_overlay.visible = false
+
+
+func _begin_end_game() -> void:
+	last_animation_event = "game_end"
+	_play_ui_sound("game_end")
+	var solo_needs_draft := (
+		not game_state.multiplayer_enabled
+		and game_state.player.scoring_relic.is_empty()
+		and not RelicCatalog.get_scoring_pool().is_empty()
+	)
+	if solo_needs_draft:
+		_show_scoring_relic_draft()
+	else:
+		_present_game_summary()
+
+
+func _build_scoring_relic_overlay() -> void:
+	scoring_relic_overlay = Control.new()
+	scoring_relic_overlay.name = "ScoringRelicOverlay"
+	scoring_relic_overlay.visible = false
+	scoring_relic_overlay.z_index = 160
+	scoring_relic_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scoring_relic_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(scoring_relic_overlay)
+
+	var dim := ColorRect.new()
+	dim.color = Color(0.02, 0.012, 0.006, 0.82)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	scoring_relic_overlay.add_child(dim)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scoring_relic_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _make_parchment_panel_style())
+	center.add_child(panel)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 34)
+	margin.add_theme_constant_override("margin_top", 26)
+	margin.add_theme_constant_override("margin_right", 34)
+	margin.add_theme_constant_override("margin_bottom", 24)
+	panel.add_child(margin)
+
+	var layout := VBoxContainer.new()
+	layout.add_theme_constant_override("separation", 14)
+	margin.add_child(layout)
+
+	layout.add_child(_create_parchment_title(
+		"Scoring Relic",
+		"The conquest is done. Claim a boon that rewards how you played."
+	))
+
+	scoring_relic_options_row = HBoxContainer.new()
+	scoring_relic_options_row.name = "ScoringOptions"
+	scoring_relic_options_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	scoring_relic_options_row.add_theme_constant_override("separation", 16)
+	layout.add_child(scoring_relic_options_row)
+
+
+func _show_scoring_relic_draft() -> void:
+	scoring_relic_offer = game_state.generate_scoring_relic_offer()
+	for child in scoring_relic_options_row.get_children():
+		child.queue_free()
+	for relic_id in scoring_relic_offer:
+		scoring_relic_options_row.add_child(_create_scoring_relic_option(relic_id))
+	scoring_relic_overlay.visible = true
+
+
+func _create_scoring_relic_option(relic_id: String) -> Button:
+	var button := Button.new()
+	button.custom_minimum_size = Vector2(236, 156)
+	button.add_theme_stylebox_override("normal", _make_card_style(COLOR_WALNUT, COLOR_BRASS, 2))
+	button.add_theme_stylebox_override(
+		"hover", _make_card_style(COLOR_WALNUT.lightened(0.08), COLOR_BRASS.lightened(0.2), 2)
+	)
+	button.add_theme_stylebox_override(
+		"pressed", _make_card_style(COLOR_WALNUT.lightened(0.12), COLOR_BRASS, 2)
+	)
+	button.pressed.connect(_on_scoring_relic_chosen.bind(relic_id))
+
+	var pad := MarginContainer.new()
+	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	pad.add_theme_constant_override("margin_left", 16)
+	pad.add_theme_constant_override("margin_top", 16)
+	pad.add_theme_constant_override("margin_right", 16)
+	pad.add_theme_constant_override("margin_bottom", 16)
+	button.add_child(pad)
+
+	var vbox := VBoxContainer.new()
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_theme_constant_override("separation", 10)
+	pad.add_child(vbox)
+
+	var name_label := Label.new()
+	name_label.text = RelicCatalog.get_scoring_relic_name(relic_id)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_label.add_theme_color_override("font_color", COLOR_BRASS)
+	name_label.add_theme_font_size_override("font_size", 18)
+	if title_font != null:
+		name_label.add_theme_font_override("font", title_font)
+	vbox.add_child(name_label)
+
+	var desc_label := Label.new()
+	desc_label.text = RelicCatalog.get_scoring_relic_description(relic_id)
+	desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	desc_label.add_theme_font_size_override("font_size", 13)
+	if body_font != null:
+		desc_label.add_theme_font_override("font", body_font)
+	vbox.add_child(desc_label)
+
+	return button
+
+
+func _on_scoring_relic_chosen(relic_id: String) -> void:
+	_play_ui_sound("button_click")
+	game_state.choose_scoring_relic(game_state.player, relic_id)
+	turn_manager.final_score = game_state.calculate_score()
+	turn_manager.final_scores = game_state.calculate_all_scores()
+	scoring_relic_overlay.visible = false
+	_present_game_summary()
+
+
+func _build_summary_overlay() -> void:
+	summary_overlay = Control.new()
+	summary_overlay.name = "SummaryOverlay"
+	summary_overlay.visible = false
+	summary_overlay.z_index = 155
+	summary_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	summary_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(summary_overlay)
+
+	var dim := ColorRect.new()
+	dim.color = Color(0.02, 0.012, 0.006, 0.8)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	summary_overlay.add_child(dim)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	summary_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _make_card_style(COLOR_WALNUT_DARK, COLOR_BRASS, 2))
+	center.add_child(panel)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 30)
+	margin.add_theme_constant_override("margin_top", 24)
+	margin.add_theme_constant_override("margin_right", 30)
+	margin.add_theme_constant_override("margin_bottom", 22)
+	panel.add_child(margin)
+
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 12)
+	margin.add_child(outer)
+
+	summary_title_label = Label.new()
+	summary_title_label.name = "SummaryTitle"
+	summary_title_label.text = "CONQUEST COMPLETE"
+	summary_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	summary_title_label.add_theme_color_override("font_color", COLOR_BRASS.lightened(0.15))
+	summary_title_label.add_theme_font_size_override("font_size", 28)
+	if title_font != null:
+		summary_title_label.add_theme_font_override("font", title_font)
+	outer.add_child(summary_title_label)
+
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(780, 430)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	outer.add_child(scroll)
+
+	summary_content = VBoxContainer.new()
+	summary_content.name = "SummaryContent"
+	summary_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	summary_content.add_theme_constant_override("separation", 12)
+	scroll.add_child(summary_content)
+
+	var footer := HBoxContainer.new()
+	footer.alignment = BoxContainer.ALIGNMENT_CENTER
+	footer.add_theme_constant_override("separation", 12)
+	outer.add_child(footer)
+	var again := _create_parchment_button("SummaryPlayAgain", "PLAY AGAIN", true)
+	again.pressed.connect(_on_play_again_pressed)
+	footer.add_child(again)
+	var home := _create_parchment_button("SummaryHome", "HOME", false)
+	home.pressed.connect(_on_end_game_home_pressed)
+	footer.add_child(home)
+
+
+func _present_game_summary() -> void:
+	for child in summary_content.get_children():
+		child.queue_free()
+	var is_solo := not game_state.multiplayer_enabled
+	summary_title_label.text = "CONQUEST COMPLETE" if is_solo else "THE TABLE RESTS"
+
+	var scores: Array = turn_manager.final_scores.duplicate()
+	if scores.size() < game_state.players.size():
+		scores = game_state.calculate_all_scores()
+
+	var ranking: Array[int] = []
+	for i in range(game_state.players.size()):
+		ranking.append(i)
+	ranking.sort_custom(func(a, b): return int(scores[a]) > int(scores[b]))
+
+	if not is_solo and game_state.players.size() >= 2:
+		summary_content.add_child(_build_podium(ranking, scores))
+
+	for idx in ranking:
+		summary_content.add_child(_build_summary_player_section(idx, int(scores[idx])))
+
+	if not is_solo and game_state.players.size() >= 2:
+		var prizes := _build_prizes_panel()
+		if prizes != null:
+			summary_content.add_child(prizes)
+
+	summary_overlay.visible = true
+
+
+func _summary_you_index() -> int:
+	return local_player_index if network_enabled else game_state.active_player_index
+
+
+func _deck_counts(target: PlayerState) -> Dictionary:
+	var counts := {}
+	var owned: Array[CardDefinition] = []
+	owned.append_array(target.get_all_cards())
+	owned.append_array(target.duration_hold)
+	for card in owned:
+		counts[card.id] = int(counts.get(card.id, 0)) + 1
+	return counts
+
+
+func _build_summary_player_section(index: int, score: int) -> PanelContainer:
+	var target := game_state.players[index]
+	var section := PanelContainer.new()
+	section.add_theme_stylebox_override(
+		"panel", _make_flat_card_style(COLOR_WALNUT, COLOR_BRASS.darkened(0.25), 1)
+	)
+	var pad := MarginContainer.new()
+	pad.add_theme_constant_override("margin_left", 16)
+	pad.add_theme_constant_override("margin_top", 12)
+	pad.add_theme_constant_override("margin_right", 16)
+	pad.add_theme_constant_override("margin_bottom", 12)
+	section.add_child(pad)
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 8)
+	pad.add_child(body)
+
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 8)
+	body.add_child(header)
+	var name_label := Label.new()
+	var name_text := _display_name_for(index)
+	if index == _summary_you_index():
+		name_text += "  (you)"
+	name_label.text = name_text
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	name_label.add_theme_font_size_override("font_size", 18)
+	if title_font != null:
+		name_label.add_theme_font_override("font", title_font)
+	header.add_child(name_label)
+	var score_label := Label.new()
+	score_label.text = "%d VP" % score
+	score_label.add_theme_color_override("font_color", COLOR_BRASS.lightened(0.15))
+	score_label.add_theme_font_size_override("font_size", 20)
+	if title_font != null:
+		score_label.add_theme_font_override("font", title_font)
+	header.add_child(score_label)
+
+	var breakdown := game_state.calculate_score_breakdown(target)
+	if breakdown.is_empty():
+		var none_label := Label.new()
+		none_label.text = "No victory points scored."
+		none_label.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
+		none_label.add_theme_font_size_override("font_size", 12)
+		if body_font != null:
+			none_label.add_theme_font_override("font", body_font)
+		body.add_child(none_label)
+	else:
+		for row in breakdown:
+			body.add_child(_build_breakdown_row(str(row.get("label", "")), int(row.get("points", 0))))
+
+	var deck_header := Label.new()
+	deck_header.text = "DECK"
+	deck_header.add_theme_color_override("font_color", COLOR_BRASS.darkened(0.1))
+	deck_header.add_theme_font_size_override("font_size", 11)
+	if title_font != null:
+		deck_header.add_theme_font_override("font", title_font)
+	body.add_child(deck_header)
+	body.add_child(_build_deck_chip_flow(target))
+	return section
+
+
+func _build_breakdown_row(label_text: String, points: int) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var name_label := Label.new()
+	name_label.text = label_text
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	name_label.add_theme_font_size_override("font_size", 13)
+	if body_font != null:
+		name_label.add_theme_font_override("font", body_font)
+	row.add_child(name_label)
+	var pts := Label.new()
+	pts.text = "%+d" % points
+	pts.add_theme_color_override("font_color", COLOR_BRASS)
+	pts.add_theme_font_size_override("font_size", 13)
+	if body_bold_font != null:
+		pts.add_theme_font_override("font", body_bold_font)
+	row.add_child(pts)
+	return row
+
+
+func _build_deck_chip_flow(target: PlayerState) -> HFlowContainer:
+	var flow := HFlowContainer.new()
+	flow.add_theme_constant_override("h_separation", 6)
+	flow.add_theme_constant_override("v_separation", 6)
+	var counts := _deck_counts(target)
+	var ids := counts.keys()
+	ids.sort_custom(func(a, b):
+		if int(counts[a]) != int(counts[b]):
+			return int(counts[a]) > int(counts[b])
+		return str(a) < str(b)
+	)
+	for card_id in ids:
+		if not game_state.card_catalog.has(card_id):
+			continue
+		var card: CardDefinition = game_state.card_catalog[card_id]
+		flow.add_child(_build_deck_chip(card.card_name, int(counts[card_id])))
+	return flow
+
+
+func _build_deck_chip(card_name: String, count: int) -> PanelContainer:
+	var chip := PanelContainer.new()
+	chip.add_theme_stylebox_override(
+		"panel", _make_flat_card_style(COLOR_WALNUT_DARK, COLOR_BRASS.darkened(0.4), 1)
+	)
+	var pad := MarginContainer.new()
+	pad.add_theme_constant_override("margin_left", 8)
+	pad.add_theme_constant_override("margin_top", 3)
+	pad.add_theme_constant_override("margin_right", 8)
+	pad.add_theme_constant_override("margin_bottom", 3)
+	chip.add_child(pad)
+	var label := Label.new()
+	label.text = "%s  x%d" % [card_name, count]
+	label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	label.add_theme_font_size_override("font_size", 11)
+	if body_font != null:
+		label.add_theme_font_override("font", body_font)
+	pad.add_child(label)
+	return chip
+
+
+func _build_podium(ranking: Array[int], scores: Array) -> Control:
+	var wrap := CenterContainer.new()
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 10)
+	wrap.add_child(row)
+	# Classic podium order: 2nd, 1st, 3rd. Heights and tints rank the columns.
+	var slots := [1, 0, 2]
+	var heights := [66, 96, 46]
+	for slot_index in range(slots.size()):
+		var place: int = slots[slot_index]
+		if place >= ranking.size():
+			continue
+		var player_index: int = ranking[place]
+		row.add_child(_build_podium_column(
+			place + 1,
+			_display_name_for(player_index),
+			int(scores[player_index]),
+			heights[slot_index]
+		))
+	return wrap
+
+
+func _build_podium_column(place: int, name_text: String, score: int, height: int) -> VBoxContainer:
+	var column := VBoxContainer.new()
+	column.alignment = BoxContainer.ALIGNMENT_END
+	column.custom_minimum_size = Vector2(120, 150)
+	column.add_theme_constant_override("separation", 4)
+
+	var name_label := Label.new()
+	name_label.text = name_text
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	name_label.add_theme_font_size_override("font_size", 13)
+	if body_font != null:
+		name_label.add_theme_font_override("font", body_font)
+	column.add_child(name_label)
+
+	var score_label := Label.new()
+	score_label.text = "%d VP" % score
+	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	score_label.add_theme_color_override("font_color", COLOR_BRASS.lightened(0.15))
+	score_label.add_theme_font_size_override("font_size", 16)
+	if title_font != null:
+		score_label.add_theme_font_override("font", title_font)
+	column.add_child(score_label)
+
+	var pedestal := PanelContainer.new()
+	pedestal.custom_minimum_size = Vector2(108, height)
+	var tint := COLOR_BRASS if place == 1 else COLOR_WALNUT.lightened(0.12)
+	pedestal.add_theme_stylebox_override("panel", _make_flat_card_style(tint, COLOR_BRASS, 2))
+	var place_label := Label.new()
+	place_label.text = str(place)
+	place_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	place_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	place_label.add_theme_color_override(
+		"font_color", COLOR_WALNUT_DARK if place == 1 else COLOR_BRASS
+	)
+	place_label.add_theme_font_size_override("font_size", 24)
+	if title_font != null:
+		place_label.add_theme_font_override("font", title_font)
+	pedestal.add_child(place_label)
+	column.add_child(pedestal)
+	return column
+
+
+func _build_prizes_panel() -> Control:
+	var awards := _compute_fun_awards()
+	if awards.is_empty():
+		return null
+	var section := PanelContainer.new()
+	section.add_theme_stylebox_override(
+		"panel", _make_flat_card_style(COLOR_WALNUT, COLOR_BRASS.darkened(0.25), 1)
+	)
+	var pad := MarginContainer.new()
+	pad.add_theme_constant_override("margin_left", 16)
+	pad.add_theme_constant_override("margin_top", 12)
+	pad.add_theme_constant_override("margin_right", 16)
+	pad.add_theme_constant_override("margin_bottom", 12)
+	section.add_child(pad)
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 6)
+	pad.add_child(body)
+
+	var header := Label.new()
+	header.text = "TABLE HONOURS  (just for fun)"
+	header.add_theme_color_override("font_color", COLOR_BRASS.darkened(0.1))
+	header.add_theme_font_size_override("font_size", 12)
+	if title_font != null:
+		header.add_theme_font_override("font", title_font)
+	body.add_child(header)
+
+	for award in awards:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var title_label := Label.new()
+		title_label.text = str(award.get("title", ""))
+		title_label.add_theme_color_override("font_color", COLOR_BRASS)
+		title_label.add_theme_font_size_override("font_size", 13)
+		if body_bold_font != null:
+			title_label.add_theme_font_override("font", body_bold_font)
+		row.add_child(title_label)
+		var who := Label.new()
+		who.text = str(award.get("detail", ""))
+		who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		who.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+		who.add_theme_font_size_override("font_size", 13)
+		if body_font != null:
+			who.add_theme_font_override("font", body_font)
+		row.add_child(who)
+		body.add_child(row)
+	return section
+
+
+func _compute_fun_awards() -> Array:
+	var pool: Array = []
+	var candidates := [
+		{"title": "Most Attacked", "unit": "hits", "metric": "attacked"},
+		{"title": "Biggest Hoard", "unit": "cards", "metric": "deck"},
+		{"title": "Ruthless Cull", "unit": "trashed", "metric": "trash"},
+		{"title": "Green Crown", "unit": "victory cards", "metric": "victory"},
+		{"title": "Relic Keeper", "unit": "relics", "metric": "relics"},
+	]
+	for candidate in candidates:
+		var best_index := -1
+		var best_value := 0
+		for index in range(game_state.players.size()):
+			var value := _award_metric(str(candidate["metric"]), game_state.players[index])
+			if value > best_value:
+				best_value = value
+				best_index = index
+		if best_index >= 0:
+			pool.append({
+				"title": str(candidate["title"]),
+				"detail": "%s  (%d %s)" % [
+					_display_name_for(best_index), best_value, str(candidate["unit"])
+				],
+			})
+	pool.shuffle()
+	return pool.slice(0, mini(3, pool.size()))
+
+
+func _award_metric(metric: String, target: PlayerState) -> int:
+	match metric:
+		"attacked":
+			return target.times_attacked
+		"deck":
+			return target.get_all_cards().size() + target.duration_hold.size()
+		"trash":
+			return target.trash_pile.size()
+		"victory":
+			var total := 0
+			for card in target.get_all_cards():
+				if card.card_type == "victory":
+					total += 1
+			return total
+		"relics":
+			return target.relics.size()
+	return 0
+
+
+func _display_name_for(index: int) -> String:
+	if index < 0 or index >= game_state.players.size():
+		return "Player %d" % (index + 1)
+	return game_state.players[index].player_name
 
 
 func _find_card_button(container: Container, card_id: String) -> Button:
