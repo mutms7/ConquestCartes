@@ -31,3 +31,4 @@ window/stretch/mode="canvas_items"
 
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.141176, 0.094118, 0.07451, 1)

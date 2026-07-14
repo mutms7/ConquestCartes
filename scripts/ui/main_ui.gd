@@ -143,10 +143,19 @@ const SOUND_PATHS := {
 	"game_end": "res://assets/audio/ui/game_end.ogg",
 }
 const BACKGROUND_MUSIC_PATH := "res://assets/audio/dominion_board_game_ambience.mp3"
-const BACKGROUND_MUSIC_VOLUME_DB := 6.0
-const DEFAULT_AUDIO_VOLUME := 0.5
+# Offset applied on top of the slider curve. -3 dB puts the loudest music setting
+# at roughly what the old 75%-ish slider used to reach, and shifts the whole
+# range down so the quiet end sits genuinely soft in the background.
+const BACKGROUND_MUSIC_VOLUME_DB := -3.0
+const DEFAULT_AUDIO_VOLUME := 0.7
 const VOLUME_SLIDER_STEP := 0.01
 const VOLUME_RESPONSE_EXPONENT := 2.0
+# Sound effects get their own volume slider, mapped with the same perceptual
+# curve. At the top of the slider they play at SFX_VOLUME_DB.
+const DEFAULT_SFX_VOLUME := 0.6
+const SFX_VOLUME_DB := 0.0
+# The New Game click is played much quieter than a normal button press.
+const NEW_GAME_SOUND_OFFSET_DB := -14.0
 
 var game_state := GameState.new()
 var turn_manager := TurnManager.new()
@@ -268,14 +277,18 @@ var home_noise_slider: HSlider
 var table_noise_slider: HSlider
 var action_animation_speed_slider: HSlider
 var background_music_slider: HSlider
+var sfx_volume_slider: HSlider
 var end_turn_cooldown_slider: HSlider
 var home_audio_toggle: CheckButton
+var home_music_toggle: CheckButton
 var home_motion_toggle: CheckButton
 var fullscreen_toggle: CheckButton
 var noise_texture: Texture2D
 var lobby_pending_mode := "host"
 var lobby_max_players := NETWORK_MAX_PLAYERS
 var background_music_volume := DEFAULT_AUDIO_VOLUME
+var music_enabled := true
+var sfx_volume := DEFAULT_SFX_VOLUME
 
 @onready var turn_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/TurnStat/Value
 @onready var deck_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/DeckStat/ValueRow/Value
@@ -2899,7 +2912,7 @@ func _create_home_panel(panel_name: String, panel_size: Vector2) -> PanelContain
 
 
 func _build_settings_panel() -> void:
-	home_settings_panel = _create_home_panel("SettingsPanel", Vector2(470, 672))
+	home_settings_panel = _create_home_panel("SettingsPanel", Vector2(470, 772))
 	var margin := MarginContainer.new()
 	margin.name = "Margin"
 	margin.add_theme_constant_override("margin_left", 34)
@@ -2923,9 +2936,25 @@ func _build_settings_panel() -> void:
 	home_audio_toggle.toggled.connect(_on_home_audio_toggled)
 	layout.add_child(_create_settings_toggle_row("Sound effects", home_audio_toggle))
 
+	sfx_volume_slider = _create_settings_slider_row(
+		layout,
+		"Effects volume",
+		"SfxVolume",
+		sfx_volume,
+		0.0,
+		1.0,
+		VOLUME_SLIDER_STEP,
+		"pct"
+	)
+	sfx_volume_slider.value_changed.connect(_on_sfx_volume_changed)
+
+	home_music_toggle = _create_parchment_toggle("MusicToggle", music_enabled)
+	home_music_toggle.toggled.connect(_on_home_music_toggled)
+	layout.add_child(_create_settings_toggle_row("Background music", home_music_toggle))
+
 	background_music_slider = _create_settings_slider_row(
 		layout,
-		"Background music",
+		"Music volume",
 		"BackgroundMusic",
 		background_music_volume,
 		0.0,
@@ -4213,6 +4242,10 @@ func _refresh_home_controls() -> void:
 			lobby_panel_status_label.text = home_lobby_status_label.text
 	if home_audio_toggle != null:
 		home_audio_toggle.set_pressed_no_signal(audio_enabled)
+	if home_music_toggle != null:
+		home_music_toggle.set_pressed_no_signal(music_enabled)
+	if sfx_volume_slider != null:
+		sfx_volume_slider.set_value_no_signal(sfx_volume)
 	if home_motion_toggle != null:
 		home_motion_toggle.set_pressed_no_signal(motion_enabled)
 	if home_noise_slider != null:
@@ -7357,13 +7390,21 @@ func _clear_animation_layer() -> void:
 		child.queue_free()
 
 
-func _play_ui_sound(sound_name: String) -> void:
-	if not audio_enabled or not ui_sound_players.has(sound_name):
+func _play_ui_sound(sound_name: String, volume_offset_db := 0.0) -> void:
+	if not audio_enabled or sfx_volume <= 0.0 or not ui_sound_players.has(sound_name):
 		return
 	var player: AudioStreamPlayer = ui_sound_players[sound_name]
 	last_ui_sound_name = sound_name
+	player.volume_db = _get_sfx_volume_db() + volume_offset_db
 	player.stop()
 	player.play()
+
+
+func _get_sfx_volume_db() -> float:
+	var level := clampf(sfx_volume, 0.0, 1.0)
+	if level <= 0.0:
+		return -80.0
+	return linear_to_db(pow(level, VOLUME_RESPONSE_EXPONENT)) + SFX_VOLUME_DB
 
 
 func _poll_background_music_load() -> void:
@@ -7417,7 +7458,7 @@ func _attach_background_music_stream(music_stream: AudioStream) -> void:
 func _refresh_background_music() -> void:
 	if background_music_player == null:
 		return
-	if audio_enabled:
+	if music_enabled:
 		background_music_player.volume_db = _get_background_music_volume_db()
 		if background_music_volume <= 0.0:
 			background_music_player.stop()
@@ -7450,7 +7491,7 @@ func _get_background_music_linear_volume() -> float:
 func _keep_background_music_alive() -> void:
 	# If the music player ever ends up stopped while audio is on (audio device
 	# hiccup, slow audio-server startup on some platforms), quietly restart it.
-	if background_music_player == null or not audio_enabled:
+	if background_music_player == null or not music_enabled:
 		return
 	if background_music_volume <= 0.0:
 		return
@@ -7461,7 +7502,7 @@ func _keep_background_music_alive() -> void:
 
 
 func _request_background_music_playback() -> void:
-	if background_music_player == null or not audio_enabled:
+	if background_music_player == null or not music_enabled:
 		return
 	if background_music_volume <= 0.0:
 		return
@@ -7755,7 +7796,7 @@ func _on_home_pressed() -> void:
 
 
 func _on_home_new_game_pressed() -> void:
-	_play_ui_sound("button_click")
+	_play_ui_sound("button_click", NEW_GAME_SOUND_OFFSET_DB)
 	_start_new_game(true)
 
 
@@ -7934,9 +7975,21 @@ func _is_audio_unlock_event(event: InputEvent) -> bool:
 func _on_home_audio_toggled(enabled: bool) -> void:
 	audio_enabled = enabled
 	if enabled:
+		_play_ui_sound("button_click")
+
+
+func _on_home_music_toggled(enabled: bool) -> void:
+	music_enabled = enabled
+	if enabled:
 		_request_background_music_playback()
 	else:
 		_refresh_background_music()
+	_play_ui_sound("button_click")
+
+
+func _on_sfx_volume_changed(value: float) -> void:
+	sfx_volume = clampf(value, 0.0, 1.0)
+	# Play a click at the new level so the setting is audible while dragging.
 	_play_ui_sound("button_click")
 
 

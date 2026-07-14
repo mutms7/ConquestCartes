@@ -188,7 +188,7 @@ func _initialize() -> void:
 	_check(
 		is_equal_approx(main_ui.background_music_volume, main_ui.DEFAULT_AUDIO_VOLUME)
 		and is_equal_approx(_background_music_slider().value, main_ui.DEFAULT_AUDIO_VOLUME),
-		"Background music volume should default to 50%."
+		"Background music volume should default to its configured level."
 	)
 	_check(
 		is_equal_approx(_background_music_slider().step, main_ui.VOLUME_SLIDER_STEP)
@@ -268,22 +268,36 @@ func _initialize() -> void:
 		and main_ui.background_music_player.playing,
 		"Background music should restart from a real input gesture for Web audio unlock."
 	)
+	# Sound effects and music now have independent toggles. Turning sound effects
+	# off must leave the music that is already playing untouched.
 	_home_audio_toggle().set_pressed_no_signal(false)
 	_home_audio_toggle().toggled.emit(false)
 	_check(
 		not main_ui.audio_enabled
 		and main_ui.background_music_player != null
-		and not main_ui.background_music_player.playing,
-		"Audio toggle should stop the background music."
+		and main_ui.background_music_player.playing,
+		"The sound effects toggle should not stop background music."
 	)
 	_home_audio_toggle().set_pressed_no_signal(true)
 	_home_audio_toggle().toggled.emit(true)
+	_check(main_ui.audio_enabled, "The sound effects toggle should re-enable effects.")
+	# The music toggle is what stops and restarts the ambience track.
+	_home_music_toggle().set_pressed_no_signal(false)
+	_home_music_toggle().toggled.emit(false)
 	_check(
-		main_ui.audio_enabled
+		not main_ui.music_enabled
+		and main_ui.background_music_player != null
+		and not main_ui.background_music_player.playing,
+		"The music toggle should stop the background music."
+	)
+	_home_music_toggle().set_pressed_no_signal(true)
+	_home_music_toggle().toggled.emit(true)
+	_check(
+		main_ui.music_enabled
 		and main_ui.background_music_player != null
 		and main_ui.background_music_player.playing
 		and main_ui.background_music_start_requested,
-		"Audio toggle should restart the background music."
+		"The music toggle should restart the background music."
 	)
 	_home_motion_toggle().set_pressed_no_signal(false)
 	_home_motion_toggle().toggled.emit(false)
@@ -1481,6 +1495,10 @@ func _home_kingdoms_panel() -> PanelContainer:
 
 func _home_audio_toggle() -> CheckButton:
 	return main_ui.home_audio_toggle
+
+
+func _home_music_toggle() -> CheckButton:
+	return main_ui.home_music_toggle
 
 
 func _home_motion_toggle() -> CheckButton:
