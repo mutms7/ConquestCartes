@@ -50,6 +50,10 @@ const DEFAULT_END_TURN_COOLDOWN_SECONDS := 5.0
 const BASE_TURN_DRAW_COUNT := 5
 # Every table, solo or networked, offers a relic draft once every 7 turns.
 const RELIC_TURN_INTERVAL := 7
+# A solo conquest is a fixed sprint: it ends once turn 21 is finished, then the
+# player drafts a scoring relic before the final tally. Networked tables keep
+# ending on supply depletion instead.
+const SOLO_TURN_LIMIT := 21
 
 var player := PlayerState.new()
 var players: Array[PlayerState] = []
@@ -364,6 +368,8 @@ func get_empty_supply_pile_count() -> int:
 
 
 func is_game_end_condition_met() -> bool:
+	if not multiplayer_enabled and player.turn_number >= SOLO_TURN_LIMIT:
+		return true
 	return (
 		get_empty_supply_pile_count() >= SUPPLY_EMPTY_END_COUNT
 		or get_supply_count(SIX_VP_CARD_ID) <= 0
@@ -855,6 +861,8 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 	match kind:
 		"reveal_resources_to_hand":
 			_reveal_resources_to_hand(int(effect.get("amount", 1)))
+		"each_other_player_draws":
+			_each_other_player_draws(int(effect.get("amount", 1)))
 		"gain_from_supply":
 			_request_supply_choice(
 				int(effect.get("max_cost", 99)),
@@ -2179,6 +2187,22 @@ func _begin_survey_top(amount: int) -> void:
 	)
 
 
+func _each_other_player_draws(amount: int) -> void:
+	# Scholar's Hall (Council Room): every player other than the active one draws.
+	# Solo tables never see this card, so nobody draws when there is one player.
+	if amount <= 0:
+		return
+	for index in range(players.size()):
+		if index == active_player_index:
+			continue
+		var other := players[index]
+		for _draw_index in range(amount):
+			var drawn := _take_top_card_for_player(other)
+			if drawn == null:
+				break
+			other.hand.append(drawn)
+
+
 func _get_attack_targets() -> Array[PlayerState]:
 	if players.size() <= 1:
 		return [player]
@@ -2630,6 +2654,7 @@ func _calculate_score_for_player(scored_player: PlayerState) -> int:
 			score += scored_player.trash_pile.size() / card.score_per_trashed
 		if not card.score_card_id.is_empty():
 			score += int(owned_counts.get(card.score_card_id, 0)) * card.score_card_points
+	score += _scoring_relic_bonus(scored_player)
 	print(
 		"[Game] Scoring %s: %d victory points (draw: %d, hand: %d, play: %d, discard: %d)"
 		% [
@@ -2642,3 +2667,105 @@ func _calculate_score_for_player(scored_player: PlayerState) -> int:
 		]
 	)
 	return score
+
+
+func _count_cards_of_type(cards: Array[CardDefinition], card_type: String) -> int:
+	var total := 0
+	for card in cards:
+		if card.card_type == card_type:
+			total += 1
+	return total
+
+
+func _count_cards_with_id(cards: Array[CardDefinition], card_id: String) -> int:
+	var total := 0
+	for card in cards:
+		if card.id == card_id:
+			total += 1
+	return total
+
+
+func _scoring_relic_bonus(scored_player: PlayerState) -> int:
+	var relic_id := scored_player.scoring_relic
+	if relic_id.is_empty() or not RelicCatalog.has_scoring_relic(relic_id):
+		return 0
+	var owned := scored_player.get_all_cards()
+	match relic_id:
+		"warlords_tribute":
+			return _count_cards_of_type(owned, "action")
+		"hoarders_vault":
+			return _count_cards_of_type(owned, "resource") / 2
+		"crown_of_conquest":
+			return _count_cards_of_type(owned, "victory")
+		"ascetics_reliquary":
+			return scored_player.trash_pile.size() * 2
+		"merchants_charter":
+			return owned.size() / 3
+		"purists_medallion":
+			return 10 if owned.size() <= 16 else 0
+		"hexbreakers_idol":
+			return _count_cards_with_id(owned, CURSE_CARD_ID) * 2
+		"wanderers_map":
+			var names := {}
+			for card in owned:
+				names[card.id] = true
+			return names.size()
+	return 0
+
+
+func generate_scoring_relic_offer() -> Array[String]:
+	# Two random scoring relics for the solo end-game draft.
+	var pool := RelicCatalog.get_scoring_pool()
+	pool.shuffle()
+	var offer: Array[String] = []
+	for index in range(mini(RelicCatalog.SCORING_OFFER_SIZE, pool.size())):
+		offer.append(pool[index])
+	return offer
+
+
+func choose_scoring_relic(target: PlayerState, relic_id: String) -> bool:
+	if target == null or not RelicCatalog.has_scoring_relic(relic_id):
+		return false
+	target.scoring_relic = relic_id
+	print("[Game] %s drafts scoring relic: %s" % [
+		target.player_name, RelicCatalog.get_scoring_relic_name(relic_id)
+	])
+	return true
+
+
+func calculate_score_breakdown(scored_player: PlayerState) -> Array:
+	# Row list [{ "label": String, "points": int }] mirroring the score tally,
+	# used by the end-of-game summary. The rows sum to the player's final score.
+	var owned_cards := scored_player.get_all_cards()
+	var owned_counts := {}
+	for card in owned_cards:
+		owned_counts[card.id] = int(owned_counts.get(card.id, 0)) + 1
+	var rows: Array = []
+	var vp_by_name := {}
+	var vp_order: Array[String] = []
+	for card in owned_cards:
+		if card.victory_points != 0:
+			if not vp_by_name.has(card.card_name):
+				vp_order.append(card.card_name)
+			vp_by_name[card.card_name] = int(vp_by_name.get(card.card_name, 0)) + card.victory_points
+	for card_name in vp_order:
+		rows.append({"label": card_name, "points": int(vp_by_name[card_name])})
+	for card_id in owned_counts:
+		var card: CardDefinition = card_catalog[card_id]
+		var count := int(owned_counts[card_id])
+		var bonus := 0
+		if card.score_per_cards > 0:
+			bonus += count * (owned_cards.size() / card.score_per_cards)
+		if card.score_per_trashed > 0:
+			bonus += count * (scored_player.trash_pile.size() / card.score_per_trashed)
+		if not card.score_card_id.is_empty():
+			bonus += count * int(owned_counts.get(card.score_card_id, 0)) * card.score_card_points
+		if bonus != 0:
+			rows.append({"label": card.card_name, "points": bonus})
+	var relic_bonus := _scoring_relic_bonus(scored_player)
+	if relic_bonus != 0:
+		rows.append({
+			"label": RelicCatalog.get_scoring_relic_name(scored_player.scoring_relic),
+			"points": relic_bonus,
+		})
+	return rows

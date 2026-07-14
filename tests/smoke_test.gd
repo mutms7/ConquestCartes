@@ -19,6 +19,19 @@ const MULTIPLAYER_ONLY_CARD_IDS := [
 	"stolen_minute",
 	"lantern_vigil",
 ]
+# Cards that reach other players (attacks and Scholar's Hall's shared draw) do
+# nothing solo, so they are pulled from singleplayer markets as well.
+const MULTIPLAYER_ONLY_INTERACTION_CARD_IDS := [
+	"roadside_reaver",
+	"royal_clerk",
+	"briar_witch",
+	"river_magistrate",
+	"candlecap_kettle",
+	"stonewall_raider",
+	"briar_hut",
+	"thornbinder",
+	"council_hearth",
+]
 const EXPECTED_ART_LINKED_NAMES := {
 	"wishing_garden": "Wishing Stone",
 	"starpath_seeker": "Starlit Wagon",
@@ -243,7 +256,7 @@ func _test_wording_conventions() -> void:
 			)
 	_check(
 		game_state.card_catalog["council_hearth"].description
-		== "Draw 4 cards. Gain 1 buy.",
+		== "Draw 4 cards. Gain 1 buy. Each other player draws a card.",
 		"Standard outputs should use canonical sentence order."
 	)
 	_check(
@@ -449,7 +462,7 @@ func _test_multiplayer_only_timer_cards() -> void:
 	var solo_ids: Array[String] = []
 	for candidate in solo.get_market_candidates():
 		solo_ids.append(candidate.id)
-	for card_id in MULTIPLAYER_ONLY_CARD_IDS:
+	for card_id in MULTIPLAYER_ONLY_CARD_IDS + MULTIPLAYER_ONLY_INTERACTION_CARD_IDS:
 		_check(
 			not solo_ids.has(card_id),
 			"%s should be hidden from singleplayer markets." % card_id
@@ -463,7 +476,7 @@ func _test_multiplayer_only_timer_cards() -> void:
 	var mp_ids: Array[String] = []
 	for candidate in mp.get_market_candidates():
 		mp_ids.append(candidate.id)
-	for card_id in MULTIPLAYER_ONLY_CARD_IDS:
+	for card_id in MULTIPLAYER_ONLY_CARD_IDS + MULTIPLAYER_ONLY_INTERACTION_CARD_IDS:
 		_check(
 			mp_ids.has(card_id),
 			"%s should be available as a multiplayer market candidate." % card_id
@@ -1244,6 +1257,7 @@ func _test_random_market_setup() -> void:
 			- GameState.STARTING_CARD_COUNTS.size()
 			- INACTIVE_CARD_IDS.size()
 			- MULTIPLAYER_ONLY_CARD_IDS.size()
+			- MULTIPLAYER_ONLY_INTERACTION_CARD_IDS.size()
 		),
 		"Solo markets should exclude starter, inactive, and multiplayer-only cards."
 	)

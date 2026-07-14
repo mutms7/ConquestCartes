@@ -111,6 +111,7 @@
   },
   {
     "id": "roadside_reaver",
+    "multiplayer_only": true,
     "name": "Trail Cache",
     "type": "action",
     "art_id": "roadside_reaver",
@@ -134,6 +135,7 @@
   },
   {
     "id": "royal_clerk",
+    "multiplayer_only": true,
     "name": "Royal Decree",
     "type": "action",
     "art_id": "royal_clerk",
@@ -205,9 +207,17 @@
     "type": "action",
     "art_id": "scholars_hall",
     "cost": 5,
-    "description": "Draw 4 cards. Gain 1 buy.",
+    "description": "Draw 4 cards. Gain 1 buy. Each other player draws a card.",
     "draw_cards": 4,
-    "gain_buys": 1
+    "gain_buys": 1,
+    "multiplayer_only": true,
+    "special_effects": [
+      {
+        "kind": "each_other_player_draws",
+        "amount": 1,
+        "label": "Each other player draws"
+      }
+    ]
   },
   {
     "id": "harvest_feast",
@@ -475,6 +485,7 @@
   },
   {
     "id": "briar_witch",
+    "multiplayer_only": true,
     "name": "Briar Witch",
     "type": "action",
     "art_id": "briar_witch",
@@ -586,6 +597,7 @@
   },
   {
     "id": "river_magistrate",
+    "multiplayer_only": true,
     "name": "Magistrate",
     "type": "action",
     "group": "Hinterlands",
@@ -857,6 +869,7 @@
   },
   {
     "id": "candlecap_kettle",
+    "multiplayer_only": true,
     "name": "Cap Kettle",
     "type": "resource",
     "group": "Hinterlands",
@@ -961,6 +974,7 @@
   },
   {
     "id": "stonewall_raider",
+    "multiplayer_only": true,
     "name": "Stone Raider",
     "type": "action",
     "group": "Hinterlands",
@@ -988,6 +1002,7 @@
   },
   {
     "id": "briar_hut",
+    "multiplayer_only": true,
     "name": "Briar Hut",
     "type": "action",
     "group": "Hinterlands",
@@ -1194,6 +1209,7 @@
   },
   {
     "id": "thornbinder",
+    "multiplayer_only": true,
     "name": "Thornbinder",
     "type": "action",
     "group": "Witching Hour",

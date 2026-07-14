@@ -18,6 +18,9 @@ var turn_number: int = 1
 # Conquest-long relic boons and the current unclaimed draft offer (relic ids).
 var relics: Array[String] = []
 var pending_relic_offer: Array[String] = []
+# End-of-game scoring relic drafted in solo play (empty until chosen). Grants
+# bonus victory points at the final tally based on the player's playstyle.
+var scoring_relic: String = ""
 var end_turn_cooldown_reduction: float = 0.0
 # Persists for the whole conquest (game); not reset each turn.
 var game_cooldown_reduction: float = 0.0
@@ -46,6 +49,7 @@ func clear_all() -> void:
 	turn_number = 1
 	relics.clear()
 	pending_relic_offer.clear()
+	scoring_relic = ""
 	turn_flags.clear()
 	pending_choice = null
 	resolution_queue.clear()

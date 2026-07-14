@@ -133,3 +133,92 @@ static func get_pool(include_timed: bool) -> Array[String]:
 			continue
 		pool.append(relic_id)
 	return pool
+
+
+# Scoring relics are the end-of-game draft in solo play: the conquest ends after
+# turn 21 and the player picks one of two to reward whatever playstyle their deck
+# leaned into. The bonus math lives in GameState._scoring_relic_bonus so it stays
+# next to the score tally; these entries only carry the name/glyph/description.
+const SCORING_OFFER_SIZE := 2
+
+const SCORING_RELICS := {
+	"warlords_tribute": {
+		"name": "Warlord's Tribute",
+		"glyph": "W",
+		"icon_id": "warlords_tribute",
+		"description": "+1 victory point for each action card in your deck.",
+	},
+	"hoarders_vault": {
+		"name": "Hoarder's Vault",
+		"glyph": "H",
+		"icon_id": "hoarders_vault",
+		"description": "+1 victory point for every 2 resource cards in your deck.",
+	},
+	"crown_of_conquest": {
+		"name": "Crown of Conquest",
+		"glyph": "C",
+		"icon_id": "crown_of_conquest",
+		"description": "+1 victory point for each victory card in your deck.",
+	},
+	"ascetics_reliquary": {
+		"name": "Ascetic's Reliquary",
+		"glyph": "A",
+		"icon_id": "ascetics_reliquary",
+		"description": "+2 victory points for each card you trashed this conquest.",
+	},
+	"merchants_charter": {
+		"name": "Merchant's Charter",
+		"glyph": "M",
+		"icon_id": "merchants_charter",
+		"description": "+1 victory point for every 3 cards in your deck.",
+	},
+	"purists_medallion": {
+		"name": "Purist's Medallion",
+		"glyph": "P",
+		"icon_id": "purists_medallion",
+		"description": "+10 victory points if your deck holds 16 cards or fewer.",
+	},
+	"hexbreakers_idol": {
+		"name": "Hexbreaker's Idol",
+		"glyph": "X",
+		"icon_id": "hexbreakers_idol",
+		"description": "+2 victory points for each Briar Hex in your deck.",
+	},
+	"wanderers_map": {
+		"name": "Wanderer's Map",
+		"glyph": "R",
+		"icon_id": "wanderers_map",
+		"description": "+1 victory point for each differently named card in your deck.",
+	},
+}
+
+
+static func has_scoring_relic(relic_id: String) -> bool:
+	return SCORING_RELICS.has(relic_id)
+
+
+static func get_scoring_relic(relic_id: String) -> Dictionary:
+	return SCORING_RELICS.get(relic_id, {})
+
+
+static func get_scoring_relic_name(relic_id: String) -> String:
+	return str(get_scoring_relic(relic_id).get("name", relic_id))
+
+
+static func get_scoring_relic_glyph(relic_id: String) -> String:
+	return str(get_scoring_relic(relic_id).get("glyph", "*"))
+
+
+static func get_scoring_relic_icon_id(relic_id: String) -> String:
+	return str(get_scoring_relic(relic_id).get("icon_id", relic_id))
+
+
+static func get_scoring_relic_description(relic_id: String) -> String:
+	return str(get_scoring_relic(relic_id).get("description", ""))
+
+
+static func get_scoring_pool() -> Array[String]:
+	var pool: Array[String] = []
+	for relic_id in SCORING_RELICS:
+		pool.append(relic_id)
+	return pool
