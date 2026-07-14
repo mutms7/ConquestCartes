@@ -259,6 +259,9 @@ var network_connected_seats: Array[int] = []
 # gates play so each player can read the market and starting hand first). It is
 # shown as a countdown on the End Turn button.
 var respite_remaining := 0.0
+# Seats that have readied up during the opening timer. Once every connected seat
+# is ready the timer is skipped. Host-authoritative and synced in the snapshot.
+var respite_ready_seats: Array[int] = []
 var relic_overlay: Control
 var relic_options_row: HBoxContainer
 var relic_overlay_offer: Array[String] = []
@@ -298,6 +301,13 @@ var lobby_max_players := NETWORK_MAX_PLAYERS
 var background_music_volume := DEFAULT_AUDIO_VOLUME
 var music_enabled := true
 var sfx_volume := DEFAULT_SFX_VOLUME
+# The local player's chosen display name and whether opponents' chosen names are
+# shown (off falls back to the "Player N" template). Both are local preferences;
+# the name itself is synced to the table so it reaches everyone.
+var player_display_name := "Player 1"
+var show_opponent_names := true
+var show_opponent_names_toggle: CheckButton
+var lobby_name_input: LineEdit
 
 @onready var turn_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/TurnStat/Value
 @onready var deck_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/DeckStat/ValueRow/Value
@@ -480,6 +490,7 @@ func _start_new_game(_is_restart: bool) -> void:
 
 	has_active_game = true
 	turn_manager.start_first_turn()
+	_apply_local_player_name(false)
 	_start_respite()
 	_refresh_ui()
 	call_deferred("_animate_draw_cards", game_state.player.hand.size())
@@ -502,6 +513,7 @@ func _start_lobby_game(player_count: int = 2) -> void:
 		return
 	has_active_game = true
 	turn_manager.start_first_turn()
+	_apply_local_player_name(false)
 	_start_respite()
 	_refresh_ui()
 	call_deferred("_animate_draw_cards", game_state.player.hand.size())
@@ -894,6 +906,12 @@ func _handle_online_relay_signal(sender_id: String, payload: Dictionary) -> void
 			)
 		"lobby_ready":
 			_handle_network_lobby_ready(_player_index_for_relay_client(sender_id))
+		"request_respite_ready":
+			_handle_network_respite_ready(_player_index_for_relay_client(sender_id))
+		"set_name":
+			_handle_network_set_name(
+				_player_index_for_relay_client(sender_id), str(payload.get("name", ""))
+			)
 		"lobby_full":
 			if sender_is_host:
 				_disconnect_network()
@@ -1027,6 +1045,10 @@ func _send_network_client_request(method: String, payload: Dictionary = {}) -> v
 			rpc_id(1, "_rpc_request_choice", payload.get("tokens", []))
 		"request_relic_choice":
 			rpc_id(1, "_rpc_request_relic_choice", str(payload.get("relic_id", "")))
+		"request_respite_ready":
+			rpc_id(1, "_rpc_request_respite_ready")
+		"set_name":
+			rpc_id(1, "_rpc_request_set_name", str(payload.get("name", "")))
 
 
 func _get_online_relay_url() -> String:
@@ -1373,6 +1395,7 @@ func _create_network_snapshot() -> Dictionary:
 		"started": network_table_open,
 		"connected_seats": _connected_seat_indexes(),
 		"ready_seats": network_ready_seats.duplicate(),
+		"respite_ready_seats": respite_ready_seats.duplicate(),
 		"multiplayer_enabled": game_state.multiplayer_enabled,
 		"turn_based_enabled": game_state.turn_based_enabled,
 		"end_turn_cooldown_seconds": game_state.end_turn_cooldown_seconds,
@@ -1542,6 +1565,11 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 	network_ready_seats.clear()
 	for seat in snapshot.get("ready_seats", []):
 		network_ready_seats.append(int(seat))
+	respite_ready_seats.clear()
+	for seat in snapshot.get("respite_ready_seats", []):
+		respite_ready_seats.append(int(seat))
+	if _respite_active() and _all_seats_respite_ready():
+		_end_respite()
 	game_state.end_turn_cooldown_seconds = float(
 		snapshot.get("end_turn_cooldown_seconds", game_state.end_turn_cooldown_seconds)
 	)
@@ -1702,6 +1730,36 @@ func _handle_network_lobby_ready(player_index: int) -> void:
 		_play_ui_sound("button_click")
 		_set_lobby_status("Player %d is ready to play." % (player_index + 1))
 	_refresh_lobby_panel()
+	_broadcast_network_snapshot()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_respite_ready() -> void:
+	_handle_network_respite_ready(_player_index_for_peer(multiplayer.get_remote_sender_id()))
+
+
+func _handle_network_respite_ready(player_index: int) -> void:
+	if not network_is_host or player_index < 0:
+		return
+	_mark_respite_ready(player_index)
+	_refresh_ui()
+	_broadcast_network_snapshot()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_set_name(new_name: String) -> void:
+	_handle_network_set_name(_player_index_for_peer(multiplayer.get_remote_sender_id()), new_name)
+
+
+func _handle_network_set_name(player_index: int, new_name: String) -> void:
+	if not network_is_host or player_index < 0 or player_index >= game_state.players.size():
+		return
+	var trimmed := new_name.strip_edges()
+	game_state.players[player_index].player_name = (
+		trimmed if not trimmed.is_empty() else "Player %d" % (player_index + 1)
+	)
+	_refresh_lobby_panel()
+	_refresh_ui()
 	_broadcast_network_snapshot()
 
 
@@ -2349,11 +2407,54 @@ func _start_respite() -> void:
 	# the board first. It shows as a countdown on the End Turn button and ends on
 	# its own; no modal, no skip. Client-local and changes no game state.
 	# Solo games skip it entirely: there's no one to wait on, so play starts now.
+	respite_ready_seats.clear()
 	if not game_state.multiplayer_enabled:
 		respite_remaining = 0.0
 		return
 	respite_remaining = RESPITE_SECONDS
 	_refresh_end_turn_button()
+
+
+func _local_respite_seat() -> int:
+	return local_player_index if network_enabled else game_state.active_player_index
+
+
+func _is_respite_ready(seat: int) -> bool:
+	return respite_ready_seats.has(seat)
+
+
+func _all_seats_respite_ready() -> bool:
+	var seats := _connected_seat_indexes() if network_enabled else [0]
+	if seats.is_empty():
+		return false
+	for seat in seats:
+		if not respite_ready_seats.has(seat):
+			return false
+	return true
+
+
+func _mark_respite_ready(seat: int) -> void:
+	if seat < 0 or respite_ready_seats.has(seat):
+		return
+	respite_ready_seats.append(seat)
+	if _all_seats_respite_ready():
+		_end_respite()
+
+
+func _on_respite_ready_pressed() -> void:
+	if not _respite_active():
+		return
+	_play_ui_sound("button_click")
+	if not network_enabled:
+		# Local pass-and-play shares one screen, so a single ready starts the game.
+		_end_respite()
+		return
+	_mark_respite_ready(local_player_index)
+	if network_is_host:
+		_broadcast_network_snapshot()
+	else:
+		_send_network_client_request("request_respite_ready")
+	_refresh_ui()
 
 
 func _end_respite() -> void:
@@ -3182,6 +3283,39 @@ func _build_lobby_panel() -> void:
 		lobby_code_value_label.add_theme_font_override("font", title_font)
 	banner_stack.add_child(lobby_code_value_label)
 
+	var name_row := HBoxContainer.new()
+	name_row.name = "NameRow"
+	name_row.add_theme_constant_override("separation", 8)
+	left.add_child(name_row)
+	var name_label := Label.new()
+	name_label.text = "Your name"
+	name_label.custom_minimum_size = Vector2(84, 0)
+	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_label.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	name_label.add_theme_font_size_override("font_size", 14)
+	if body_font != null:
+		name_label.add_theme_font_override("font", body_font)
+	name_row.add_child(name_label)
+	lobby_name_input = LineEdit.new()
+	lobby_name_input.name = "LobbyName"
+	lobby_name_input.text = player_display_name
+	lobby_name_input.placeholder_text = "Your name"
+	lobby_name_input.max_length = 18
+	lobby_name_input.custom_minimum_size = Vector2(0, 34)
+	lobby_name_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lobby_name_input.add_theme_stylebox_override("normal", _make_parchment_input_style())
+	lobby_name_input.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	if body_font != null:
+		lobby_name_input.add_theme_font_override("font", body_font)
+	lobby_name_input.text_changed.connect(_on_lobby_name_changed)
+	lobby_name_input.text_submitted.connect(_on_name_submitted)
+	lobby_name_input.focus_exited.connect(_on_name_focus_exited)
+	name_row.add_child(lobby_name_input)
+
+	show_opponent_names_toggle = _create_parchment_toggle("ShowNamesToggle", show_opponent_names)
+	show_opponent_names_toggle.toggled.connect(_on_show_opponent_names_toggled)
+	left.add_child(_create_settings_toggle_row("Show opponent names", show_opponent_names_toggle))
+
 	home_lobby_seat_list = VBoxContainer.new()
 	home_lobby_seat_list.name = "SeatList"
 	home_lobby_seat_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -3604,6 +3738,10 @@ func _create_lobby_max_players_row() -> VBoxContainer:
 func _refresh_lobby_panel() -> void:
 	if home_lobby_seat_list == null:
 		return
+	if lobby_name_input != null and not lobby_name_input.has_focus() and lobby_name_input.text != player_display_name:
+		lobby_name_input.text = player_display_name
+	if show_opponent_names_toggle != null:
+		show_opponent_names_toggle.set_pressed_no_signal(show_opponent_names)
 	var can_edit_table := _can_edit_table_settings()
 	var can_edit_lobby_setup := _can_edit_lobby_setup()
 	var online_mode := lobby_pending_mode == "host_online" or lobby_pending_mode == "join_online"
@@ -3786,7 +3924,11 @@ func _create_lobby_seat_row(index: int, filled: bool) -> PanelContainer:
 	row.add_child(names)
 	var title := Label.new()
 	if filled:
-		title.text = "You" if index == local_player_index else "Player %d" % (index + 1)
+		if index == local_player_index:
+			var own := player_display_name.strip_edges()
+			title.text = "%s (you)" % (own if not own.is_empty() else "Player %d" % (index + 1))
+		else:
+			title.text = _display_name_for(index)
 		if index == 0:
 			title.text += " - host"
 	else:
@@ -5310,6 +5452,14 @@ func _update_player_status_row(index: int, game_player: PlayerState, you_index: 
 		status_color = COLOR_PARCHMENT.darkened(0.25)
 		status_text = "Ended"
 
+	if _respite_active() and connected:
+		if _is_respite_ready(index):
+			status_color = COLOR_VICTORY_ACCENT
+			status_text = "Ready"
+		else:
+			status_color = COLOR_BRASS
+			status_text = "Not ready"
+
 	var row: PanelContainer = refs["row"]
 	if bool(row.get_meta("row_active", false)) != is_active:
 		row.set_meta("row_active", is_active)
@@ -5320,7 +5470,7 @@ func _update_player_status_row(index: int, game_player: PlayerState, you_index: 
 		dot.set_meta("dot_color", status_color)
 		dot.add_theme_stylebox_override("panel", _make_dot_style(status_color))
 
-	var name_text := game_player.player_name
+	var name_text := _display_name_for(index)
 	if network_enabled and index == 0:
 		name_text += " (host)"
 	if network_enabled and is_local:
@@ -5358,9 +5508,15 @@ func _refresh_end_turn_button() -> void:
 		end_turn_button.modulate = Color.WHITE
 		return
 	if _respite_active():
-		end_turn_button.text = "STARTS %s" % _format_respite_clock()
-		end_turn_button.disabled = true
-		end_turn_button.modulate = Color(0.72, 0.74, 0.78, 1.0)
+		var local_ready := _is_respite_ready(_local_respite_seat())
+		if local_ready:
+			end_turn_button.text = "WAITING %s" % _format_respite_clock()
+			end_turn_button.disabled = true
+			end_turn_button.modulate = Color(0.72, 0.74, 0.78, 1.0)
+		else:
+			end_turn_button.text = "READY %s" % _format_respite_clock()
+			end_turn_button.disabled = false
+			end_turn_button.modulate = Color.WHITE
 		return
 	if turn_manager.is_cooling_down():
 		end_turn_button.text = "COOLDOWN %.1fs" % turn_manager.cooldown_remaining
@@ -7783,7 +7939,11 @@ func _on_market_card_pressed(card: CardDefinition) -> void:
 
 func _on_end_turn_pressed() -> void:
 	_restore_local_network_view()
-	if _respite_active() or game_state.has_pending_choice() or not _can_control_active_player():
+	if _respite_active():
+		# During the opening timer the button reads READY and skips the wait.
+		_on_respite_ready_pressed()
+		return
+	if game_state.has_pending_choice() or not _can_control_active_player():
 		return
 	_play_ui_sound("end_turn")
 	if _is_network_client():
@@ -8114,6 +8274,33 @@ func _is_seat_ready(index: int) -> bool:
 	if index == local_player_index and lobby_ready_sent:
 		return true
 	return network_ready_seats.has(index)
+
+
+func _on_lobby_name_changed(new_text: String) -> void:
+	player_display_name = new_text
+
+
+func _on_name_submitted(_text: String) -> void:
+	_commit_display_name()
+
+
+func _on_name_focus_exited() -> void:
+	_commit_display_name()
+
+
+func _commit_display_name() -> void:
+	if lobby_name_input != null:
+		player_display_name = lobby_name_input.text
+	_apply_local_player_name()
+	_refresh_lobby_panel()
+	_refresh_ui()
+
+
+func _on_show_opponent_names_toggled(enabled: bool) -> void:
+	show_opponent_names = enabled
+	_play_ui_sound("button_click")
+	_refresh_lobby_panel()
+	_refresh_ui()
 
 
 func _on_lobby_copy_pressed() -> void:
@@ -8796,7 +8983,30 @@ func _award_metric(metric: String, target: PlayerState) -> int:
 func _display_name_for(index: int) -> String:
 	if index < 0 or index >= game_state.players.size():
 		return "Player %d" % (index + 1)
-	return game_state.players[index].player_name
+	if network_enabled and not show_opponent_names and index != local_player_index:
+		return "Player %d" % (index + 1)
+	var chosen := game_state.players[index].player_name.strip_edges()
+	if chosen.is_empty():
+		return "Player %d" % (index + 1)
+	return chosen
+
+
+func _local_control_seat() -> int:
+	return local_player_index if network_enabled else 0
+
+
+func _apply_local_player_name(broadcast := true) -> void:
+	var seat := _local_control_seat()
+	var trimmed := player_display_name.strip_edges()
+	var resolved := trimmed if not trimmed.is_empty() else "Player %d" % (seat + 1)
+	if seat >= 0 and seat < game_state.players.size():
+		game_state.players[seat].player_name = resolved
+	if not broadcast:
+		return
+	if network_enabled and not network_is_host:
+		_send_network_client_request("set_name", {"name": resolved})
+	elif network_enabled and network_is_host:
+		_broadcast_network_snapshot()
 
 
 func _find_card_button(container: Container, card_id: String) -> Button:
