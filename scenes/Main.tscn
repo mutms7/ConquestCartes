@@ -76,7 +76,7 @@ content_margin_right = 16.0
 content_margin_bottom = 8.0
 
 [sub_resource type="StyleBoxFlat" id="StyleEndGame"]
-bg_color = Color(0.0705882, 0.109804, 0.0941176, 0.98)
+bg_color = Color(0.0431373, 0.0313726, 0.0196078, 0.98)
 border_width_left = 3
 border_width_top = 3
 border_width_right = 3
@@ -518,7 +518,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 1
-color = Color(0.0196078, 0.0313726, 0.027451, 0.78)
+color = Color(0.025, 0.018, 0.012, 0.82)
 
 [node name="Center" type="CenterContainer" parent="ChoiceOverlay"]
 layout_mode = 1

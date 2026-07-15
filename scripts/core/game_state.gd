@@ -42,7 +42,7 @@ const REQUIRED_CARD_IDS := [
 const ACTION_SUPPLY_COUNT := 10
 const RESOURCE_SUPPLY_COUNT := 12
 const VICTORY_SUPPLY_COUNT := 8
-const CURSE_SUPPLY_COUNT := 10
+const CURSE_SUPPLY_COUNT := 20
 const CURSE_CARD_ID := "briar_hex"
 const SIX_VP_CARD_ID := "royal_charter"
 const SUPPLY_EMPTY_END_COUNT := 3
@@ -905,7 +905,9 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				0,
 				mini(int(effect.get("amount", 1)), player.hand.size()),
 				"trash_hand",
-				"TRASH"
+				"TRASH",
+				"SKIP",
+				_hand_trash_choice_context()
 			)
 		"trash_self":
 			_trash_from_play(source_card)
@@ -940,7 +942,7 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				"upgrade_resource",
 				"TRASH & UPGRADE",
 				"SKIP",
-				{"cost_delta": int(effect.get("cost_delta", 0))}
+				_hand_trash_choice_context({"cost_delta": int(effect.get("cost_delta", 0))})
 			)
 		"trash_named_for_coins":
 			var matching: Array[CardDefinition] = []
@@ -960,7 +962,7 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				"trash_named_coins",
 				"TRASH",
 				"SKIP",
-				{"amount": int(effect.get("amount", 0))}
+				_hand_trash_choice_context({"amount": int(effect.get("amount", 0))})
 			)
 		"remodel":
 			_request_zone_choice(
@@ -971,7 +973,7 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				"remodel",
 				"TRASH",
 				"SKIP",
-				{"cost_delta": int(effect.get("cost_delta", 0))}
+				_hand_trash_choice_context({"cost_delta": int(effect.get("cost_delta", 0))})
 			)
 		"inspect_top":
 			_begin_inspect_top(int(effect.get("amount", 2)))
@@ -1037,7 +1039,8 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				mini(1, player.hand.size()),
 				"develop_trash",
 				"DEVELOP",
-				"SKIP"
+				"SKIP",
+				_hand_trash_choice_context()
 			)
 		"register_buy_bonus":
 			turn_flags["buy_bonus_count"] = int(turn_flags.get("buy_bonus_count", 0)) + 1
@@ -1082,7 +1085,8 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				trash_amount,
 				"trash_hand",
 				"TRASH",
-				"SKIP"
+				"SKIP",
+				_hand_trash_choice_context()
 			)
 		"topdeck_action_at_cleanup":
 			turn_flags["cleanup_topdeck_actions"] = (
@@ -1102,7 +1106,7 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				"trash_resource_mode",
 				"TRASH",
 				"SKIP",
-				{"modes": effect.get("modes", [])}
+				_hand_trash_choice_context({"modes": effect.get("modes", [])})
 			)
 		"discard_resource_bonus":
 			var discard_resources: Array[CardDefinition] = []
@@ -1186,7 +1190,7 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				"trash_for_copies",
 				"TRASH",
 				"SKIP",
-				{"card_id": str(effect.get("card_id", ""))}
+				_hand_trash_choice_context({"card_id": str(effect.get("card_id", ""))})
 			)
 		"replace_gain":
 			_request_optional_source_choice(
@@ -1228,10 +1232,10 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				"upgrade_exact_nonself",
 				"TRASH",
 				"SKIP",
-				{
+				_hand_trash_choice_context({
 					"cost_delta": int(effect.get("cost_delta", 2)),
 					"exclude_card_id": source_card.id,
-				}
+				})
 			)
 		"turn_start_bonus":
 			# Duration payload: resolves at the start of the owner's next turn.
@@ -1294,7 +1298,7 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				"trash_hand_bonus",
 				"TRASH",
 				"SKIP",
-				_per_card_bonus_context(effect)
+				_hand_trash_choice_context(_per_card_bonus_context(effect))
 			)
 		"discard_filtered_bonus":
 			var bonus_discard_candidates := _filter_hand_cards(effect)
@@ -1703,6 +1707,16 @@ func _request_zone_choice(
 	_request_choice(choice)
 
 
+## UI contract for a selection that trashes cards directly from the active hand.
+## Keep this semantic marker independent of the rules resolver so presentation
+## does not need to infer a destructive action from implementation details.
+func _hand_trash_choice_context(context: Dictionary = {}) -> Dictionary:
+	var tagged_context := context.duplicate(true)
+	tagged_context["ui_choice_kind"] = "trash_from_hand"
+	tagged_context["ui_source_zone"] = "hand"
+	return tagged_context
+
+
 func _request_supply_choice(
 	max_cost: int,
 	destination: String,
@@ -1719,7 +1733,11 @@ func _request_supply_choice(
 		"gain_supply",
 		"GAIN",
 		"SKIP",
-		{"destination": destination}
+		{
+			"destination": destination,
+			"ui_choice_kind": "gain_from_supply",
+			"ui_source_zone": "supply",
+		}
 	)
 	for card in candidates:
 		choice.add_candidate(
@@ -1767,7 +1785,11 @@ func _request_filtered_supply_choice(
 		"gain_supply",
 		"GAIN",
 		"SKIP",
-		{"destination": destination}
+		{
+			"destination": destination,
+			"ui_choice_kind": "gain_from_supply",
+			"ui_source_zone": "supply",
+		}
 	)
 	for card in candidates:
 		choice.add_candidate(

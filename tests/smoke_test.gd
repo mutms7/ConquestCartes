@@ -350,6 +350,11 @@ func _test_supply_piles() -> void:
 	var game_state := _create_game_state()
 	if game_state == null:
 		return
+	_check(
+		game_state.get_supply_count("briar_hex") == GameState.CURSE_SUPPLY_COUNT
+		and GameState.CURSE_SUPPLY_COUNT == 20,
+		"The Briar Hex pile should begin with 20 non-purchasable cards."
+	)
 	var card: CardDefinition = game_state.market[0]
 	var starting_count := game_state.get_supply_count(card.id)
 	game_state.player.coins = card.cost
@@ -1580,6 +1585,11 @@ func _test_hex_economy() -> void:
 		eater_game.player.draw_pile.append(eater_game.card_catalog["pebble_coin"])
 	_check(eater_game.play_card(eater), "Hex Eater should play.")
 	_check(eater_game.has_pending_choice(), "Hex Eater should offer a hex trash choice.")
+	_check(
+		str(eater_game.pending_choice.context.get("ui_choice_kind", "")) == "trash_from_hand"
+		and str(eater_game.pending_choice.context.get("ui_source_zone", "")) == "hand",
+		"Hand-trash choices should expose their UI intent explicitly."
+	)
 	_resolve_choice_by_ids(eater_game, ["briar_hex", "briar_hex"])
 	_check(
 		eater_game.player.trash_pile.size() == 2,
@@ -1595,6 +1605,17 @@ func _test_hex_economy() -> void:
 	_resolve_choice_by_ids(mill_game, ["briar_hex"])
 	_check(mill_game.player.coins == 2, "Hex Mill should pay for the discarded hex.")
 	_check(mill_game.player.discard_pile.has(hex), "Hex Mill should discard the hex.")
+
+	var gain_choice_game := _empty_game()
+	_set_test_market(gain_choice_game, ["forge_hall"])
+	gain_choice_game._request_filtered_supply_choice({}, "hand", "Gain a card to your hand.")
+	_check(
+		gain_choice_game.has_pending_choice()
+		and str(gain_choice_game.pending_choice.context.get("ui_choice_kind", "")) == "gain_from_supply"
+		and str(gain_choice_game.pending_choice.context.get("ui_source_zone", "")) == "supply"
+		and str(gain_choice_game.pending_choice.context.get("destination", "")) == "hand",
+		"Supply-gain choices should expose their source and destination for direct market UI."
+	)
 
 	var ingot_game := _empty_game()
 	var ingot_hex: CardDefinition = ingot_game.card_catalog["briar_hex"]

@@ -184,6 +184,8 @@ var selected_choice_tokens: Array[String] = []
 var choice_buttons: Dictionary = {}
 var direct_hand_choice := false
 var direct_hand_tokens: Dictionary = {}
+var direct_supply_gain_choice := false
+var direct_supply_gain_tokens: Dictionary = {}
 var trash_pile_button: Button
 var left_ledger: PanelContainer
 var right_ledger: PanelContainer
@@ -200,6 +202,7 @@ var estates_carpet: PanelContainer
 var market_resource_container: GridContainer
 var market_action_container: GridContainer
 var market_victory_container: GridContainer
+var briar_hex_tab: Button
 var pending_cleanup_ghosts: Array[Control] = []
 var home_overlay: Control
 var menu_backdrop: Control
@@ -1523,6 +1526,7 @@ func _serialize_choice(choice: CardChoice) -> Dictionary:
 		"confirm_text": choice.confirm_text,
 		"skip_text": choice.skip_text,
 		"resolver": choice.resolver,
+		"context": choice.context.duplicate(true),
 		"candidates": candidates,
 	}
 
@@ -1657,6 +1661,7 @@ func _choice_from_snapshot(choice_data: Dictionary) -> CardChoice:
 	choice.confirm_text = str(choice_data.get("confirm_text", "CONFIRM"))
 	choice.skip_text = str(choice_data.get("skip_text", "SKIP"))
 	choice.resolver = str(choice_data.get("resolver", ""))
+	choice.context = choice_data.get("context", {}).duplicate(true)
 	for candidate_data in choice_data.get("candidates", []):
 		var card: CardDefinition = (
 			game_state.card_catalog.get(str(candidate_data.get("card_id", "")))
@@ -5000,6 +5005,14 @@ func _build_market_board() -> void:
 	)
 	estates_carpet = estates.panel
 	market_victory_container = estates.cards
+	briar_hex_tab = _create_briar_hex_tab()
+	# This must not be a child of the Estates PanelContainer: containers own their
+	# children's layout, which would stretch the tab into a normal market pile.
+	# A root-level overlay lets it remain a compact horizontal tab below Estates.
+	add_child(briar_hex_tab)
+	estates_carpet.resized.connect(_position_briar_hex_tab)
+	resized.connect(_position_briar_hex_tab)
+	call_deferred("_position_briar_hex_tab")
 
 	market_container.add_child(treasury_carpet)
 	market_container.add_child(_create_market_separator())
@@ -5071,6 +5084,64 @@ func _create_market_carpet(
 	layout.add_child(cards)
 
 	return {"panel": panel, "cards": cards}
+
+
+func _create_briar_hex_tab() -> Button:
+	# Curses live beside the victory supply rather than occupying a normal market
+	# pile.  Keeping this as a compact tab makes it available as a gain source
+	# without implying that it may be bought.
+	var tab := Button.new()
+	tab.name = "BriarHexSupplyTab"
+	tab.custom_minimum_size = Vector2(CARD_FACE_SIZE.x, 34)
+	tab.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	tab.mouse_default_cursor_shape = Control.CURSOR_ARROW
+	tab.tooltip_text = "Briar Hex supply — right-click to preview"
+	tab.add_theme_color_override("font_color", COLOR_CURSE_ACCENT.lightened(0.26))
+	tab.add_theme_font_size_override("font_size", 9)
+	if title_font != null:
+		tab.add_theme_font_override("font", title_font)
+	tab.add_theme_stylebox_override("normal", _make_panel_style(COLOR_CURSE_CARD.darkened(0.08), COLOR_CURSE_ACCENT.darkened(0.1), 1))
+	tab.add_theme_stylebox_override("hover", _make_panel_style(COLOR_CURSE_CARD.lightened(0.08), COLOR_CURSE_ACCENT.lightened(0.12), 1))
+	if game_state.card_catalog.has(GameState.CURSE_CARD_ID):
+		var hex := game_state.card_catalog[GameState.CURSE_CARD_ID] as CardDefinition
+		tab.set_meta("card_id", hex.id)
+		tab.gui_input.connect(_on_card_gui_input.bind(hex, tab, MARKET_NEUTRAL))
+	tab.pressed.connect(_on_briar_hex_tab_pressed)
+	return tab
+
+
+func _refresh_briar_hex_tab() -> void:
+	if briar_hex_tab == null:
+		return
+	var count := game_state.get_supply_count(GameState.CURSE_CARD_ID)
+	briar_hex_tab.text = "BRIAR HEXES   %d" % count
+	var selecting_gain := not _direct_supply_gain_token_for(GameState.CURSE_CARD_ID).is_empty()
+	# Keep GUI input enabled even at zero so the right-click card preview remains
+	# available. Left-click safety lives in the pressed handler below.
+	briar_hex_tab.disabled = false
+	briar_hex_tab.mouse_default_cursor_shape = (
+		Control.CURSOR_POINTING_HAND if selecting_gain and count > 0 else Control.CURSOR_ARROW
+	)
+	briar_hex_tab.modulate = Color.WHITE if (not direct_supply_gain_choice or selecting_gain) else Color(0.55, 0.55, 0.55, 0.7)
+	_position_briar_hex_tab()
+
+
+func _on_briar_hex_tab_pressed() -> void:
+	if game_state.get_supply_count(GameState.CURSE_CARD_ID) <= 0:
+		return
+	_on_direct_supply_gain_pressed(_direct_supply_gain_token_for(GameState.CURSE_CARD_ID))
+
+
+func _position_briar_hex_tab() -> void:
+	if briar_hex_tab == null or estates_carpet == null:
+		return
+	var tab_size := Vector2(CARD_FACE_SIZE.x, 28)
+	briar_hex_tab.size = tab_size
+	var estates_rect := estates_carpet.get_global_rect()
+	briar_hex_tab.global_position = Vector2(
+		estates_rect.get_center().x - tab_size.x * 0.5,
+		estates_rect.end.y - tab_size.y - 3.0
+	)
 
 
 func _load_optional_font(path: String) -> Font:
@@ -5591,6 +5662,7 @@ func _refresh_hand() -> void:
 		)
 		button.pressed.connect(_on_direct_hand_choice_pressed.bind(direct_token) if selecting_for_choice else _on_hand_card_pressed.bind(card))
 		if selecting_for_choice:
+			button.set_meta("direct_hand_trash", _choice_is_hand_trash(current_choice))
 			button.set_meta("choice_selected", selected_choice_tokens.has(direct_token))
 			button.modulate = Color(1.12, 1.06, 0.82, 1.0) if selected_choice_tokens.has(direct_token) else Color.WHITE
 		hand_container.add_child(button)
@@ -5616,6 +5688,22 @@ func _on_direct_hand_choice_pressed(token: String) -> void:
 		return
 	_on_choice_card_pressed(token)
 	_refresh_hand()
+
+
+func _direct_supply_gain_token_for(card_id: String) -> String:
+	if not direct_supply_gain_choice:
+		return ""
+	var tokens: Array = direct_supply_gain_tokens.get(card_id, [])
+	for token in tokens:
+		if not selected_choice_tokens.has(str(token)):
+			return str(token)
+	return ""
+
+
+func _on_direct_supply_gain_pressed(token: String) -> void:
+	if current_choice == null or token.is_empty():
+		return
+	_submit_choice([token])
 
 
 func _capture_hand_layout() -> Array[Dictionary]:
@@ -5767,6 +5855,7 @@ func _refresh_market() -> void:
 		_sort_market_cards_descending(victory_cards),
 		market_victory_container
 	)
+	_refresh_briar_hex_tab()
 
 
 func _render_market_cards(
@@ -5778,18 +5867,22 @@ func _render_market_cards(
 	# Once they start playing cards, switch to the affordable / unaffordable look.
 	var no_cards_played := game_state.player.play_area.is_empty()
 	for card in cards:
+		var gain_token := _direct_supply_gain_token_for(card.id)
+		var selecting_gain := not gain_token.is_empty()
 		var affordable := _can_buy_card(card)
 		var visual_state := MARKET_NEUTRAL
-		if not no_cards_played:
+		if direct_supply_gain_choice:
+			visual_state = MARKET_AFFORDABLE if selecting_gain else MARKET_UNAFFORDABLE
+		elif not no_cards_played:
 			visual_state = MARKET_AFFORDABLE if affordable else MARKET_UNAFFORDABLE
 		var button := _create_card_button(card, visual_state)
-		button.disabled = game_state.get_supply_count(card.id) <= 0
+		button.disabled = game_state.get_supply_count(card.id) <= 0 or (direct_supply_gain_choice and not selecting_gain)
 		button.mouse_default_cursor_shape = (
 			Control.CURSOR_POINTING_HAND
-			if affordable
+			if (selecting_gain or (not direct_supply_gain_choice and affordable))
 			else Control.CURSOR_ARROW
 		)
-		button.pressed.connect(_on_market_card_pressed.bind(card))
+		button.pressed.connect(_on_direct_supply_gain_pressed.bind(gain_token) if selecting_gain else _on_market_card_pressed.bind(card))
 		container.add_child(button)
 
 
@@ -6464,6 +6557,7 @@ func _on_card_mouse_entered(
 		button.z_index = 30 if is_hand else 10
 		if is_hand:
 			_reveal_hand_card(button)
+			_set_hand_trash_hover(button, bool(button.get_meta("direct_hand_trash", false)), true)
 
 
 func _reveal_hand_card(card: Control) -> void:
@@ -6490,6 +6584,42 @@ func _reveal_hand_card(card: Control) -> void:
 func _on_card_mouse_exited(button: Button) -> void:
 	_animate_card_scale(button, CARD_NORMAL_SCALE)
 	button.z_index = 0
+	_set_hand_trash_hover(button, false, false)
+
+
+func _set_hand_trash_hover(button: Button, is_trash_choice: bool, hovered: bool) -> void:
+	var overlay := button.get_node_or_null("TrashHoverOverlay") as Control
+	if is_trash_choice and hovered:
+		if overlay == null:
+			overlay = Control.new()
+			overlay.name = "TrashHoverOverlay"
+			overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			overlay.z_index = 12
+			button.add_child(overlay)
+			overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			var shade := ColorRect.new()
+			shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			shade.color = Color(0.34, 0.015, 0.02, 0.34)
+			overlay.add_child(shade)
+			shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			var x_label := Label.new()
+			x_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			x_label.text = "×"
+			x_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			x_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			x_label.add_theme_color_override("font_color", Color("#ff5757"))
+			x_label.add_theme_color_override("font_shadow_color", Color(0.12, 0, 0, 0.9))
+			x_label.add_theme_constant_override("shadow_offset_x", 2)
+			x_label.add_theme_constant_override("shadow_offset_y", 2)
+			x_label.add_theme_font_size_override("font_size", 92)
+			if title_font != null:
+				x_label.add_theme_font_override("font", title_font)
+			overlay.add_child(x_label)
+			x_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		else:
+			overlay.show()
+	elif overlay != null:
+		overlay.hide()
 
 
 func _on_card_gui_input(
@@ -7327,7 +7457,47 @@ func _animate_moving_card(
 	tween.tween_property(ghost, "rotation", 0.06, duration)
 	tween.tween_property(ghost, "modulate:a", 0.15, duration)
 	tween.set_parallel(false)
+	tween.set_parallel(true)
+	tween.tween_property(ghost, "scale", Vector2(0.05, 0.05), duration)
+	tween.tween_property(ghost, "rotation", 0.4, duration)
+	tween.tween_property(ghost, "modulate:a", 0.0, duration)
+	tween.set_parallel(false)
 	tween.tween_callback(ghost.queue_free)
+
+
+func _queue_gain_flights(gained_ids: Array[String], destination := "discard") -> void:
+	# Deliberately serialize gains: a pair of curses or Silvers stays legible
+	# instead of collapsing into one flash of overlapping cards.
+	if gained_ids.is_empty():
+		return
+	var sequence := create_tween()
+	for card_id in gained_ids:
+		sequence.tween_callback(_animate_queued_gain_flight.bind(card_id, destination))
+		# Each flight has a move/fade phase followed by its shrink-away phase.
+		# Leave a small buffer so multiple gains never overlap mid-animation.
+		sequence.tween_interval(_action_animation_duration(CARD_MOVE_SECONDS * 2.15))
+
+
+func _animate_queued_gain_flight(card_id: String, destination: String) -> void:
+	if not game_state.card_catalog.has(card_id):
+		return
+	var source_button := _find_card_button(market_container, card_id)
+	if source_button == null and card_id == GameState.CURSE_CARD_ID:
+		source_button = briar_hex_tab
+	if source_button == null:
+		return
+	var target := _get_hud_target_center("DiscardStat")
+	if destination == "hand":
+		target = hand_panel.get_global_rect().get_center()
+	elif destination == "deck":
+		target = _get_hud_target_center("DeckStat")
+	_animate_moving_card(
+		_create_moving_card(game_state.card_catalog[card_id], source_button.get_global_rect(), COLOR_FOREST),
+		target,
+		CARD_MOVE_SECONDS,
+		Vector2(0.22, 0.22)
+	)
+	_play_ui_sound("buy_card", -5.0)
 
 
 func _capture_cleanup_cards() -> Array[Control]:
@@ -7530,6 +7700,7 @@ func _capture_local_zone_summary() -> Dictionary:
 		"hand_ids": _card_ids_from_zone(local_player.hand),
 		"play_count": local_player.play_area.size(),
 		"discard_count": local_player.discard_pile.size(),
+		"discard_ids": _card_ids_from_zone(local_player.discard_pile),
 		"discard_top": discard_top,
 		"turn_number": local_player.turn_number,
 		"hand_rects": hand_rects,
@@ -7619,22 +7790,11 @@ func _animate_snapshot_changes(previous_summary: Dictionary) -> void:
 	if discard_gain > 0 and play_gain <= 0 and removed.is_empty():
 		# A card was gained straight to our discard pile (a buy, or a curse
 		# gifted by an attack): fly it in from its market pile when visible.
-		var top_id := ""
-		if not local_player.discard_pile.is_empty():
-			top_id = local_player.discard_pile[local_player.discard_pile.size() - 1].id
-		var source_button := _find_card_button(market_container, top_id)
-		if source_button != null and game_state.card_catalog.has(top_id):
-			_animate_moving_card(
-				_create_moving_card(
-					game_state.card_catalog[top_id],
-					source_button.get_global_rect(),
-					COLOR_FOREST
-				),
-				_get_hud_target_center("DiscardStat"),
-				CARD_MOVE_SECONDS,
-				Vector2(0.22, 0.22)
-			)
-			_play_ui_sound("buy_card")
+		var gained_ids := _multiset_difference(
+			_card_ids_from_zone(local_player.discard_pile),
+			previous_summary.get("discard_ids", [])
+		)
+		_queue_gain_flights(gained_ids)
 
 
 func _get_hud_target_center(stat_name: String) -> Vector2:
@@ -7844,6 +8004,18 @@ func _on_choice_requested(choice: CardChoice) -> void:
 	choice_buttons.clear()
 	direct_hand_choice = _choice_can_be_made_from_hand(choice)
 	direct_hand_tokens.clear()
+	direct_supply_gain_choice = _choice_can_be_made_from_supply(choice)
+	direct_supply_gain_tokens.clear()
+	if direct_supply_gain_choice:
+		for candidate in choice.candidates:
+			var supply_card := candidate.get("card") as CardDefinition
+			if supply_card != null:
+				var tokens: Array = direct_supply_gain_tokens.get(supply_card.id, [])
+				tokens.append(str(candidate.get("token", "")))
+				direct_supply_gain_tokens[supply_card.id] = tokens
+		_set_choice_overlay_hidden(false)
+		_refresh_ui()
+		return
 	if direct_hand_choice:
 		for candidate in choice.candidates:
 			var hand_card := candidate.get("card") as CardDefinition
@@ -7906,6 +8078,8 @@ func _set_choice_overlay_hidden(clear_choice: bool) -> void:
 		selected_choice_tokens.clear()
 		direct_hand_choice = false
 		direct_hand_tokens.clear()
+		direct_supply_gain_choice = false
+		direct_supply_gain_tokens.clear()
 	choice_buttons.clear()
 	_clear_container(choice_options)
 
@@ -7917,6 +8091,8 @@ func _choice_can_be_made_from_hand(choice: CardChoice) -> bool:
 	# Multi-picks likewise retain the confirm affordance in the overlay.
 	if choice.minimum != 1 or choice.maximum != 1 or choice.candidates.is_empty():
 		return false
+	if str(choice.context.get("ui_source_zone", "")) == "supply":
+		return false
 	var available: Dictionary = {}
 	for card in game_state.player.hand:
 		available[card.id] = int(available.get(card.id, 0)) + 1
@@ -7926,6 +8102,27 @@ func _choice_can_be_made_from_hand(choice: CardChoice) -> bool:
 			return false
 		available[card.id] = int(available[card.id]) - 1
 	return true
+
+
+func _choice_can_be_made_from_supply(choice: CardChoice) -> bool:
+	# Gain-a-card effects use the market itself as their picker.  They never
+	# spend buys or coins; resolving the choice is the only action a click takes.
+	return (
+		choice.minimum == 1
+		and choice.maximum == 1
+		and not choice.candidates.is_empty()
+		and str(choice.context.get("ui_choice_kind", "")) == "gain_from_supply"
+		and str(choice.context.get("ui_source_zone", "")) == "supply"
+	)
+
+
+func _choice_is_hand_trash(choice: CardChoice) -> bool:
+	if choice == null:
+		return false
+	return (
+		str(choice.context.get("ui_choice_kind", "")) == "trash_from_hand"
+		or choice.resolver.begins_with("trash")
+	)
 
 
 func _show_trash_pile() -> void:
@@ -8005,11 +8202,19 @@ func _on_choice_skipped() -> void:
 func _submit_choice(tokens: Array[String]) -> void:
 	if current_choice == null:
 		return
+	var chosen_gain_ids: Array[String] = []
+	var gain_destination := str(current_choice.context.get("destination", "discard"))
+	if _choice_can_be_made_from_supply(current_choice):
+		for entry in current_choice.get_selected_entries(tokens):
+			var gained_card := entry.get("card") as CardDefinition
+			if gained_card != null:
+				chosen_gain_ids.append(gained_card.id)
 	_animate_choice_flights(tokens)
 	if _is_network_client():
 		_send_network_client_request("request_choice", {"tokens": tokens})
 		return
 	var hand_before := game_state.player.hand.size()
+	var discard_before := _card_ids_from_zone(game_state.player.discard_pile)
 	var previous_turn_manager_ending := turn_manager.ending_turn
 	if network_enabled and game_state.player.ending_turn:
 		turn_manager.ending_turn = false
@@ -8026,6 +8231,13 @@ func _submit_choice(tokens: Array[String]) -> void:
 	):
 		_complete_network_player_cleanup(local_player_index)
 	_refresh_ui()
+	var discard_gains := _multiset_difference(_card_ids_from_zone(game_state.player.discard_pile), discard_before)
+	if not chosen_gain_ids.is_empty():
+		_queue_gain_flights(chosen_gain_ids, gain_destination)
+		# A gain-to-discard choice is already represented by its explicit flight.
+		for card_id in chosen_gain_ids:
+			discard_gains.erase(card_id)
+	_queue_gain_flights(discard_gains)
 	if network_enabled and network_is_host:
 		_broadcast_network_snapshot()
 	var drawn_count := maxi(0, game_state.player.hand.size() - hand_before)
@@ -8043,6 +8255,7 @@ func _on_hand_card_pressed(card: CardDefinition) -> void:
 		_send_network_client_request("request_play_card", {"card_id": card.id})
 		return
 	var source_button := _find_card_button(hand_container, card.id)
+	var discard_before := _card_ids_from_zone(game_state.player.discard_pile)
 	var ghost: Control = null
 	if source_button != null:
 		ghost = _create_moving_card(
@@ -8059,6 +8272,8 @@ func _on_hand_card_pressed(card: CardDefinition) -> void:
 			ghost.queue_free()
 		push_warning("Card cannot be played right now: %s" % card.card_name)
 	_refresh_ui()
+	if played:
+		_queue_gain_flights(_multiset_difference(_card_ids_from_zone(game_state.player.discard_pile), discard_before))
 	if played and ghost != null:
 		_animate_moving_card(
 			ghost,
