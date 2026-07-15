@@ -1137,26 +1137,61 @@ func _initialize() -> void:
 	if chapel_button != null:
 		chapel_button.pressed.emit()
 		await process_frame
-		_check(_choice_overlay().visible, "Playing a choice card should open the choice overlay.")
-		_check(_choice_options().get_child_count() == 2, "Choice overlay should list eligible cards.")
-		_check(_end_turn_button().disabled, "End Turn should lock while a choice is pending.")
-		for option in _choice_options().get_children():
-			var option_button := option as Button
+		_check(not _choice_overlay().visible, "Hand trash choices should keep the board unobstructed.")
+		_check(_end_turn_button().text == "CONFIRM", "Hand trash should replace End Turn with Confirm.")
+		_check(not _end_turn_button().disabled, "Optional hand trash should allow confirming no selection.")
+		var coin_button := _find_card_button(_hand_container(), "pebble_coin")
+		var estate_button := _find_card_button(_hand_container(), "homestead")
+		_check(coin_button != null and estate_button != null, "Trash candidates should remain in the hand.")
+		if coin_button != null and estate_button != null:
+			coin_button.pressed.emit()
+			estate_button.pressed.emit()
+			await process_frame
+			_check(not _end_turn_button().disabled, "A valid hand-trash selection should enable Confirm.")
+			# Selecting refreshes the hand, so resolve the rebuilt card before
+			# checking its persistent selected-trash overlay.
+			coin_button = _find_card_button(_hand_container(), "pebble_coin")
 			_check(
-				option_button.custom_minimum_size == main_ui.CARD_FACE_SIZE
-				and option_button.size_flags_horizontal == Control.SIZE_SHRINK_CENTER
-				and option_button.size_flags_vertical == Control.SIZE_SHRINK_CENTER,
-				"Choice cards should keep fixed face dimensions instead of stretching."
+				coin_button != null and coin_button.get_node_or_null("TrashHoverOverlay") != null,
+				"Selected trash cards should retain the red X overlay."
 			)
-			option_button.pressed.emit()
-		_check(not _choice_confirm_button().disabled, "Valid selection should enable confirmation.")
-		_choice_confirm_button().pressed.emit()
+		_end_turn_button().pressed.emit()
 		await process_frame
 		_check(not _choice_overlay().visible, "Resolving a choice should close the overlay.")
 		_check(
 			main_ui.game_state.player.trash_pile.size() == 2,
 			"Choice confirmation should apply the selected card movement."
 		)
+
+	var compact_choice := CardChoice.new()
+	compact_choice.id = -9001
+	compact_choice.prompt = "Pick a compact preview."
+	compact_choice.add_candidate("compact-preview", main_ui.game_state.card_catalog["pebble_coin"])
+	main_ui._on_choice_requested(compact_choice)
+	await process_frame
+	_check(
+		_choice_overlay().visible
+		and _choice_overlay().get_node("Center/Panel").custom_minimum_size == Vector2(720, 390),
+		"Non-direct choices should use the compact walnut picker."
+	)
+	var hide_choice := _choice_overlay().find_child("MinimizeButton", true, false) as Button
+	_check(hide_choice != null, "Choice picker should provide a temporary hide control.")
+	if hide_choice != null:
+		hide_choice.pressed.emit()
+		await process_frame
+		var restore_choice := main_ui.get_node_or_null("ChoiceRestoreTab") as Button
+		_check(
+			not _choice_overlay().visible
+			and restore_choice != null
+			and restore_choice.visible
+			and main_ui.current_choice == compact_choice,
+			"Minimizing should preserve the pending choice and expose a restore tab."
+		)
+		if restore_choice != null:
+			restore_choice.pressed.emit()
+			await process_frame
+			_check(_choice_overlay().visible and main_ui.current_choice == compact_choice, "Restore should reopen the same choice.")
+	main_ui._hide_choice_overlay()
 
 	main_ui._start_new_game(true)
 	await process_frame

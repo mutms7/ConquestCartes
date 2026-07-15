@@ -530,17 +530,16 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="ChoiceOverlay/Center"]
-custom_minimum_size = Vector2(1060, 520)
+custom_minimum_size = Vector2(720, 390)
 layout_mode = 2
 mouse_filter = 0
-theme_override_styles/panel = SubResource("StyleEndGame")
 
 [node name="Margin" type="MarginContainer" parent="ChoiceOverlay/Center/Panel"]
 layout_mode = 2
-theme_override_constants/margin_left = 30
-theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 30
-theme_override_constants/margin_bottom = 24
+theme_override_constants/margin_left = 22
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 22
+theme_override_constants/margin_bottom = 16
 
 [node name="Layout" type="VBoxContainer" parent="ChoiceOverlay/Center/Panel/Margin"]
 layout_mode = 2
@@ -571,7 +570,7 @@ text = "Select 1 card"
 horizontal_alignment = 1
 
 [node name="OptionsScroll" type="ScrollContainer" parent="ChoiceOverlay/Center/Panel/Margin/Layout"]
-custom_minimum_size = Vector2(0, 300)
+custom_minimum_size = Vector2(0, 210)
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 1

@@ -186,6 +186,9 @@ var direct_hand_choice := false
 var direct_hand_tokens: Dictionary = {}
 var direct_supply_gain_choice := false
 var direct_supply_gain_tokens: Dictionary = {}
+var choice_minimized := false
+var choice_restore_button: Button
+var choice_minimize_button: Button
 var trash_pile_button: Button
 var left_ledger: PanelContainer
 var right_ledger: PanelContainer
@@ -402,6 +405,7 @@ func _ready() -> void:
 	_build_scoring_relic_overlay()
 	_build_summary_overlay()
 	_apply_imported_theme()
+	_configure_choice_overlay()
 	home_button.pressed.connect(_on_home_pressed)
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
 	play_again_button.pressed.connect(_on_play_again_pressed)
@@ -5640,6 +5644,14 @@ func _refresh_end_turn_button() -> void:
 		end_turn_button.disabled = true
 		end_turn_button.modulate = Color(0.72, 0.74, 0.78, 1.0)
 		return
+	if direct_hand_choice and _choice_is_hand_trash(current_choice) and current_choice != null:
+		end_turn_button.text = "CONFIRM"
+		end_turn_button.disabled = (
+			not _can_control_active_player()
+			or not current_choice.is_valid_selection(selected_choice_tokens)
+		)
+		end_turn_button.modulate = Color.WHITE
+		return
 	end_turn_button.text = "END TURN"
 	end_turn_button.disabled = game_state.has_pending_choice() or not _can_control_active_player()
 	end_turn_button.modulate = Color.WHITE
@@ -5649,9 +5661,12 @@ func _refresh_hand() -> void:
 	var previous_layout := _capture_hand_layout()
 	_clear_container(hand_container)
 	var hand_size := game_state.player.hand.size()
+	var choice_occurrences: Dictionary = {}
 	for index in range(hand_size):
 		var card: CardDefinition = game_state.player.hand[index]
-		var direct_token := _direct_hand_token_for(card.id)
+		var occurrence := int(choice_occurrences.get(card.id, 0))
+		choice_occurrences[card.id] = occurrence + 1
+		var direct_token := _direct_hand_token_for(card.id, occurrence)
 		var selecting_for_choice := not direct_token.is_empty()
 		var playable := _can_play_card(card) or selecting_for_choice
 		var visual_state := HAND_PLAYABLE if playable else HAND_UNPLAYABLE
@@ -5665,26 +5680,21 @@ func _refresh_hand() -> void:
 			button.set_meta("direct_hand_trash", _choice_is_hand_trash(current_choice))
 			button.set_meta("choice_selected", selected_choice_tokens.has(direct_token))
 			button.modulate = Color(1.12, 1.06, 0.82, 1.0) if selected_choice_tokens.has(direct_token) else Color.WHITE
+			_set_hand_trash_hover(button, _choice_is_hand_trash(current_choice), selected_choice_tokens.has(direct_token))
 		hand_container.add_child(button)
 	_assign_hand_flip_origins(previous_layout)
 	_apply_hand_fan_offsets()
 
 
-func _direct_hand_token_for(card_id: String) -> String:
+func _direct_hand_token_for(card_id: String, occurrence: int) -> String:
 	if not direct_hand_choice:
 		return ""
 	var tokens: Array = direct_hand_tokens.get(card_id, [])
-	for token in tokens:
-		if not selected_choice_tokens.has(str(token)):
-			return str(token)
-	return ""
+	return str(tokens[occurrence]) if occurrence < tokens.size() else ""
 
 
 func _on_direct_hand_choice_pressed(token: String) -> void:
 	if current_choice == null or token.is_empty():
-		return
-	if current_choice.maximum == 1:
-		_submit_choice([token])
 		return
 	_on_choice_card_pressed(token)
 	_refresh_hand()
@@ -6584,7 +6594,13 @@ func _reveal_hand_card(card: Control) -> void:
 func _on_card_mouse_exited(button: Button) -> void:
 	_animate_card_scale(button, CARD_NORMAL_SCALE)
 	button.z_index = 0
-	_set_hand_trash_hover(button, false, false)
+	# A chosen hand-trash card keeps its X once the pointer leaves, so the
+	# player can review every pending deletion before pressing Confirm.
+	_set_hand_trash_hover(
+		button,
+		bool(button.get_meta("direct_hand_trash", false)),
+		bool(button.get_meta("choice_selected", false))
+	)
 
 
 func _set_hand_trash_hover(button: Button, is_trash_choice: bool, hovered: bool) -> void:
@@ -7172,6 +7188,60 @@ func _make_panel_style(color: Color, border_color: Color, border_width: int) -> 
 	style.shadow_size = 12
 	style.shadow_offset = Vector2(0, 6)
 	return style
+
+
+func _configure_choice_overlay() -> void:
+	# Choice pickers should read as a compact extension of the walnut HUD, not a
+	# second full-screen scene. The restore tab intentionally lives outside the
+	# overlay so minimizing removes both its dimmer and input blocker.
+	choice_panel.add_theme_stylebox_override(
+		"panel", _make_panel_style(Color("#1d140c"), COLOR_BRASS.darkened(0.1), 1)
+	)
+	choice_minimize_button = Button.new()
+	choice_minimize_button.name = "MinimizeButton"
+	choice_minimize_button.text = "HIDE"
+	choice_minimize_button.tooltip_text = "Hide this choice temporarily and view the board"
+	choice_minimize_button.custom_minimum_size = Vector2(82, 34)
+	choice_minimize_button.add_theme_stylebox_override("normal", _make_top_button_style(false))
+	choice_minimize_button.add_theme_stylebox_override("hover", _make_top_button_style(false, true))
+	choice_minimize_button.pressed.connect(_minimize_choice_overlay)
+	var buttons := choice_confirm_button.get_parent() as HBoxContainer
+	buttons.add_child(choice_minimize_button)
+	buttons.move_child(choice_minimize_button, 0)
+
+	choice_restore_button = Button.new()
+	choice_restore_button.name = "ChoiceRestoreTab"
+	choice_restore_button.text = "CHOICE  ▴"
+	choice_restore_button.tooltip_text = "Restore pending choice"
+	choice_restore_button.custom_minimum_size = Vector2(126, 38)
+	choice_restore_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	choice_restore_button.position = Vector2(-146, -58)
+	choice_restore_button.add_theme_stylebox_override(
+		"normal", _make_panel_style(Color("#1d140c"), COLOR_BRASS.darkened(0.1), 1)
+	)
+	choice_restore_button.add_theme_stylebox_override("hover", _make_top_button_style(false, true))
+	choice_restore_button.pressed.connect(_restore_choice_overlay)
+	choice_restore_button.hide()
+	choice_restore_button.z_index = 161
+	add_child(choice_restore_button)
+
+
+func _minimize_choice_overlay() -> void:
+	if current_choice == null:
+		return
+	choice_minimized = true
+	choice_overlay.hide()
+	choice_restore_button.show()
+
+
+func _restore_choice_overlay() -> void:
+	if current_choice == null:
+		choice_restore_button.hide()
+		return
+	choice_minimized = false
+	choice_restore_button.hide()
+	choice_overlay.show()
+	_refresh_choice_controls()
 
 
 func _make_top_bar_style() -> StyleBoxFlat:
@@ -8025,6 +8095,7 @@ func _on_choice_requested(choice: CardChoice) -> void:
 				direct_hand_tokens[hand_card.id] = tokens
 		_set_choice_overlay_hidden(false)
 		_refresh_hand()
+		_refresh_end_turn_button()
 		return
 	_clear_container(choice_options)
 	_hide_all_previews()
@@ -8054,6 +8125,9 @@ func _on_choice_requested(choice: CardChoice) -> void:
 		choice_buttons[token] = button
 
 	choice_overlay.show()
+	choice_minimized = false
+	if choice_restore_button != null:
+		choice_restore_button.hide()
 	_refresh_choice_controls()
 	_refresh_ui()
 	if network_enabled and network_is_host:
@@ -8072,6 +8146,9 @@ func _hide_choice_overlay() -> void:
 
 func _set_choice_overlay_hidden(clear_choice: bool) -> void:
 	choice_overlay.hide()
+	choice_minimized = false
+	if choice_restore_button != null:
+		choice_restore_button.hide()
 	card_preview.z_index = 100
 	if clear_choice:
 		current_choice = null
@@ -8085,11 +8162,9 @@ func _set_choice_overlay_hidden(clear_choice: bool) -> void:
 
 
 func _choice_can_be_made_from_hand(choice: CardChoice) -> bool:
-	# Single-card hand choices (the common trash-from-hand interaction) resolve
-	# directly on the chosen face. Optional choices retain the overlay's visible
-	# Skip button; otherwise there would be no way to decline the choice.
-	# Multi-picks likewise retain the confirm affordance in the overlay.
-	if choice.minimum != 1 or choice.maximum != 1 or choice.candidates.is_empty():
+	# Trash-from-hand always stays in the hand so players can inspect their
+	# actual cards while choosing, including optional and multi-card effects.
+	if choice.candidates.is_empty() or not _choice_is_hand_trash(choice):
 		return false
 	if str(choice.context.get("ui_source_zone", "")) == "supply":
 		return false
@@ -8184,8 +8259,9 @@ func _refresh_choice_controls() -> void:
 		choice_selection_label.text = (
 			"Select %d–%d  •  %d selected" % [minimum, maximum, count]
 		)
-	choice_confirm_button.disabled = count < minimum or count > maximum or count == 0
+	choice_confirm_button.disabled = not current_choice.is_valid_selection(selected_choice_tokens)
 	choice_skip_button.visible = minimum == 0
+	_refresh_end_turn_button()
 
 
 func _on_choice_confirmed() -> void:
@@ -8348,6 +8424,10 @@ func _on_end_turn_pressed() -> void:
 	if _respite_active():
 		# During the opening timer the button reads READY and skips the wait.
 		_on_respite_ready_pressed()
+		return
+	if direct_hand_choice and _choice_is_hand_trash(current_choice) and current_choice != null:
+		if current_choice.is_valid_selection(selected_choice_tokens):
+			_submit_choice(selected_choice_tokens.duplicate())
 		return
 	if game_state.has_pending_choice() or not _can_control_active_player():
 		return
