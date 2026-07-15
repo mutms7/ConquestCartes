@@ -840,6 +840,25 @@ func _test_echoing_hall() -> void:
 	_resolve_choice_by_ids(game_state, ["forge_hall"])
 	_check(game_state.player.play_area.has(forge), "Echoing Hall should play another action.")
 	_check(game_state.player.hand.size() == 6, "The chosen action should resolve twice.")
+	var play_records := game_state.player.get_play_display_records()
+	_check(play_records.size() == 3, "Echoing Hall should add one record per resolved play.")
+	_check(
+		play_records[1].get("card") == forge
+		and int(play_records[1].get("occurrence", 0)) == 1
+		and int(play_records[1].get("total", 0)) == 2,
+		"The first replay record should be labelled 1/2."
+	)
+	_check(
+		play_records[2].get("card") == forge
+		and int(play_records[2].get("occurrence", 0)) == 2
+		and int(play_records[2].get("total", 0)) == 2,
+		"The second replay record should be labelled 2/2."
+	)
+	game_state.begin_cleanup()
+	_check(
+		game_state.player.get_play_display_records().is_empty(),
+		"Cleanup should clear transient play display records."
+	)
 
 
 func _test_banner_vassal() -> void:

@@ -734,6 +734,7 @@ func _play_card_internal(
 
 	player.hand.remove_at(hand_index)
 	player.play_area.append(card)
+	player.register_play_display(card, total_repetitions)
 	_prepend_card_resolutions(card, total_repetitions)
 	_process_resolution_queue()
 	check_idle_relics()
@@ -1450,6 +1451,7 @@ func _apply_choice_resolution(
 			var action := cards[0]
 			player.hand.erase(action)
 			player.play_area.append(action)
+			player.register_play_display(action, 2)
 			_prepend_card_resolutions(action, 2)
 		"vassal_play":
 			var card: CardDefinition = choice.context.get("card")
@@ -1458,6 +1460,7 @@ func _apply_choice_resolution(
 				_prepend_triggered_effects(card, "discard", {"zone": "discard"})
 			else:
 				player.play_area.append(card)
+				player.register_play_display(card, 1)
 				_prepend_card_resolutions(card, 1)
 		"library_action":
 			var card: CardDefinition = choice.context.get("card")
@@ -2520,6 +2523,7 @@ func _play_card_from_event_zone(source_card: CardDefinition, effect: Dictionary)
 		return
 	zone.erase(source_card)
 	player.play_area.append(source_card)
+	player.register_play_display(source_card, 1)
 	_prepend_card_resolutions(source_card, 1)
 
 
@@ -2613,6 +2617,7 @@ func _finish_cleanup() -> void:
 	player.discard_pile.append_array(player.play_area)
 	player.hand.clear()
 	player.play_area.clear()
+	player.clear_play_display_records()
 	player.play_area.append_array(kept_durations)
 	resolution_queue.clear()
 	pending_choice = null

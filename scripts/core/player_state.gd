@@ -4,6 +4,10 @@ extends RefCounted
 var draw_pile: Array[CardDefinition] = []
 var hand: Array[CardDefinition] = []
 var play_area: Array[CardDefinition] = []
+# Transient UI records for each individual resolution of a played card.  A
+# replayed card remains one physical card in play_area for cleanup, but gets a
+# record per resolution here so the in-play UI can render 1/2, 2/2, etc.
+var play_display_records: Array[Dictionary] = []
 var discard_pile: Array[CardDefinition] = []
 var trash_pile: Array[CardDefinition] = []
 # Cards set aside until the start of the owner's next turn (e.g. Sowing Moon).
@@ -44,6 +48,7 @@ func clear_all() -> void:
 	draw_pile.clear()
 	hand.clear()
 	play_area.clear()
+	clear_play_display_records()
 	discard_pile.clear()
 	trash_pile.clear()
 	set_aside_pile.clear()
@@ -71,6 +76,27 @@ func reset_turn_resources() -> void:
 	buys = 1
 	end_turn_cooldown_reduction = 0.0
 	turn_flags.clear()
+	clear_play_display_records()
+
+
+func register_play_display(card: CardDefinition, repetitions: int = 1) -> void:
+	if card == null:
+		return
+	var total := maxi(1, repetitions)
+	for occurrence in range(1, total + 1):
+		play_display_records.append({
+			"card": card,
+			"occurrence": occurrence,
+			"total": total,
+		})
+
+
+func get_play_display_records() -> Array[Dictionary]:
+	return play_display_records.duplicate()
+
+
+func clear_play_display_records() -> void:
+	play_display_records.clear()
 
 
 func get_all_cards() -> Array[CardDefinition]:

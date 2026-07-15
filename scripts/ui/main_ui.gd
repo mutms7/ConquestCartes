@@ -182,6 +182,9 @@ var action_animation_speed := 1.0
 var current_choice: CardChoice
 var selected_choice_tokens: Array[String] = []
 var choice_buttons: Dictionary = {}
+var direct_hand_choice := false
+var direct_hand_tokens: Dictionary = {}
+var trash_pile_button: Button
 var left_ledger: PanelContainer
 var right_ledger: PanelContainer
 var hand_column: VBoxContainer
@@ -339,6 +342,7 @@ var lobby_name_input: LineEdit
 @onready var hand_container: HBoxContainer = (
 	$Margin/Layout/HandPanel/HandMargin/HandScroll/HandContainer
 )
+@onready var hand_scroll: ScrollContainer = $Margin/Layout/HandPanel/HandMargin/HandScroll
 @onready var animation_layer: Control = $AnimationLayer
 @onready var choice_overlay: Control = $ChoiceOverlay
 @onready var choice_panel: PanelContainer = $ChoiceOverlay/Center/Panel
@@ -1370,6 +1374,7 @@ func _create_network_snapshot() -> Dictionary:
 			"draw": _card_ids_from_zone(game_player.draw_pile),
 			"hand": _card_ids_from_zone(game_player.hand),
 			"play": _card_ids_from_zone(game_player.play_area),
+			"play_display": _serialize_play_display_records(game_player),
 			"discard": _card_ids_from_zone(game_player.discard_pile),
 			"trash": _card_ids_from_zone(game_player.trash_pile),
 			"set_aside": _card_ids_from_zone(game_player.set_aside_pile),
@@ -1434,6 +1439,31 @@ func _card_ids_from_zone(zone: Array[CardDefinition]) -> Array[String]:
 		if card != null:
 			card_ids.append(card.id)
 	return card_ids
+
+
+func _serialize_play_display_records(game_player: PlayerState) -> Array[Dictionary]:
+	var records: Array[Dictionary] = []
+	for record in game_player.get_play_display_records():
+		var card := record.get("card") as CardDefinition
+		if card == null:
+			continue
+		records.append({
+			"card_id": card.id,
+			"occurrence": int(record.get("occurrence", 1)),
+			"total": int(record.get("total", 1)),
+		})
+	return records
+
+
+func _play_display_records_from_snapshot(data: Array) -> Array[Dictionary]:
+	var records: Array[Dictionary] = []
+	for record in data:
+		if typeof(record) != TYPE_DICTIONARY:
+			continue
+		var card := game_state.card_catalog.get(str(record.get("card_id", ""))) as CardDefinition
+		if card != null:
+			records.append({"card": card, "occurrence": int(record.get("occurrence", 1)), "total": int(record.get("total", 1))})
+	return records
 
 
 func _serialize_pending_durations(game_player: PlayerState) -> Array[Dictionary]:
@@ -1514,6 +1544,7 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		synced_player.draw_pile = _cards_from_ids(player_data.get("draw", []))
 		synced_player.hand = _cards_from_ids(player_data.get("hand", []))
 		synced_player.play_area = _cards_from_ids(player_data.get("play", []))
+		synced_player.play_display_records = _play_display_records_from_snapshot(player_data.get("play_display", []))
 		synced_player.discard_pile = _cards_from_ids(player_data.get("discard", []))
 		synced_player.trash_pile = _cards_from_ids(player_data.get("trash", []))
 		synced_player.set_aside_pile = _cards_from_ids(player_data.get("set_aside", []))
@@ -1921,6 +1952,17 @@ func _build_bottom_docks() -> void:
 	discard_stat.reparent(pile_hand_row)
 	_configure_physical_pile(deck_stat, deck_label, false)
 	_configure_physical_pile(discard_stat, discard_label, true)
+	trash_pile_button = Button.new()
+	trash_pile_button.name = "TrashPileButton"
+	trash_pile_button.custom_minimum_size = Vector2(72, 42)
+	trash_pile_button.tooltip_text = "View trashed cards"
+	trash_pile_button.pressed.connect(_show_trash_pile)
+	trash_pile_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	trash_pile_button.add_theme_stylebox_override("normal", _make_panel_style(COLOR_WALNUT, COLOR_OXBLOOD.darkened(0.15), 1))
+	trash_pile_button.add_theme_stylebox_override("hover", _make_panel_style(COLOR_WALNUT.lightened(0.08), COLOR_OXBLOOD.lightened(0.14), 1))
+	if title_font != null:
+		trash_pile_button.add_theme_font_override("font", title_font)
+	pile_hand_row.add_child(trash_pile_button)
 
 	hand_panel.custom_minimum_size = Vector2(0, 188)
 	hand_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1957,6 +1999,8 @@ func _lock_play_area_height() -> void:
 	play_area_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	play_area_label.custom_minimum_size = Vector2(74, 0)
 	play_area_label.add_theme_font_size_override("font_size", 10)
+	if title_font != null:
+		play_area_label.add_theme_font_override("font", title_font)
 	play_area_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	play_area_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	play_area_label.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -5264,6 +5308,8 @@ func _refresh_ui() -> void:
 	)
 	deck_label.text = str(player.draw_pile.size())
 	discard_label.text = str(player.discard_pile.size())
+	if trash_pile_button != null:
+		trash_pile_button.text = "TRASH\n%d" % player.trash_pile.size()
 	coin_label.text = str(player.coins)
 	action_label.text = str(player.actions)
 	buy_label.text = str(player.buys)
@@ -5534,17 +5580,42 @@ func _refresh_hand() -> void:
 	var hand_size := game_state.player.hand.size()
 	for index in range(hand_size):
 		var card: CardDefinition = game_state.player.hand[index]
-		var playable := _can_play_card(card)
+		var direct_token := _direct_hand_token_for(card.id)
+		var selecting_for_choice := not direct_token.is_empty()
+		var playable := _can_play_card(card) or selecting_for_choice
 		var visual_state := HAND_PLAYABLE if playable else HAND_UNPLAYABLE
 		var button := _create_card_button(card, visual_state)
 		button.disabled = not playable
 		button.mouse_default_cursor_shape = (
 			Control.CURSOR_POINTING_HAND if playable else Control.CURSOR_ARROW
 		)
-		button.pressed.connect(_on_hand_card_pressed.bind(card))
+		button.pressed.connect(_on_direct_hand_choice_pressed.bind(direct_token) if selecting_for_choice else _on_hand_card_pressed.bind(card))
+		if selecting_for_choice:
+			button.set_meta("choice_selected", selected_choice_tokens.has(direct_token))
+			button.modulate = Color(1.12, 1.06, 0.82, 1.0) if selected_choice_tokens.has(direct_token) else Color.WHITE
 		hand_container.add_child(button)
 	_assign_hand_flip_origins(previous_layout)
 	_apply_hand_fan_offsets()
+
+
+func _direct_hand_token_for(card_id: String) -> String:
+	if not direct_hand_choice:
+		return ""
+	var tokens: Array = direct_hand_tokens.get(card_id, [])
+	for token in tokens:
+		if not selected_choice_tokens.has(str(token)):
+			return str(token)
+	return ""
+
+
+func _on_direct_hand_choice_pressed(token: String) -> void:
+	if current_choice == null or token.is_empty():
+		return
+	if current_choice.maximum == 1:
+		_submit_choice([token])
+		return
+	_on_choice_card_pressed(token)
+	_refresh_hand()
 
 
 func _capture_hand_layout() -> Array[Dictionary]:
@@ -5829,12 +5900,19 @@ func _arrange_action_market(
 
 func _refresh_play_area() -> void:
 	_clear_container(play_area_container)
-	var played_cards := game_state.player.play_area
-	play_area_label.text = "IN PLAY\n%d" % played_cards.size()
+	var display_records := game_state.player.get_play_display_records()
+	# Older saves / snapshots can lack transient records; preserve a useful
+	# fallback rather than rendering an empty in-play strip.
+	if display_records.is_empty() and not game_state.player.play_area.is_empty():
+		for card in game_state.player.play_area:
+			display_records.append({"card": card, "occurrence": 1, "total": 1})
+	play_area_label.text = "IN PLAY\n%d" % display_records.size()
 
 	var new_ids: Array[String] = []
-	for card in played_cards:
-		new_ids.append(card.id)
+	for record in display_records:
+		var display_card := record.get("card") as CardDefinition
+		if display_card != null:
+			new_ids.append(display_card.id)
 	var owner_id := game_state.player.get_instance_id()
 	var pop_from := new_ids.size()
 	if owner_id == last_play_area_owner and new_ids.size() > last_play_area_ids.size():
@@ -5844,7 +5922,7 @@ func _refresh_play_area() -> void:
 	last_play_area_ids = new_ids
 	last_play_area_owner = owner_id
 
-	if played_cards.is_empty():
+	if display_records.is_empty():
 		var empty_label := Label.new()
 		empty_label.custom_minimum_size = Vector2(0, PLAY_AREA_CONTENT_HEIGHT)
 		empty_label.text = ""
@@ -5854,8 +5932,12 @@ func _refresh_play_area() -> void:
 		play_area_container.add_child(empty_label)
 		return
 
-	for index in range(played_cards.size()):
-		var chip := _create_played_card_chip(played_cards[index])
+	for index in range(display_records.size()):
+		var record: Dictionary = display_records[index]
+		var card := record.get("card") as CardDefinition
+		if card == null:
+			continue
+		var chip := _create_played_card_chip(card, int(record.get("occurrence", 1)), int(record.get("total", 1)))
 		play_area_container.add_child(chip)
 		if index >= pop_from:
 			_pop_in_control(chip)
@@ -6380,6 +6462,29 @@ func _on_card_mouse_entered(
 		# hovered card clearly pops above its neighbours.
 		_animate_card_scale(button, HAND_HOVER_SCALE if is_hand else CARD_HOVER_SCALE)
 		button.z_index = 30 if is_hand else 10
+		if is_hand:
+			_reveal_hand_card(button)
+
+
+func _reveal_hand_card(card: Control) -> void:
+	if hand_scroll == null or hand_container.get_child_count() < 7:
+		return
+	var visible_width := hand_scroll.size.x
+	if visible_width <= 0.0:
+		return
+	var desired := hand_scroll.scroll_horizontal
+	var left := card.position.x
+	var right := left + card.size.x
+	if left < desired + 18.0:
+		desired = left - 18.0
+	elif right > desired + visible_width - 18.0:
+		desired = right - visible_width + 18.0
+	desired = clampf(desired, 0.0, hand_scroll.get_h_scroll_bar().max_value)
+	if absf(desired - hand_scroll.scroll_horizontal) < 2.0:
+		return
+	var tween := create_tween()
+	tween.bind_node(hand_scroll)
+	tween.tween_property(hand_scroll, "scroll_horizontal", desired, 0.22)
 
 
 func _on_card_mouse_exited(button: Button) -> void:
@@ -6586,7 +6691,7 @@ func _hide_all_previews() -> void:
 	active_preview_id = ""
 
 
-func _create_played_card_chip(card: CardDefinition) -> Button:
+func _create_played_card_chip(card: CardDefinition, occurrence: int = 1, total: int = 1) -> Button:
 	var type_palette := _get_card_type_palette(card.card_type)
 	var surface := _get_card_surface_color(card.card_type)
 	var chip := Button.new()
@@ -6682,7 +6787,26 @@ func _create_played_card_chip(card: CardDefinition) -> Button:
 	name_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	name_label.offset_left = 3
 	name_label.offset_right = -3
+	if total > 1:
+		chip.add_child(_create_play_occurrence_badge(occurrence, total, type_palette.accent))
 	return chip
+
+
+func _create_play_occurrence_badge(occurrence: int, total: int, accent: Color) -> Label:
+	var badge := Label.new()
+	badge.name = "OccurrenceBadge"
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.text = "%d/%d" % [occurrence, total]
+	badge.position = Vector2(PLAYED_CARD_SIZE.x - 28, 3)
+	badge.size = Vector2(24, 15)
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	badge.add_theme_font_size_override("font_size", 7)
+	badge.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	badge.add_theme_stylebox_override("normal", _make_pill_style(Color(0.08, 0.05, 0.03, 0.9), accent, 2))
+	if title_font != null:
+		badge.add_theme_font_override("font", title_font)
+	return badge
 
 
 func _get_desaturate_material() -> ShaderMaterial:
@@ -7718,6 +7842,18 @@ func _on_choice_requested(choice: CardChoice) -> void:
 	current_choice = choice
 	selected_choice_tokens.clear()
 	choice_buttons.clear()
+	direct_hand_choice = _choice_can_be_made_from_hand(choice)
+	direct_hand_tokens.clear()
+	if direct_hand_choice:
+		for candidate in choice.candidates:
+			var hand_card := candidate.get("card") as CardDefinition
+			if hand_card != null:
+				var tokens: Array = direct_hand_tokens.get(hand_card.id, [])
+				tokens.append(str(candidate.get("token", "")))
+				direct_hand_tokens[hand_card.id] = tokens
+		_set_choice_overlay_hidden(false)
+		_refresh_hand()
+		return
 	_clear_container(choice_options)
 	_hide_all_previews()
 	card_preview.z_index = 180
@@ -7725,14 +7861,14 @@ func _on_choice_requested(choice: CardChoice) -> void:
 	choice_confirm_button.text = choice.confirm_text
 	choice_skip_button.text = choice.skip_text
 
-	for candidate in choice.candidates:
+	var shuffled_candidates := choice.candidates.duplicate()
+	shuffled_candidates.shuffle()
+	for candidate in shuffled_candidates:
 		var card: CardDefinition = candidate["card"]
 		var token := str(candidate.get("token", ""))
-		var visual_state := (
-			MARKET_AFFORDABLE
-			if token.begins_with("supply:")
-			else HAND_PLAYABLE
-		)
+		# Choice previews deliberately use the normal face without a pile-count
+		# badge. The choice token remains attached to the original candidate.
+		var visual_state := "choice_preview"
 		var button := _create_card_button(card, visual_state)
 		button.custom_minimum_size = CARD_FACE_SIZE
 		button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -7759,12 +7895,64 @@ func _on_choice_resolved(choice_id: int) -> void:
 
 
 func _hide_choice_overlay() -> void:
+	_set_choice_overlay_hidden(true)
+
+
+func _set_choice_overlay_hidden(clear_choice: bool) -> void:
 	choice_overlay.hide()
 	card_preview.z_index = 100
-	current_choice = null
+	if clear_choice:
+		current_choice = null
+		selected_choice_tokens.clear()
+		direct_hand_choice = false
+		direct_hand_tokens.clear()
+	choice_buttons.clear()
+	_clear_container(choice_options)
+
+
+func _choice_can_be_made_from_hand(choice: CardChoice) -> bool:
+	# Single-card hand choices (the common trash-from-hand interaction) resolve
+	# directly on the chosen face. Optional choices retain the overlay's visible
+	# Skip button; otherwise there would be no way to decline the choice.
+	# Multi-picks likewise retain the confirm affordance in the overlay.
+	if choice.minimum != 1 or choice.maximum != 1 or choice.candidates.is_empty():
+		return false
+	var available: Dictionary = {}
+	for card in game_state.player.hand:
+		available[card.id] = int(available.get(card.id, 0)) + 1
+	for candidate in choice.candidates:
+		var card := candidate.get("card") as CardDefinition
+		if card == null or int(available.get(card.id, 0)) <= 0:
+			return false
+		available[card.id] = int(available[card.id]) - 1
+	return true
+
+
+func _show_trash_pile() -> void:
+	# The trash viewer reuses the choice overlay. Do not overwrite an unresolved
+	# choice, which would discard its resolver and leave the game waiting for it.
+	if current_choice != null:
+		return
+	if game_state.player == null or game_state.player.trash_pile.is_empty():
+		return
+	_hide_all_previews()
+	direct_hand_choice = false
+	direct_hand_tokens.clear()
 	selected_choice_tokens.clear()
 	choice_buttons.clear()
 	_clear_container(choice_options)
+	choice_prompt_label.text = "Cards removed from your deck this game"
+	choice_selection_label.text = "%d trashed card%s" % [game_state.player.trash_pile.size(), "" if game_state.player.trash_pile.size() == 1 else "s"]
+	choice_skip_button.hide()
+	choice_confirm_button.text = "CLOSE"
+	choice_confirm_button.disabled = false
+	var trashed_cards := game_state.player.trash_pile.duplicate()
+	trashed_cards.shuffle()
+	for card in trashed_cards:
+		var preview := _create_card_button(card, "choice_preview")
+		preview.disabled = true
+		choice_options.add_child(preview)
+	choice_overlay.show()
 
 
 func _on_choice_card_pressed(token: String) -> void:
@@ -7804,6 +7992,9 @@ func _refresh_choice_controls() -> void:
 
 
 func _on_choice_confirmed() -> void:
+	if current_choice == null:
+		_hide_choice_overlay()
+		return
 	_submit_choice(selected_choice_tokens.duplicate())
 
 
