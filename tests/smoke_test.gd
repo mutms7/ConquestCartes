@@ -1165,8 +1165,25 @@ func _test_develop_modes_and_filtered_gains() -> void:
 	])
 	_check(game_state.play_card(spicebroker), "Spicebroker should play.")
 	_resolve_choice_by_ids(game_state, ["pebble_coin"])
+	_check(
+		game_state.player.discard_pile.has(game_state.card_catalog["pebble_coin"])
+		and not game_state.player.trash_pile.has(game_state.card_catalog["pebble_coin"]),
+		"Spicebroker should discard its chosen resource instead of trashing it."
+	)
+	_check(
+		game_state.pending_choice != null and game_state.pending_choice.candidates.size() == 3,
+		"Spicebroker should offer exactly three rewards after the discard."
+	)
 	_resolve_mode(game_state, "cards")
 	_check(game_state.player.hand.size() == 2, "The card mode should draw two cards.")
+
+	game_state = _empty_game()
+	spicebroker = game_state.card_catalog["acorn_spicebroker"]
+	game_state.player.hand.assign([spicebroker, game_state.card_catalog["pebble_coin"]])
+	_check(game_state.play_card(spicebroker), "Spicebroker should play for each reward mode.")
+	_resolve_choice_by_ids(game_state, ["pebble_coin"])
+	_resolve_mode(game_state, "coins")
+	_check(game_state.player.coins == 3, "Spicebroker's third reward should grant three coins.")
 
 	game_state = _empty_game()
 	var weaver: CardDefinition = game_state.card_catalog["moss_weaver"]

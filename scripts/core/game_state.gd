@@ -1093,20 +1093,24 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				int(turn_flags.get("cleanup_topdeck_actions", 0))
 				+ int(effect.get("amount", 1))
 			)
-		"trash_resource_choose_bonus":
-			var trash_resources: Array[CardDefinition] = []
+		"discard_resource_choose_bonus":
+			var discard_resources: Array[CardDefinition] = []
 			for card in player.hand:
 				if card.card_type == "resource":
-					trash_resources.append(card)
+					discard_resources.append(card)
 			_request_zone_choice(
-				trash_resources,
-				"You may trash a resource from your hand.",
+				discard_resources,
+				"You may discard a resource from your hand.",
 				0,
-				mini(1, trash_resources.size()),
-				"trash_resource_mode",
-				"TRASH",
+				mini(1, discard_resources.size()),
+				"discard_resource_mode",
+				"DISCARD",
 				"SKIP",
-				_hand_trash_choice_context({"modes": effect.get("modes", [])})
+				{
+				"modes": effect.get("modes", []),
+				"ui_choice_kind": "discard_from_hand",
+					"ui_source_zone": "hand",
+				}
 			)
 		"discard_resource_bonus":
 			var discard_resources: Array[CardDefinition] = []
@@ -1520,13 +1524,13 @@ func _apply_choice_resolution(
 				"",
 				"Choose the first developed card."
 			)
-		"trash_resource_mode":
+		"discard_resource_mode":
 			if cards.is_empty():
 				return
-			_move_cards(player.hand, player.trash_pile, cards, "trash")
+			_move_cards(player.hand, player.discard_pile, cards, "discard")
 			_request_mode_choice(
 				cards[0],
-				"Choose the spicebroker bonus.",
+				"Choose your Spicebroker reward.",
 				choice.context.get("modes", []),
 				"apply_bonus_mode"
 			)
@@ -1827,6 +1831,7 @@ func _request_mode_choice(
 		return
 	var choice := _new_choice(prompt, 1, 1, resolver, "CHOOSE", "SKIP", context)
 	choice.context["modes"] = modes
+	choice.context["ui_choice_kind"] = "mode"
 	for index in range(modes.size()):
 		var mode: Dictionary = modes[index]
 		choice.add_candidate(

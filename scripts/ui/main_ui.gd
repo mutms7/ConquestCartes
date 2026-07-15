@@ -21,6 +21,9 @@ const HOVER_ANIMATION_SECONDS := 0.08
 const CARD_MOVE_SECONDS := 0.18
 const CARD_DRAW_SECONDS := 0.16
 const CLEANUP_SECONDS := 0.2
+const CHOICE_VISIBLE_CARD_CAPACITY := 5
+const CHOICE_VISIBLE_MODE_CAPACITY := 3
+const CHOICE_MODE_OPTION_SIZE := Vector2(196, 94)
 const TABLE_SCALE := 0.667
 const TOP_BAR_HEIGHT := 55.0
 const BOTTOM_BAND_HEIGHT := 276.0
@@ -28,9 +31,11 @@ const CARD_FACE_SIZE := Vector2(123, 165)
 const PLAY_AREA_PANEL_HEIGHT := 76.0
 const PLAY_AREA_CONTENT_HEIGHT := 64.0
 const PLAYED_CARD_SIZE := Vector2(72, 64)
-const PLAYED_CARD_ART_HEIGHT := 45.0
-const CARD_ART_HEIGHT := 85.0
-const HAND_CARD_ART_HEIGHT := 91.0
+const PLAYED_CARD_ART_TOP_INSET := 3.0
+const PLAYED_CARD_ART_HEIGHT := 47.0
+const CARD_ART_TOP_INSET := 5.0
+const CARD_ART_HEIGHT := 92.0
+const HAND_CARD_ART_HEIGHT := 98.0
 const CARD_ART_OPACITY := 1.0
 const CARD_TEXT_SCRIM_Y := 85.0
 const CARD_NAME_Y := 88.0
@@ -360,6 +365,9 @@ var lobby_name_input: LineEdit
 )
 @onready var choice_options: HBoxContainer = (
 	$ChoiceOverlay/Center/Panel/Margin/Layout/OptionsScroll/Options
+)
+@onready var choice_options_scroll: ScrollContainer = (
+	$ChoiceOverlay/Center/Panel/Margin/Layout/OptionsScroll
 )
 @onready var choice_skip_button: Button = (
 	$ChoiceOverlay/Center/Panel/Margin/Layout/Buttons/SkipButton
@@ -6180,7 +6188,7 @@ func _create_card_button(
 	layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var art_height := HAND_CARD_ART_HEIGHT if is_hand_card else CARD_ART_HEIGHT
-	var text_scrim_y := art_height
+	var text_scrim_y := CARD_ART_TOP_INSET + art_height
 	var name_y := text_scrim_y + 3.0
 	var effect_y := name_y + CARD_NAME_HEIGHT + 2.0
 	var meta_y := CARD_META_Y
@@ -6192,11 +6200,9 @@ func _create_card_button(
 	art_frame.clip_contents = true
 	art_frame.custom_minimum_size = Vector2(CARD_FACE_SIZE.x, art_height)
 	art_frame.size = Vector2(CARD_FACE_SIZE.x, art_height)
-	# Art sits flush at the top of the card, so it only rounds its top corners;
-	# the bottom edge is straight and meets the text panel below it.
+	# The artwork is cropped inside its own rectangular frame.  The narrow inset
+	# leaves the card's border visible above it instead of letting art reach edge.
 	var art_style := _make_card_art_style(card_surface.darkened(0.16))
-	art_style.corner_radius_bottom_left = 0
-	art_style.corner_radius_bottom_right = 0
 	art_frame.add_theme_stylebox_override("panel", art_style)
 	layout.add_child(art_frame)
 	art_frame.anchor_left = 0.0
@@ -6204,9 +6210,9 @@ func _create_card_button(
 	art_frame.anchor_right = 1.0
 	art_frame.anchor_bottom = 0.0
 	art_frame.offset_left = 0.0
-	art_frame.offset_top = 0.0
+	art_frame.offset_top = CARD_ART_TOP_INSET
 	art_frame.offset_right = 0.0
-	art_frame.offset_bottom = art_height
+	art_frame.offset_bottom = CARD_ART_TOP_INSET + art_height
 
 	var art_rect := TextureRect.new()
 	art_rect.name = "Art"
@@ -6227,8 +6233,6 @@ func _create_card_button(
 	art_frame.add_child(art_scrim)
 	art_scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	# The lower text band rounds its bottom corners to match the card's rounded
-	# outline, so the face no longer reads as a square block poking past the frame.
 	var text_scrim := Panel.new()
 	text_scrim.name = "TextScrim"
 	text_scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -6237,10 +6241,6 @@ func _create_card_button(
 		Color.TRANSPARENT,
 		0
 	)
-	scrim_style.corner_radius_top_left = 0
-	scrim_style.corner_radius_top_right = 0
-	scrim_style.corner_radius_bottom_left = 13
-	scrim_style.corner_radius_bottom_right = 13
 	scrim_style.shadow_color = Color.TRANSPARENT
 	scrim_style.shadow_size = 0
 	text_scrim.add_theme_stylebox_override("panel", scrim_style)
@@ -6885,7 +6885,8 @@ func _create_played_card_chip(card: CardDefinition, occurrence: int = 1, total: 
 	art_frame.anchor_top = 0.0
 	art_frame.anchor_right = 1.0
 	art_frame.anchor_bottom = 0.0
-	art_frame.offset_bottom = PLAYED_CARD_ART_HEIGHT
+	art_frame.offset_top = PLAYED_CARD_ART_TOP_INSET
+	art_frame.offset_bottom = PLAYED_CARD_ART_TOP_INSET + PLAYED_CARD_ART_HEIGHT
 
 	var art := TextureRect.new()
 	art.name = "Art"
@@ -6915,7 +6916,7 @@ func _create_played_card_chip(card: CardDefinition, occurrence: int = 1, total: 
 	name_band.anchor_top = 0.0
 	name_band.anchor_right = 1.0
 	name_band.anchor_bottom = 1.0
-	name_band.offset_top = PLAYED_CARD_ART_HEIGHT
+	name_band.offset_top = PLAYED_CARD_ART_TOP_INSET + PLAYED_CARD_ART_HEIGHT
 
 	var name_label := Label.new()
 	name_label.name = "NameLabel"
@@ -7122,7 +7123,7 @@ func _make_card_style(
 	# alone, not by a coloured halo. Both states use the same restrained dark drop
 	# shadow so the table reads as a clean row of cards rather than a glowing one.
 	var style := _make_flat_card_style(color, border_color, border_width)
-	style.set_corner_radius_all(13)
+	style.set_corner_radius_all(0)
 	style.shadow_color = Color(0, 0, 0, 0.45)
 	style.shadow_size = 7 if highlighted else 5
 	style.shadow_offset = Vector2(0, 4)
@@ -7131,7 +7132,7 @@ func _make_card_style(
 
 func _make_card_art_style(color: Color) -> StyleBoxFlat:
 	var style := _make_flat_card_style(color, Color(0, 0, 0, 0.0), 0)
-	style.set_corner_radius_all(13)
+	style.set_corner_radius_all(0)
 	style.shadow_color = Color.TRANSPARENT
 	style.shadow_size = 0
 	return style
@@ -7367,7 +7368,7 @@ func _make_dot_style(color: Color) -> StyleBoxFlat:
 
 func _make_preview_style(surface_color: Color, border_color: Color) -> StyleBox:
 	var style := _make_flat_card_style(surface_color.darkened(0.08), border_color, 2)
-	style.set_corner_radius_all(14)
+	style.set_corner_radius_all(0)
 	style.content_margin_left = 4
 	style.content_margin_top = 4
 	style.content_margin_right = 4
@@ -7677,7 +7678,7 @@ func _animate_choice_flights(tokens: Array[String]) -> void:
 	var trash_resolvers := [
 		"trash_hand", "remodel", "develop_trash", "upgrade_resource",
 		"upgrade_exact_nonself", "trash_for_copies", "trash_named_coins",
-		"trash_resource_mode", "inspect_trash", "attack_trash_resource",
+		"inspect_trash", "attack_trash_resource",
 		"salvage_resource",
 	]
 	var play_resolvers := ["replay_action", "vassal_play", "play_self"]
@@ -8104,18 +8105,23 @@ func _on_choice_requested(choice: CardChoice) -> void:
 	choice_confirm_button.text = choice.confirm_text
 	choice_skip_button.text = choice.skip_text
 
+	var is_mode_choice := _choice_is_mode_choice(choice)
+	_configure_choice_option_layout(choice.candidates.size(), is_mode_choice)
 	var shuffled_candidates := choice.candidates.duplicate()
-	shuffled_candidates.shuffle()
+	if not is_mode_choice:
+		shuffled_candidates.shuffle()
 	for candidate in shuffled_candidates:
 		var card: CardDefinition = candidate["card"]
 		var token := str(candidate.get("token", ""))
-		# Choice previews deliberately use the normal face without a pile-count
-		# badge. The choice token remains attached to the original candidate.
-		var visual_state := "choice_preview"
-		var button := _create_card_button(card, visual_state)
-		button.custom_minimum_size = CARD_FACE_SIZE
-		button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var button: Button
+		if is_mode_choice:
+			button = _create_choice_reward_button(str(candidate.get("subtitle", "OPTION")))
+		else:
+			# Card choices retain a full card face, without a pile-count badge.
+			button = _create_card_button(card, "choice_preview")
+			button.custom_minimum_size = CARD_FACE_SIZE
+			button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		button.set_meta("choice_token", token)
 		button.set_meta("choice_selected", false)
 		button.disabled = false
@@ -8132,6 +8138,56 @@ func _on_choice_requested(choice: CardChoice) -> void:
 	_refresh_ui()
 	if network_enabled and network_is_host:
 		_broadcast_network_snapshot()
+
+
+func _choice_is_mode_choice(choice: CardChoice) -> bool:
+	return str(choice.context.get("ui_choice_kind", "")) == "mode"
+
+
+func _configure_choice_option_layout(candidate_count: int, is_mode_choice: bool) -> void:
+	if choice_options_scroll == null:
+		return
+	var visible_capacity := (
+		CHOICE_VISIBLE_MODE_CAPACITY if is_mode_choice else CHOICE_VISIBLE_CARD_CAPACITY
+	)
+	var needs_scroll := candidate_count > visible_capacity
+	choice_options_scroll.horizontal_scroll_mode = (
+		ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+		if needs_scroll
+		else ScrollContainer.SCROLL_MODE_DISABLED
+	)
+	choice_options.size_flags_horizontal = (
+		Control.SIZE_SHRINK_BEGIN if needs_scroll else Control.SIZE_SHRINK_CENTER
+	)
+	choice_options.alignment = (
+		BoxContainer.ALIGNMENT_BEGIN if needs_scroll else BoxContainer.ALIGNMENT_CENTER
+	)
+
+
+func _create_choice_reward_button(label_text: String) -> Button:
+	var button := Button.new()
+	button.name = "RewardOption"
+	button.custom_minimum_size = CHOICE_MODE_OPTION_SIZE
+	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	button.text = label_text
+	button.tooltip_text = label_text.capitalize()
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.add_theme_font_size_override("font_size", 16)
+	button.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
+	if title_font != null:
+		button.add_theme_font_override("font", title_font)
+	button.add_theme_stylebox_override(
+		"normal", _make_card_style(COLOR_WALNUT, COLOR_BRASS, 2)
+	)
+	button.add_theme_stylebox_override(
+		"hover", _make_card_style(COLOR_WALNUT.lightened(0.08), COLOR_BRASS.lightened(0.2), 2)
+	)
+	button.add_theme_stylebox_override(
+		"pressed", _make_card_style(COLOR_WALNUT.darkened(0.08), COLOR_BRASS, 2)
+	)
+	return button
 
 
 func _on_choice_resolved(choice_id: int) -> void:

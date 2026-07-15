@@ -828,10 +828,10 @@
     "group": "Hinterlands",
     "art_id": "acorn_spicebroker",
     "cost": 4,
-    "description": "You may trash a resource from your hand. If you do, choose either to draw 2 cards and gain 1 action, or to gain 1 buy and 2 coins.",
+    "description": "You may discard a resource from your hand. If you do, choose one: draw 2 cards and gain 1 action; gain 1 buy and 2 coins; or gain 3 coins.",
     "special_effects": [
       {
-        "kind": "trash_resource_choose_bonus",
+        "kind": "discard_resource_choose_bonus",
         "modes": [
           {
             "id": "cards",
@@ -844,9 +844,14 @@
             "label": "+1 BUY, +2 COINS",
             "gain_buys": 1,
             "gain_coins": 2
+          },
+          {
+            "id": "coins",
+            "label": "+3 COINS",
+            "gain_coins": 3
           }
         ],
-        "label": "Trash Resource: Choose"
+        "label": "Discard Resource: Choose"
       }
     ]
   },

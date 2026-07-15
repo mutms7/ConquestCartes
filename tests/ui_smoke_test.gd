@@ -1193,6 +1193,49 @@ func _initialize() -> void:
 			_check(_choice_overlay().visible and main_ui.current_choice == compact_choice, "Restore should reopen the same choice.")
 	main_ui._hide_choice_overlay()
 
+	var reward_choice := CardChoice.new()
+	reward_choice.id = -9002
+	reward_choice.prompt = "Choose a reward."
+	reward_choice.context["ui_choice_kind"] = "mode"
+	for reward in ["+2 CARDS, +1 ACTION", "+1 BUY, +2 COINS", "+3 COINS"]:
+		reward_choice.add_candidate(
+			"mode:-9002:%s" % reward,
+			main_ui.game_state.card_catalog["acorn_spicebroker"],
+			reward
+		)
+	main_ui._on_choice_requested(reward_choice)
+	await process_frame
+	var choice_scroll := _choice_overlay().get_node(
+		"Center/Panel/Margin/Layout/OptionsScroll"
+	) as ScrollContainer
+	_check(
+		_choice_options().get_child_count() == 3
+		and _choice_options().get_child(0).name == "RewardOption"
+		and not _choice_options().get_child(0).has_node("CardContent"),
+		"Reward modes should show three labelled reward options instead of repeated card faces."
+	)
+	_check(
+		choice_scroll.horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED,
+		"A small reward set should remain centered without a horizontal scrollbar."
+	)
+	main_ui._hide_choice_overlay()
+
+	var many_cards_choice := CardChoice.new()
+	many_cards_choice.id = -9003
+	many_cards_choice.prompt = "Choose from many cards."
+	for index in range(6):
+		many_cards_choice.add_candidate(
+			"many:%d" % index,
+			main_ui.game_state.card_catalog["pebble_coin"]
+		)
+	main_ui._on_choice_requested(many_cards_choice)
+	await process_frame
+	_check(
+		choice_scroll.horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_SHOW_ALWAYS,
+		"Card choices beyond the visible capacity should use horizontal scrolling."
+	)
+	main_ui._hide_choice_overlay()
+
 	main_ui._start_new_game(true)
 	await process_frame
 	await process_frame
@@ -1900,8 +1943,8 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 		or effect_slot.get_theme_constant("margin_left") != 7
 		or effect_slot.get_theme_constant("margin_right") != 7
 		or effect_center.alignment != BoxContainer.ALIGNMENT_BEGIN
-		or _card_art_coverage(button) < 0.48
-		or _card_art_coverage(button) > 0.58
+		or _card_art_coverage(button) < 0.54
+		or _card_art_coverage(button) > 0.62
 		or _card_text_scrim_alpha(button) > 0.96
 		or not price_badge.has_node("CoinFace")
 		or not price_badge.has_node("InnerRing")
