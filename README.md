@@ -70,7 +70,7 @@ godot --headless --path . --script res://tests/relay_e2e_test.gd
 
 ## Web export and deployment
 
-The committed `export_presets.cfg` has a single-threaded Web preset. Export locally with:
+The committed `export_presets.cfg` has a threaded Web preset with cross-origin isolation enabled (the same settings used by the deployment workflow). Export locally with:
 
 ```powershell
 New-Item -ItemType Directory -Path web -Force
@@ -80,6 +80,50 @@ godot --headless --path . --export-release "Web" web/index.html
 The generated `web/` directory is intentionally gitignored.
 
 Deployment is automatic: every push to `main` runs `.github/workflows/deploy.yml`, which downloads and caches Godot 4.7 and its export templates, imports the project, runs both smoke tests, exports the web build, and deploys to Vercel as a pure static site (with the COOP/COEP headers needed for cross-origin isolation, no serverless function). The result is live at [conquest-cartes.vercel.app](https://conquest-cartes.vercel.app/). The online relay is deployed separately on its own always-on host and isn't part of this workflow.
+
+### Vercel preview deployment
+
+The `deploy/afterlight-vercel` branch is for manual Vercel previews; it does not replace the `main` production workflow above. Before exporting, install Godot 4.7 with its matching export templates, Node.js 20 or newer, and authenticate the Vercel CLI (`vercel login`) or provide a `VERCEL_TOKEN`.
+
+Current branch preview: [conquest-cartes-1eh3ak20e-william-chenyins-projects.vercel.app](https://conquest-cartes-1eh3ak20e-william-chenyins-projects.vercel.app). The Vercel team currently protects preview deployments, so visitors may be asked to sign in; production remains public at the URL above.
+
+Run the local checks and export from the repository root:
+
+```powershell
+godot --headless --path . --script res://tests/smoke_test.gd
+godot --headless --path . --script res://tests/ui_smoke_test.gd
+New-Item -ItemType Directory -Path web -Force
+godot --headless --path . --export-release "Web" web/index.html
+```
+
+Because `web/` is generated and gitignored, write the same static-host headers used in CI before deploying:
+
+```powershell
+@'
+{
+  "framework": null,
+  "buildCommand": null,
+  "outputDirectory": ".",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" }
+      ]
+    }
+  ]
+}
+'@ | Set-Content -Path web/vercel.json -Encoding utf8
+Push-Location web
+vercel link
+vercel deploy --yes
+Pop-Location
+```
+
+`vercel deploy` creates a preview for the linked project; leave off `--prod` so this branch cannot publish production. Only pushes to `main` run the GitHub Actions job that performs the authenticated `vercel ... --prod` deployment to the production site.
+
+If you use token authentication instead of `vercel login`, append `--token $env:VERCEL_TOKEN` to both Vercel commands.
 
 ## Assets
 
