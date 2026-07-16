@@ -44,6 +44,11 @@ const RESOURCE_SUPPLY_COUNT := 12
 const VICTORY_SUPPLY_COUNT := 8
 const CURSE_SUPPLY_COUNT := 20
 const CURSE_CARD_ID := "briar_hex"
+## Fixed side supplies sit outside the randomized market and can be purchased
+## directly. Pebble Coin uses a modest finite pile so its zero-cost buy remains
+## useful without becoming an infinite-deck escape hatch.
+const PEBBLE_SIDE_SUPPLY_COUNT := 30
+const SIDE_SUPPLY_CARD_IDS := ["pebble_coin", CURSE_CARD_ID]
 const SIX_VP_CARD_ID := "royal_charter"
 const SUPPLY_EMPTY_END_COUNT := 3
 const DEFAULT_END_TURN_COOLDOWN_SECONDS := 5.0
@@ -354,6 +359,14 @@ func get_supply_count(card_id: String) -> int:
 	return int(supply_piles.get(card_id, 0))
 
 
+func is_side_supply_card(card_id: String) -> bool:
+	return SIDE_SUPPLY_CARD_IDS.has(card_id)
+
+
+func get_side_supply_card_ids() -> Array[String]:
+	return SIDE_SUPPLY_CARD_IDS.duplicate()
+
+
 func set_supply_count(card_id: String, amount: int) -> void:
 	if supply_piles.has(card_id):
 		supply_piles[card_id] = maxi(0, amount)
@@ -446,6 +459,8 @@ func _initialize_supply_piles() -> void:
 				supply_piles[card.id] = RESOURCE_SUPPLY_COUNT
 			_:
 				supply_piles[card.id] = ACTION_SUPPLY_COUNT
+	if card_catalog.has("pebble_coin"):
+		supply_piles["pebble_coin"] = PEBBLE_SIDE_SUPPLY_COUNT
 	if card_catalog.has(CURSE_CARD_ID):
 		supply_piles[CURSE_CARD_ID] = CURSE_SUPPLY_COUNT
 
@@ -1990,6 +2005,10 @@ func _gain_card_by_id(card_id: String, destination: String) -> void:
 
 
 func _default_supply_count(card: CardDefinition) -> int:
+	if card != null and card.id == "pebble_coin":
+		return PEBBLE_SIDE_SUPPLY_COUNT
+	if card != null and card.id == CURSE_CARD_ID:
+		return CURSE_SUPPLY_COUNT
 	match card.card_type:
 		"victory":
 			return VICTORY_SUPPLY_COUNT
@@ -2565,7 +2584,7 @@ func buy_card(card: CardDefinition) -> bool:
 	if (
 		card == null
 		or has_pending_choice()
-		or not market.has(card)
+		or (not market.has(card) and not is_side_supply_card(card.id))
 		or get_supply_count(card.id) <= 0
 	):
 		return false

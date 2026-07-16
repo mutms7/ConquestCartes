@@ -34,6 +34,7 @@ const PLAYED_CARD_SIZE := Vector2(72, 64)
 const PLAYED_CARD_ART_TOP_INSET := 3.0
 const PLAYED_CARD_ART_HEIGHT := 47.0
 const CARD_ART_TOP_INSET := 5.0
+const CARD_ART_SIDE_INSET := 3.0
 const CARD_ART_HEIGHT := 92.0
 const HAND_CARD_ART_HEIGHT := 98.0
 const CARD_ART_OPACITY := 1.0
@@ -160,6 +161,7 @@ const VOLUME_RESPONSE_EXPONENT := 2.0
 # curve. At the top of the slider they play at SFX_VOLUME_DB.
 const DEFAULT_SFX_VOLUME := 0.6
 const SFX_VOLUME_DB := 0.0
+const FIXED_GRAIN_AMOUNT := 0.04
 # The New Game click is played much quieter than a normal button press.
 const NEW_GAME_SOUND_OFFSET_DB := -14.0
 
@@ -181,8 +183,10 @@ var card_art_cache: Dictionary = {}
 var has_active_game := false
 var audio_enabled := true
 var motion_enabled := true
-var home_noise_amount := 0.12
-var table_noise_amount := 0.04
+var home_noise_amount := FIXED_GRAIN_AMOUNT
+var table_noise_amount := FIXED_GRAIN_AMOUNT
+var home_noise_enabled := true
+var table_noise_enabled := true
 var action_animation_speed := 1.0
 var current_choice: CardChoice
 var selected_choice_tokens: Array[String] = []
@@ -210,7 +214,8 @@ var estates_carpet: PanelContainer
 var market_resource_container: GridContainer
 var market_action_container: GridContainer
 var market_victory_container: GridContainer
-var briar_hex_tab: Button
+var pebble_coin_side_supply: Button
+var briar_hex_side_supply: Button
 var pending_cleanup_ghosts: Array[Control] = []
 var home_overlay: Control
 var menu_backdrop: Control
@@ -309,8 +314,8 @@ var last_play_area_ids: Array[String] = []
 var last_play_area_owner: int = 0
 var home_noise_overlay: TextureRect
 var table_noise_overlay: TextureRect
-var home_noise_slider: HSlider
-var table_noise_slider: HSlider
+var home_noise_toggle: CheckButton
+var table_noise_toggle: CheckButton
 var action_animation_speed_slider: HSlider
 var background_music_slider: HSlider
 var sfx_volume_slider: HSlider
@@ -471,6 +476,7 @@ func _ready() -> void:
 			home_continue_button.disabled = true
 		return
 
+	_ensure_side_supply_cards()
 	_refresh_kingdom_tab()
 	_show_home_screen(false)
 	_refresh_background_music()
@@ -1981,7 +1987,9 @@ func _build_bottom_docks() -> void:
 	_configure_physical_pile(discard_stat, discard_label, true)
 	trash_pile_button = Button.new()
 	trash_pile_button.name = "TrashPileButton"
-	trash_pile_button.custom_minimum_size = Vector2(72, 42)
+	trash_pile_button.custom_minimum_size = Vector2(0, 30)
+	trash_pile_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	trash_pile_button.text = "TRASH  0"
 	trash_pile_button.tooltip_text = "View trashed cards"
 	trash_pile_button.pressed.connect(_show_trash_pile)
 	trash_pile_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -1989,7 +1997,8 @@ func _build_bottom_docks() -> void:
 	trash_pile_button.add_theme_stylebox_override("hover", _make_panel_style(COLOR_WALNUT.lightened(0.08), COLOR_OXBLOOD.lightened(0.14), 1))
 	if title_font != null:
 		trash_pile_button.add_theme_font_override("font", title_font)
-	pile_hand_row.add_child(trash_pile_button)
+	left_stats.add_child(_create_ledger_hairline())
+	left_stats.add_child(trash_pile_button)
 
 	hand_panel.custom_minimum_size = Vector2(0, 188)
 	hand_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2308,17 +2317,39 @@ func _build_top_bar() -> void:
 
 	home_button.reparent(right_row)
 	home_button.name = "SettingsGearButton"
-	home_button.text = "⚙"
 	home_button.tooltip_text = "Settings"
+	home_button.text = ""
 	home_button.custom_minimum_size = Vector2(38, 38)
-	home_button.add_theme_font_size_override("font_size", 20)
 	home_button.add_theme_color_override("font_color", COLOR_BRASS)
 	home_button.add_theme_stylebox_override("normal", _make_top_button_style(true))
 	home_button.add_theme_stylebox_override("hover", _make_top_button_style(true, true))
 	home_button.add_theme_stylebox_override("pressed", _make_top_button_style(true))
+	var settings_icon := Control.new()
+	settings_icon.name = "SettingsIcon"
+	settings_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	settings_icon.draw.connect(_draw_settings_icon.bind(settings_icon, COLOR_BRASS))
+	home_button.add_child(settings_icon)
+	settings_icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	main_layout.add_child(top_bar)
 	main_layout.move_child(top_bar, 0)
+
+
+func _draw_settings_icon(canvas: Control, ink: Color) -> void:
+	# Draw the gear in canvas primitives so the button never depends on a
+	# platform/font Unicode glyph. The center hole and eight teeth read clearly
+	# at the compact 38 px top-bar size.
+	var center := canvas.size * 0.5
+	var radius := minf(canvas.size.x, canvas.size.y) * 0.27
+	var tooth_radius := radius * 1.45
+	var width := 2.2
+	canvas.draw_arc(center, radius, 0.0, TAU, 32, ink, width, true)
+	canvas.draw_circle(center, radius * 0.32, Color(0.08, 0.05, 0.025, 0.92))
+	for index in range(8):
+		var angle := TAU * float(index) / 8.0
+		var inner := center + Vector2(cos(angle), sin(angle)) * radius * 0.95
+		var outer := center + Vector2(cos(angle), sin(angle)) * tooth_radius
+		canvas.draw_line(inner, outer, ink, width, true)
 
 
 func _create_relics_rail() -> PanelContainer:
@@ -3139,7 +3170,7 @@ func _build_menu_backdrop() -> void:
 	glow.offset_bottom = 360
 
 	if noise_texture != null:
-		var grain := _create_noise_rect("MenuBackdropGrain", 0.05)
+		var grain := _create_noise_rect("MenuBackdropGrain", home_noise_amount)
 		menu_backdrop.add_child(grain)
 		grain.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
@@ -3264,29 +3295,13 @@ func _build_settings_panel() -> void:
 	end_turn_cooldown_slider.value_changed.connect(_on_end_turn_cooldown_changed)
 
 	layout.add_child(_create_settings_section_label("Atmosphere and display"))
-	table_noise_slider = _create_settings_slider_row(
-		layout,
-		"Table grain",
-		"TableNoise",
-		table_noise_amount,
-		0.0,
-		0.24,
-		0.01,
-		"pct"
-	)
-	table_noise_slider.value_changed.connect(_on_table_noise_changed)
+	table_noise_toggle = _create_parchment_toggle("TableNoiseToggle", table_noise_enabled)
+	table_noise_toggle.toggled.connect(_on_table_noise_toggled)
+	layout.add_child(_create_settings_toggle_row("Table grain (4%)", table_noise_toggle))
 
-	home_noise_slider = _create_settings_slider_row(
-		layout,
-		"Menu grain",
-		"HomeNoise",
-		home_noise_amount,
-		0.0,
-		0.35,
-		0.01,
-		"pct"
-	)
-	home_noise_slider.value_changed.connect(_on_home_noise_changed)
+	home_noise_toggle = _create_parchment_toggle("MenuNoiseToggle", home_noise_enabled)
+	home_noise_toggle.toggled.connect(_on_home_noise_toggled)
+	layout.add_child(_create_settings_toggle_row("Menu grain (4%)", home_noise_toggle))
 
 	fullscreen_toggle = _create_parchment_toggle("FullscreenToggle", false)
 	fullscreen_toggle.toggled.connect(_on_fullscreen_toggled)
@@ -4475,7 +4490,9 @@ func _create_noise_rect(rect_name: String, amount: float) -> TextureRect:
 func _set_noise_amount(rect: TextureRect, amount: float) -> void:
 	if rect == null:
 		return
-	rect.modulate = Color(1, 1, 1, amount)
+	# Grain is intentionally a fixed 4% treatment. Settings only decide whether
+	# the treatment is present; callers cannot turn it into a stronger overlay.
+	rect.modulate = Color(1, 1, 1, FIXED_GRAIN_AMOUNT if amount > 0.0 else 0.0)
 
 
 func _show_home_screen(_from_game: bool) -> void:
@@ -4621,10 +4638,10 @@ func _refresh_home_controls() -> void:
 		sfx_volume_slider.set_value_no_signal(sfx_volume)
 	if home_motion_toggle != null:
 		home_motion_toggle.set_pressed_no_signal(motion_enabled)
-	if home_noise_slider != null:
-		home_noise_slider.set_value_no_signal(home_noise_amount)
-	if table_noise_slider != null:
-		table_noise_slider.set_value_no_signal(table_noise_amount)
+	if home_noise_toggle != null:
+		home_noise_toggle.set_pressed_no_signal(home_noise_enabled)
+	if table_noise_toggle != null:
+		table_noise_toggle.set_pressed_no_signal(table_noise_enabled)
 	if action_animation_speed_slider != null:
 		action_animation_speed_slider.set_value_no_signal(action_animation_speed)
 	if background_music_slider != null:
@@ -5297,29 +5314,30 @@ func _build_market_board() -> void:
 	)
 	estates_carpet = estates.panel
 	market_victory_container = estates.cards
-	briar_hex_tab = _create_briar_hex_tab()
-	# This must not be a child of the Estates PanelContainer: containers own their
-	# children's layout, which would stretch the tab into a normal market pile.
-	# A root-level overlay lets it remain a compact horizontal tab below Estates.
-	add_child(briar_hex_tab)
-	estates_carpet.resized.connect(_position_briar_hex_tab)
-	resized.connect(_position_briar_hex_tab)
-	call_deferred("_position_briar_hex_tab")
+	pebble_coin_side_supply = _create_side_supply_card("pebble_coin", COLOR_RESOURCE_ACCENT)
+	briar_hex_side_supply = _create_side_supply_card(GameState.CURSE_CARD_ID, COLOR_CURSE_ACCENT)
 
 	market_container.add_child(treasury_carpet)
-	market_container.add_child(_create_market_separator())
+	market_container.add_child(pebble_coin_side_supply)
 	market_container.add_child(barracks_carpet)
-	market_container.add_child(_create_market_separator())
+	market_container.add_child(briar_hex_side_supply)
 	market_container.add_child(estates_carpet)
 
-func _create_market_separator() -> ColorRect:
-	var separator := ColorRect.new()
-	separator.name = "MarketSeparator"
-	separator.custom_minimum_size = Vector2(1, 0)
-	separator.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	separator.color = Color(0.835, 0.667, 0.314, 0.22)
-	return separator
 
+func _ensure_side_supply_cards() -> void:
+	# The board is built before card JSON loads so the scene can assemble its
+	# layout immediately. Replace the two placeholders once the catalog exists,
+	# preserving their gap positions between Treasury/Barracks and Barracks/Estates.
+	for side_button in [pebble_coin_side_supply, briar_hex_side_supply]:
+		if side_button != null and is_instance_valid(side_button) and side_button.get_parent() == market_container:
+			market_container.remove_child(side_button)
+			side_button.free()
+	pebble_coin_side_supply = _create_side_supply_card("pebble_coin", COLOR_RESOURCE_ACCENT)
+	briar_hex_side_supply = _create_side_supply_card(GameState.CURSE_CARD_ID, COLOR_CURSE_ACCENT)
+	market_container.add_child(pebble_coin_side_supply)
+	market_container.move_child(pebble_coin_side_supply, 1)
+	market_container.add_child(briar_hex_side_supply)
+	market_container.move_child(briar_hex_side_supply, 3)
 
 func _create_market_carpet(
 	carpet_name: String,
@@ -5378,62 +5396,57 @@ func _create_market_carpet(
 	return {"panel": panel, "cards": cards}
 
 
-func _create_briar_hex_tab() -> Button:
-	# Curses live beside the victory supply rather than occupying a normal market
-	# pile.  Keeping this as a compact tab makes it available as a gain source
-	# without implying that it may be bought.
-	var tab := Button.new()
-	tab.name = "BriarHexSupplyTab"
-	tab.custom_minimum_size = Vector2(CARD_FACE_SIZE.x, 34)
-	tab.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	tab.mouse_default_cursor_shape = Control.CURSOR_ARROW
-	tab.tooltip_text = "Briar Hex supply — right-click to preview"
-	tab.add_theme_color_override("font_color", COLOR_CURSE_ACCENT.lightened(0.26))
-	tab.add_theme_font_size_override("font_size", 9)
-	if title_font != null:
-		tab.add_theme_font_override("font", title_font)
-	tab.add_theme_stylebox_override("normal", _make_panel_style(COLOR_CURSE_CARD.darkened(0.08), COLOR_CURSE_ACCENT.darkened(0.1), 1))
-	tab.add_theme_stylebox_override("hover", _make_panel_style(COLOR_CURSE_CARD.lightened(0.08), COLOR_CURSE_ACCENT.lightened(0.12), 1))
-	if game_state.card_catalog.has(GameState.CURSE_CARD_ID):
-		var hex := game_state.card_catalog[GameState.CURSE_CARD_ID] as CardDefinition
-		tab.set_meta("card_id", hex.id)
-		tab.gui_input.connect(_on_card_gui_input.bind(hex, tab, MARKET_NEUTRAL))
-	tab.pressed.connect(_on_briar_hex_tab_pressed)
-	return tab
-
-
-func _refresh_briar_hex_tab() -> void:
-	if briar_hex_tab == null:
-		return
-	var count := game_state.get_supply_count(GameState.CURSE_CARD_ID)
-	briar_hex_tab.text = "BRIAR HEXES   %d" % count
-	var selecting_gain := not _direct_supply_gain_token_for(GameState.CURSE_CARD_ID).is_empty()
-	# Keep GUI input enabled even at zero so the right-click card preview remains
-	# available. Left-click safety lives in the pressed handler below.
-	briar_hex_tab.disabled = false
-	briar_hex_tab.mouse_default_cursor_shape = (
-		Control.CURSOR_POINTING_HAND if selecting_gain and count > 0 else Control.CURSOR_ARROW
+func _create_side_supply_card(card_id: String, accent: Color) -> Button:
+	var card := game_state.card_catalog.get(card_id) as CardDefinition
+	if card == null:
+		return Button.new()
+	var button := _create_card_button(card, MARKET_NEUTRAL)
+	button.name = "%sSideSupply" % _node_key(card.card_name)
+	button.set_meta("side_supply", true)
+	button.tooltip_text = "%s — finite side supply; click to buy." % card.card_name
+	button.pressed.connect(_on_side_supply_pressed.bind(card))
+	button.add_theme_stylebox_override(
+		"normal", _make_card_style(_get_card_surface_color(card.card_type), accent, 2, true)
 	)
-	briar_hex_tab.modulate = Color.WHITE if (not direct_supply_gain_choice or selecting_gain) else Color(0.55, 0.55, 0.55, 0.7)
-	_position_briar_hex_tab()
-
-
-func _on_briar_hex_tab_pressed() -> void:
-	if game_state.get_supply_count(GameState.CURSE_CARD_ID) <= 0:
-		return
-	_on_direct_supply_gain_pressed(_direct_supply_gain_token_for(GameState.CURSE_CARD_ID))
-
-
-func _position_briar_hex_tab() -> void:
-	if briar_hex_tab == null or estates_carpet == null:
-		return
-	var tab_size := Vector2(CARD_FACE_SIZE.x, 28)
-	briar_hex_tab.size = tab_size
-	var estates_rect := estates_carpet.get_global_rect()
-	briar_hex_tab.global_position = Vector2(
-		estates_rect.get_center().x - tab_size.x * 0.5,
-		estates_rect.end.y - tab_size.y - 3.0
+	button.add_theme_stylebox_override(
+		"hover", _make_card_style(_get_card_surface_color(card.card_type).lightened(0.08), accent.lightened(0.18), 2, true)
 	)
+	return button
+
+
+func _on_side_supply_pressed(card: CardDefinition) -> void:
+	if card == null:
+		return
+	if direct_supply_gain_choice:
+		_on_direct_supply_gain_pressed(_direct_supply_gain_token_for(card.id))
+		return
+	_on_market_card_pressed(card)
+
+
+func _refresh_side_supply_card(button: Button, card_id: String) -> void:
+	if button == null:
+		return
+	var card := game_state.card_catalog.get(card_id) as CardDefinition
+	if card == null:
+		return
+	var count := game_state.get_supply_count(card_id)
+	var selecting_gain := not _direct_supply_gain_token_for(card_id).is_empty()
+	var affordable := _can_buy_card(card)
+	var visual_state := MARKET_NEUTRAL
+	if direct_supply_gain_choice:
+		visual_state = MARKET_AFFORDABLE if selecting_gain else MARKET_UNAFFORDABLE
+	elif not game_state.player.play_area.is_empty():
+		visual_state = MARKET_AFFORDABLE if affordable else MARKET_UNAFFORDABLE
+	button.set_meta("visual_state", visual_state)
+	button.set_meta("supply_count", count)
+	button.disabled = count <= 0 or (direct_supply_gain_choice and not selecting_gain) or (not direct_supply_gain_choice and not affordable)
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if not button.disabled else Control.CURSOR_ARROW
+	button.modulate = Color.WHITE if not button.disabled else Color(0.74, 0.72, 0.66, 0.62)
+	var pile_badge := button.get_node_or_null("PileBadge") as Control
+	if pile_badge != null:
+		var label := pile_badge.get_node_or_null("PileRow/PileLabel") as Label
+		if label != null:
+			label.text = str(count)
 
 
 func _load_optional_font(path: String) -> Font:
@@ -6153,7 +6166,8 @@ func _refresh_market() -> void:
 		_sort_market_cards_descending(victory_cards),
 		market_victory_container
 	)
-	_refresh_briar_hex_tab()
+	_refresh_side_supply_card(pebble_coin_side_supply, "pebble_coin")
+	_refresh_side_supply_card(briar_hex_side_supply, GameState.CURSE_CARD_ID)
 
 
 func _render_market_cards(
@@ -6478,8 +6492,10 @@ func _create_card_button(
 	art_frame.name = "ArtFrame"
 	art_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	art_frame.clip_contents = true
-	art_frame.custom_minimum_size = Vector2(CARD_FACE_SIZE.x, art_height)
-	art_frame.size = Vector2(CARD_FACE_SIZE.x, art_height)
+	# The frame itself is narrower than the card so the symmetric offsets below
+	# cannot be swallowed by a full-width minimum-size request from the layout.
+	art_frame.custom_minimum_size = Vector2(CARD_FACE_SIZE.x - CARD_ART_SIDE_INSET * 2.0, art_height)
+	art_frame.size = Vector2(CARD_FACE_SIZE.x - CARD_ART_SIDE_INSET * 2.0, art_height)
 	# The artwork is cropped inside its own rectangular frame.  The narrow inset
 	# leaves the card's border visible above it instead of letting art reach edge.
 	var art_style := _make_card_art_style(card_surface.darkened(0.16))
@@ -6489,9 +6505,9 @@ func _create_card_button(
 	art_frame.anchor_top = 0.0
 	art_frame.anchor_right = 1.0
 	art_frame.anchor_bottom = 0.0
-	art_frame.offset_left = 0.0
+	art_frame.offset_left = CARD_ART_SIDE_INSET
 	art_frame.offset_top = CARD_ART_TOP_INSET
-	art_frame.offset_right = 0.0
+	art_frame.offset_right = -CARD_ART_SIDE_INSET
 	art_frame.offset_bottom = CARD_ART_TOP_INSET + art_height
 
 	var art_rect := TextureRect.new()
@@ -7833,8 +7849,10 @@ func _animate_queued_gain_flight(card_id: String, destination: String) -> void:
 	if not game_state.card_catalog.has(card_id):
 		return
 	var source_button := _find_card_button(market_container, card_id)
+	if source_button == null and card_id == "pebble_coin":
+		source_button = pebble_coin_side_supply
 	if source_button == null and card_id == GameState.CURSE_CARD_ID:
-		source_button = briar_hex_tab
+		source_button = briar_hex_side_supply
 	if source_button == null:
 		return
 	var target := _get_hud_target_center("DiscardStat")
@@ -9031,14 +9049,20 @@ func _on_home_motion_toggled(enabled: bool) -> void:
 	_play_ui_sound("button_click")
 
 
-func _on_home_noise_changed(value: float) -> void:
-	home_noise_amount = value
+func _on_home_noise_toggled(enabled: bool) -> void:
+	home_noise_enabled = enabled
+	home_noise_amount = FIXED_GRAIN_AMOUNT if enabled else 0.0
 	_set_noise_amount(home_noise_overlay, home_noise_amount)
+	if menu_backdrop != null:
+		_set_noise_amount(menu_backdrop.get_node_or_null("MenuBackdropGrain") as TextureRect, home_noise_amount)
+	_play_ui_sound("button_click")
 
 
-func _on_table_noise_changed(value: float) -> void:
-	table_noise_amount = value
+func _on_table_noise_toggled(enabled: bool) -> void:
+	table_noise_enabled = enabled
+	table_noise_amount = FIXED_GRAIN_AMOUNT if enabled else 0.0
 	_set_noise_amount(table_noise_overlay, table_noise_amount)
+	_play_ui_sound("button_click")
 
 
 func _on_action_animation_speed_changed(value: float) -> void:

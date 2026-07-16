@@ -379,23 +379,32 @@ func _initialize() -> void:
 	_check(not main_ui.motion_enabled, "Motion toggle should update the UI setting.")
 	_home_motion_toggle().set_pressed_no_signal(true)
 	_home_motion_toggle().toggled.emit(true)
-	_home_noise_slider().set_value_no_signal(0.24)
-	_home_noise_slider().value_changed.emit(0.24)
+	_home_noise_toggle().set_pressed_no_signal(false)
+	_home_noise_toggle().toggled.emit(false)
 	_check(
-		is_equal_approx(main_ui.home_noise_amount, 0.24)
-		and is_equal_approx(_home_noise_overlay().modulate.a, 0.24),
-		"Home noise slider should control the home noise overlay."
+		is_equal_approx(main_ui.home_noise_amount, 0.0)
+		and is_equal_approx(_home_noise_overlay().modulate.a, 0.0),
+		"Menu grain toggle should disable the fixed 4% overlay."
 	)
 	_check(
 		_home_noise_overlay().stretch_mode == TextureRect.STRETCH_TILE,
 		"Home noise should tile instead of stretching."
 	)
-	_table_noise_slider().set_value_no_signal(0.12)
-	_table_noise_slider().value_changed.emit(0.12)
+	_home_noise_toggle().set_pressed_no_signal(true)
+	_home_noise_toggle().toggled.emit(true)
+	_table_noise_toggle().set_pressed_no_signal(false)
+	_table_noise_toggle().toggled.emit(false)
 	_check(
-		is_equal_approx(main_ui.table_noise_amount, 0.12)
-		and is_equal_approx(_table_noise_overlay().modulate.a, 0.12),
-		"Table noise slider should control the in-game table noise overlay."
+		is_equal_approx(main_ui.table_noise_amount, 0.0)
+		and is_equal_approx(_table_noise_overlay().modulate.a, 0.0),
+		"Table grain toggle should disable the fixed 4% overlay."
+	)
+	_table_noise_toggle().set_pressed_no_signal(true)
+	_table_noise_toggle().toggled.emit(true)
+	_check(
+		is_equal_approx(main_ui.table_noise_amount, 0.04)
+		and is_equal_approx(_table_noise_overlay().modulate.a, 0.04),
+		"Enabled table grain should always use the fixed 4% amount."
 	)
 	_check(
 		_table_noise_overlay().stretch_mode == TextureRect.STRETCH_TILE,
@@ -562,6 +571,50 @@ func _initialize() -> void:
 		"The right market column should render two victory piles."
 	)
 	_check(
+		main_ui.pebble_coin_side_supply != null
+		and main_ui.briar_hex_side_supply != null
+		and main_ui.pebble_coin_side_supply.get_meta("card_id", "") == "pebble_coin"
+		and main_ui.briar_hex_side_supply.get_meta("card_id", "") == GameState.CURSE_CARD_ID
+		and main_ui.pebble_coin_side_supply.custom_minimum_size == main_ui.CARD_FACE_SIZE
+		and main_ui.briar_hex_side_supply.custom_minimum_size == main_ui.CARD_FACE_SIZE,
+		"Pebble Coin and Briar Hex should render as full finite side-supply card faces."
+	)
+	_check(
+		main_ui.game_state.get_supply_count("pebble_coin") == GameState.PEBBLE_SIDE_SUPPLY_COUNT
+		and main_ui.game_state.get_supply_count(GameState.CURSE_CARD_ID) == GameState.CURSE_SUPPLY_COUNT,
+		"Side-supply cards should expose finite authoritative counts."
+	)
+	var side_player: PlayerState = main_ui.game_state.player
+	var side_buys: int = side_player.buys
+	var side_coins: int = side_player.coins
+	var pebble_supply_before: int = main_ui.game_state.get_supply_count("pebble_coin")
+	var pebble_discard_before: int = side_player.discard_pile.size()
+	main_ui.pebble_coin_side_supply.pressed.emit()
+	_check(
+		main_ui.game_state.get_supply_count("pebble_coin") == pebble_supply_before - 1
+		and side_player.discard_pile.size() == pebble_discard_before + 1,
+		"Clicking the Pebble Coin side face should use the normal purchase path."
+	)
+	while side_player.discard_pile.size() > pebble_discard_before:
+		side_player.discard_pile.pop_back()
+	main_ui.game_state.set_supply_count("pebble_coin", pebble_supply_before)
+	side_player.buys = side_buys
+	side_player.coins = side_coins
+	var briar_supply_before: int = main_ui.game_state.get_supply_count(GameState.CURSE_CARD_ID)
+	var briar_discard_before: int = side_player.discard_pile.size()
+	main_ui.briar_hex_side_supply.pressed.emit()
+	_check(
+		main_ui.game_state.get_supply_count(GameState.CURSE_CARD_ID) == briar_supply_before - 1
+		and side_player.discard_pile.size() == briar_discard_before + 1,
+		"Clicking the Briar Hex side face should use the normal purchase path."
+	)
+	while side_player.discard_pile.size() > briar_discard_before:
+		side_player.discard_pile.pop_back()
+	main_ui.game_state.set_supply_count(GameState.CURSE_CARD_ID, briar_supply_before)
+	side_player.buys = side_buys
+	side_player.coins = side_coins
+	main_ui._refresh_ui()
+	_check(
 		_container_holds_only_ids(_treasury_cards(), GameState.MARKET_FIXED_RESOURCE_IDS)
 		and _container_holds_only_ids(_estates_cards(), GameState.MARKET_FIXED_VICTORY_IDS)
 		and _container_holds_no_ids(
@@ -644,7 +697,16 @@ func _initialize() -> void:
 		and _top_bar().find_child("BaseKingdomPill", true, false) == null,
 		"The top bar should not show the old base kingdom or bazaar text."
 	)
-	_check(_settings_gear_button() == main_ui.home_button, "The old home button should be restyled as the settings gear.")
+	_check(
+		_settings_gear_button() == main_ui.home_button
+		and _settings_gear_button().text.is_empty()
+		and _settings_gear_button().find_child("SettingsIcon", true, false) != null,
+		"The top-right settings button should use a code-drawn icon, not a Unicode glyph."
+	)
+	_check(
+		main_ui.left_ledger.find_child("TrashPileButton", true, false) != null,
+		"Trash should live in the bottom-left ledger below Coins, Actions, and Buys."
+	)
 	_check(_draw_pile_stack() != null, "The bottom band should include a physical draw pile.")
 	_check(_discard_pile_stack() != null, "The bottom band should include a physical discard pile.")
 	_check(_players_turn_panel() != null, "The right dock should include the players + turns panel.")
@@ -760,6 +822,13 @@ func _initialize() -> void:
 			is_equal_approx(_card_art_coverage(resource_button), main_ui.HAND_CARD_ART_HEIGHT / main_ui.CARD_FACE_SIZE.y)
 			and _card_text_scrim_alpha(resource_button) <= 0.96,
 			"Card art should occupy the top band with a distinct rules body below."
+		)
+		var art_frame := _card_art(resource_button).get_parent() as Control
+		_check(
+			art_frame != null
+			and art_frame.position.x >= main_ui.CARD_ART_SIDE_INSET - 0.5
+			and art_frame.size.x <= main_ui.CARD_FACE_SIZE.x - main_ui.CARD_ART_SIDE_INSET * 2.0 + 0.5,
+			"Card art should leave a symmetric inset so the face border stays visible."
 		)
 		_check(_card_art(resource_button).texture != null, "Card faces should display card artwork.")
 		_check(
@@ -1701,12 +1770,12 @@ func _home_motion_toggle() -> CheckButton:
 	return main_ui.home_motion_toggle
 
 
-func _home_noise_slider() -> HSlider:
-	return main_ui.home_noise_slider
+func _home_noise_toggle() -> CheckButton:
+	return main_ui.home_noise_toggle
 
 
-func _table_noise_slider() -> HSlider:
-	return main_ui.table_noise_slider
+func _table_noise_toggle() -> CheckButton:
+	return main_ui.table_noise_toggle
 
 
 func _action_speed_slider() -> HSlider:

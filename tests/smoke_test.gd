@@ -352,11 +352,33 @@ func _test_supply_piles() -> void:
 		return
 	_check(
 		game_state.get_supply_count("briar_hex") == GameState.CURSE_SUPPLY_COUNT
-		and GameState.CURSE_SUPPLY_COUNT == 20,
-		"The Briar Hex pile should begin with 20 non-purchasable cards."
+		and GameState.CURSE_SUPPLY_COUNT == 20
+		and game_state.get_supply_count("pebble_coin") == GameState.PEBBLE_SIDE_SUPPLY_COUNT,
+		"The Briar Hex pile should stay at 20 and Pebble Coin should have a finite side pile."
+	)
+	var pebble: CardDefinition = game_state.card_catalog["pebble_coin"]
+	var pebble_count := game_state.get_supply_count("pebble_coin")
+	game_state.player.buys = 1
+	game_state.player.coins = 0
+	_check(game_state.buy_card(pebble), "The zero-cost Pebble Coin side pile should be buyable.")
+	_check(
+		game_state.get_supply_count("pebble_coin") == pebble_count - 1
+		and game_state.player.discard_pile.has(pebble),
+		"Buying a side-supply Pebble Coin should decrement supply and enter discard."
+	)
+	var briar: CardDefinition = game_state.card_catalog[GameState.CURSE_CARD_ID]
+	var briar_count := game_state.get_supply_count(GameState.CURSE_CARD_ID)
+	game_state.player.buys = 1
+	game_state.player.coins = 0
+	_check(game_state.buy_card(briar), "The zero-cost Briar Hex side pile should be buyable.")
+	_check(
+		game_state.get_supply_count(GameState.CURSE_CARD_ID) == briar_count - 1
+		and game_state.player.discard_pile.has(briar),
+		"Buying a side-supply Briar Hex should decrement supply and enter discard."
 	)
 	var card: CardDefinition = game_state.market[0]
 	var starting_count := game_state.get_supply_count(card.id)
+	game_state.player.buys = 1
 	game_state.player.coins = card.cost
 	_check(game_state.buy_card(card), "A non-empty supply pile should be purchasable.")
 	_check(
@@ -368,6 +390,11 @@ func _test_supply_piles() -> void:
 	game_state.player.coins = 99
 	_check(not game_state.buy_card(card), "An empty supply pile should not be purchasable.")
 	_check(game_state.get_empty_supply_pile_count() == 1, "Empty supply piles should be counted.")
+	game_state.set_supply_count("pebble_coin", 0)
+	_check(
+		game_state.get_empty_supply_pile_count() == 2,
+		"Finite side piles should participate in the authoritative empty-pile count."
+	)
 
 
 func _test_turn_cooldown() -> void:
