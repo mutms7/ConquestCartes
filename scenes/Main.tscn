@@ -161,7 +161,7 @@ theme_override_constants/separation = 0
 layout_mode = 2
 theme_override_colors/font_color = Color(0.956863, 0.870588, 0.635294, 1)
 theme_override_font_sizes/font_size = 20
-text = "CONQUEST CARTES"
+text = "AFTERLIGHT CATALOGUE"
 horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="Margin/Layout/HudPanel/HudMargin/Hud/Brand"]

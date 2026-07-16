@@ -15,11 +15,61 @@ func _initialize() -> void:
 	_check(_home_overlay().visible, "Startup should open on the home screen.")
 	_check(_home_art().texture != null, "Home screen should use uploaded card artwork.")
 	_check(
+		_home_art().anchor_left == 0.0
+		and _home_art().anchor_top == 0.0
+		and _home_art().anchor_right == 1.0
+		and _home_art().anchor_bottom == 1.0,
+		"Home art should remain a full-screen gallery backdrop."
+	)
+	_check(
+		_home_overlay().find_child("Eyebrow", true, false) != null
+		and _home_overlay().find_child("CataloguePlate", true, false) != null
+		and _home_overlay().find_child("PlateCaption", true, false) != null,
+		"The home screen should expose its catalogue eyebrow and art caption."
+	)
+	_check(
+		_home_catalogue_plate().visible,
+		"The catalogue plate should be visible on the landing composition."
+	)
+	_check(
+		_home_new_game_button().focus_mode == Control.FOCUS_ALL
+		and _home_new_game_button().get_theme_stylebox("focus") != null,
+		"Primary home actions should be reachable with a visible keyboard focus state."
+	)
+	_check(
 		not main_ui.has_node("HomeOverlay/MenuMargin/Menu/SetLabel"),
 		"Home screen should not show the old base kingdom card-count eyebrow."
 	)
 	_check(_home_continue_button().disabled, "Continue should be disabled before a game starts.")
 	_check(not _home_multiplayer_button().disabled, "Multiplayer should be available at startup.")
+	_home_multiplayer_button().pressed.emit()
+	await process_frame
+	_check(
+		not _home_catalogue_plate().visible,
+		"The catalogue plate should hide behind the Multiplayer modal."
+	)
+	_check(
+		root.get_viewport().gui_get_focus_owner() == _home_create_lobby_button(),
+		"Opening Multiplayer should move keyboard focus into its first available action."
+	)
+	_home_create_lobby_button().pressed.emit()
+	await process_frame
+	main_ui._on_home_kingdoms_pressed()
+	await process_frame
+	main_ui._hide_home_modals()
+	await process_frame
+	_check(
+		_home_lobby_panel().visible
+		and root.get_viewport().gui_get_focus_owner() == main_ui.home_lobby_edit_kingdom_button,
+		"Returning from nested Kingdoms should restore focus to Lobby's Edit Kingdom action."
+	)
+	main_ui._hide_home_modals()
+	await process_frame
+	_check(
+		not _home_lobby_panel().visible
+		and root.get_viewport().gui_get_focus_owner() == _home_multiplayer_button(),
+		"Closing Lobby after nested Kingdoms should restore the original Multiplayer opener."
+	)
 	_home_multiplayer_button().pressed.emit()
 	await process_frame
 	_check(
@@ -30,6 +80,15 @@ func _initialize() -> void:
 		and not _home_join_online_button().disabled,
 		"Multiplayer should open the local and online create/join choices."
 	)
+	var multiplayer_back_button := _home_multiplayer_panel().find_child("BackButton", true, false) as Button
+	multiplayer_back_button.pressed.emit()
+	await process_frame
+	_check(
+		root.get_viewport().gui_get_focus_owner() == _home_multiplayer_button(),
+		"Closing Multiplayer should restore focus to its landing-menu opener."
+	)
+	_home_multiplayer_button().pressed.emit()
+	await process_frame
 	_check(
 		main_ui._normalize_online_lobby_code("a-b 1 cde") == "ABCD",
 		"Online lobby codes should normalize to four letters."
@@ -165,7 +224,24 @@ func _initialize() -> void:
 	)
 	_home_settings_button().pressed.emit()
 	await process_frame
-	_check(_home_settings_panel().visible, "Settings should open from the home menu.")
+	_check(
+		_home_settings_panel().visible and not _home_catalogue_plate().visible,
+		"Settings should open with the catalogue plate hidden behind the modal."
+	)
+	_check(
+		root.get_viewport().gui_get_focus_owner() == _home_audio_toggle(),
+		"Opening Settings should move keyboard focus into its first interactive control."
+	)
+	var settings_opener := _home_settings_button()
+	var settings_back_button := _home_settings_panel().find_child("BackButton", true, false) as Button
+	settings_back_button.pressed.emit()
+	await process_frame
+	_check(
+		root.get_viewport().gui_get_focus_owner() == settings_opener,
+		"Closing Settings should restore focus to its landing-menu opener."
+	)
+	settings_opener.pressed.emit()
+	await process_frame
 	_check(_home_audio_toggle().button_pressed, "Audio should default to enabled.")
 	# The ambience track loads on a background thread; force it to finish before
 	# asserting on the stream so the test does not race the loader.
@@ -177,8 +253,8 @@ func _initialize() -> void:
 		"Background medieval music should load its stream."
 	)
 	_check(
-		_music_uses_dominion_ambience_mp3(),
-		"Background music should use the supplied Dominion ambience MP3."
+		_music_uses_afterlight_ambience_mp3(),
+		"Background music should use the renamed Afterlight ambience MP3."
 	)
 	_check(
 		main_ui.background_music_start_requested,
@@ -339,6 +415,15 @@ func _initialize() -> void:
 		"Kingdoms should open as its own home tab."
 	)
 	_check(
+		root.get_viewport().gui_get_focus_owner()
+			== _kingdom_tabs().get_child(0).find_child("KingdomTab", true, false),
+		"Opening Kingdoms should move keyboard focus into its first kingdom tab."
+	)
+	_check(
+		not _home_catalogue_plate().visible,
+		"Kingdoms should keep the catalogue plate hidden behind the modal."
+	)
+	_check(
 		main_ui.menu_backdrop != null
 		and main_ui.menu_backdrop.visible
 		and not main_ui.home_menu_root.visible,
@@ -365,6 +450,14 @@ func _initialize() -> void:
 	_check(
 		not main_ui.menu_backdrop.visible and main_ui.home_menu_root.visible,
 		"Closing the last menu tab should drop the backdrop and restore the main menu."
+	)
+	_check(
+		_home_catalogue_plate().visible,
+		"Closing a home modal should restore the catalogue plate."
+	)
+	_check(
+		root.get_viewport().gui_get_focus_owner() == _home_kingdoms_button(),
+		"Closing Kingdoms should restore focus to its landing-menu opener."
 	)
 	_home_kingdoms_button().pressed.emit()
 	await process_frame
@@ -1528,6 +1621,10 @@ func _home_art() -> TextureRect:
 	return _home_overlay().find_child("HomeArt", true, false) as TextureRect
 
 
+func _home_catalogue_plate() -> PanelContainer:
+	return _home_overlay().find_child("CataloguePlate", true, false) as PanelContainer
+
+
 func _home_new_game_button() -> Button:
 	return _home_overlay().find_child("NewGameButton", true, false) as Button
 
@@ -2059,9 +2156,9 @@ func _active_ui_uses_original_assets() -> bool:
 	)
 
 
-func _music_uses_dominion_ambience_mp3() -> bool:
+func _music_uses_afterlight_ambience_mp3() -> bool:
 	return (
-		main_ui.BACKGROUND_MUSIC_PATH == "res://assets/audio/dominion_board_game_ambience.mp3"
+		main_ui.BACKGROUND_MUSIC_PATH == "res://assets/audio/afterlight_catalogue_ambience.mp3"
 		and main_ui.background_music_player.stream is AudioStreamMP3
 	)
 

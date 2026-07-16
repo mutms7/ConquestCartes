@@ -54,7 +54,7 @@ const PREVIEW_SIZE := Vector2(252, 340)
 const PREVIEW_ART_HEIGHT := 184.0
 const PREVIEW_EDGE_MARGIN := 16.0
 const SHORT_RULE_BREAK_LIMIT := 72
-const HOME_ART_PATH := "res://assets/cards/sunspire_monument.png"
+const HOME_ART_PATH := "res://assets/ui/afterlight_catalogue_hero.png"
 const CARD_RULE_SIDE_MARGIN := 9
 const CARD_RULE_TOP_MARGIN := 1
 const CARD_RULE_BOTTOM_MARGIN := 7
@@ -148,7 +148,7 @@ const SOUND_PATHS := {
 	"discard": "res://assets/audio/ui/discard.ogg",
 	"game_end": "res://assets/audio/ui/game_end.ogg",
 }
-const BACKGROUND_MUSIC_PATH := "res://assets/audio/dominion_board_game_ambience.mp3"
+const BACKGROUND_MUSIC_PATH := "res://assets/audio/afterlight_catalogue_ambience.mp3"
 # Offset applied on top of the slider curve. -3 dB puts the loudest music setting
 # at roughly what the old 75%-ish slider used to reach, and shifts the whole
 # range down so the quiet end sits genuinely soft in the background.
@@ -215,9 +215,19 @@ var pending_cleanup_ghosts: Array[Control] = []
 var home_overlay: Control
 var menu_backdrop: Control
 var home_menu_root: Control
+var home_art: TextureRect
+var home_ambient_glow: TextureRect
+var home_catalogue_plate: PanelContainer
+var home_motion_tween: Tween
+var home_reveal_tween: Tween
 var home_new_game_button: Button
 var home_continue_button: Button
 var home_resign_button: Button
+var home_multiplayer_button: Button
+var home_kingdoms_button: Button
+var home_settings_button: Button
+var home_modal_opener: Control
+var home_nested_modal_opener: Control
 var home_create_lobby_button: Button
 var home_join_lobby_button: Button
 var home_create_online_button: Button
@@ -2278,7 +2288,7 @@ func _build_top_bar() -> void:
 
 	var title := Label.new()
 	title.name = "Title"
-	title.text = "CONQUEST CARTES"
+	title.text = "AFTERLIGHT CATALOGUE"
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
 	title.add_theme_font_size_override("font_size", 18)
@@ -2778,8 +2788,9 @@ func _build_home_screen() -> void:
 	add_child(home_overlay)
 	home_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	# "The Sunspire" title screen: monument art bleeds in from the right while the
-	# menu options sit on the left over a dark left-to-clear scrim (handoff 1a).
+	# The catalogue plate is a full-bleed gallery image. The menu and its scrim
+	# sit above it, so the illustration remains the first thing the eye finds at
+	# every aspect ratio.
 	var art := TextureRect.new()
 	art.name = "HomeArt"
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2787,12 +2798,8 @@ func _build_home_screen() -> void:
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	home_overlay.add_child(art)
-	# Bias the cover crop towards the right two thirds so the monument frames the
-	# right side and the menu column reads against the darker left.
-	art.anchor_left = 0.18
-	art.anchor_top = 0.0
-	art.anchor_right = 1.0
-	art.anchor_bottom = 1.0
+	art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	home_art = art
 
 	var scrim := TextureRect.new()
 	scrim.name = "HomeScrim"
@@ -2836,20 +2843,99 @@ func _build_home_screen() -> void:
 	home_overlay.add_child(vignette)
 	vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
+	var ambient_glow := TextureRect.new()
+	ambient_glow.name = "HomeAmbientGlow"
+	ambient_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ambient_glow.texture = _make_radial_gradient_texture(
+		PackedFloat32Array([0.0, 0.48, 1.0]),
+		PackedColorArray([
+			Color(0.92, 0.68, 0.32, 0.24),
+			Color(0.68, 0.43, 0.18, 0.06),
+			Color(0.18, 0.08, 0.03, 0.0)
+		]),
+		Vector2(0.74, 0.46),
+		Vector2(1.08, 1.0)
+	)
+	ambient_glow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ambient_glow.stretch_mode = TextureRect.STRETCH_SCALE
+	ambient_glow.modulate = Color(1, 1, 1, 0.16)
+	home_overlay.add_child(ambient_glow)
+	ambient_glow.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	home_ambient_glow = ambient_glow
+
 	home_noise_overlay = _create_noise_rect("HomeNoise", home_noise_amount)
 	home_overlay.add_child(home_noise_overlay)
 	home_noise_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	home_catalogue_plate = PanelContainer.new()
+	home_catalogue_plate.name = "CataloguePlate"
+	home_catalogue_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	home_catalogue_plate.z_index = 3
+	home_catalogue_plate.add_theme_stylebox_override(
+		"panel",
+		_make_flat_card_style(
+			Color(0.055, 0.036, 0.024, 0.72),
+			Color(0.86, 0.70, 0.42, 0.36),
+			1
+		)
+	)
+	home_overlay.add_child(home_catalogue_plate)
+	home_catalogue_plate.anchor_left = 0.69
+	home_catalogue_plate.anchor_top = 0.76
+	home_catalogue_plate.anchor_right = 0.95
+	home_catalogue_plate.anchor_bottom = 0.94
+	home_catalogue_plate.offset_left = 0
+	home_catalogue_plate.offset_top = 0
+	home_catalogue_plate.offset_right = 0
+	home_catalogue_plate.offset_bottom = 0
+	var plate_margin := MarginContainer.new()
+	plate_margin.name = "Margin"
+	plate_margin.add_theme_constant_override("margin_left", 16)
+	plate_margin.add_theme_constant_override("margin_top", 12)
+	plate_margin.add_theme_constant_override("margin_right", 16)
+	plate_margin.add_theme_constant_override("margin_bottom", 11)
+	home_catalogue_plate.add_child(plate_margin)
+	var plate_layout := VBoxContainer.new()
+	plate_layout.name = "Layout"
+	plate_layout.add_theme_constant_override("separation", 3)
+	plate_margin.add_child(plate_layout)
+	var plate_eyebrow := Label.new()
+	plate_eyebrow.name = "PlateEyebrow"
+	plate_eyebrow.text = "FIELD NOTE  /  PLATE 01"
+	plate_eyebrow.add_theme_color_override("font_color", Color(0.86, 0.70, 0.42, 0.74))
+	plate_eyebrow.add_theme_font_size_override("font_size", 9)
+	if body_bold_font != null:
+		plate_eyebrow.add_theme_font_override("font", body_bold_font)
+	plate_layout.add_child(plate_eyebrow)
+	var plate_title := Label.new()
+	plate_title.name = "PlateTitle"
+	plate_title.text = "THE AFTERLIGHT CATALOGUE"
+	plate_title.add_theme_color_override("font_color", Color(0.96, 0.89, 0.72, 0.9))
+	plate_title.add_theme_font_size_override("font_size", 13)
+	if title_font != null:
+		plate_title.add_theme_font_override("font", title_font)
+	plate_layout.add_child(plate_title)
+	var plate_caption := Label.new()
+	plate_caption.name = "PlateCaption"
+	plate_caption.text = "Cards, relics, and the hands that shape them."
+	plate_caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	plate_caption.add_theme_color_override("font_color", Color(0.81, 0.75, 0.64, 0.68))
+	plate_caption.add_theme_font_size_override("font_size", 10)
+	if body_font != null:
+		plate_caption.add_theme_font_override("font", body_font)
+	plate_layout.add_child(plate_caption)
 
 	var menu_margin := MarginContainer.new()
 	menu_margin.name = "MenuMargin"
 	menu_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	menu_margin.add_theme_constant_override("margin_left", 72)
-	menu_margin.add_theme_constant_override("margin_top", 28)
+	menu_margin.add_theme_constant_override("margin_top", 42)
 	menu_margin.add_theme_constant_override("margin_right", 40)
-	menu_margin.add_theme_constant_override("margin_bottom", 28)
+	menu_margin.add_theme_constant_override("margin_bottom", 38)
 	home_overlay.add_child(menu_margin)
 	menu_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	home_menu_root = menu_margin
+	home_menu_root.z_index = 4
 
 	var menu_layout := VBoxContainer.new()
 	menu_layout.name = "Menu"
@@ -2857,20 +2943,31 @@ func _build_home_screen() -> void:
 	menu_layout.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	menu_layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	menu_layout.alignment = BoxContainer.ALIGNMENT_CENTER
-	menu_layout.add_theme_constant_override("separation", 6)
+	menu_layout.add_theme_constant_override("separation", 10)
 	menu_margin.add_child(menu_layout)
+
+	var eyebrow := Label.new()
+	eyebrow.name = "Eyebrow"
+	eyebrow.text = "AFTERLIGHT CATALOGUE  /  EDITION 01"
+	eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	eyebrow.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	eyebrow.add_theme_color_override("font_color", Color(0.86, 0.70, 0.42, 0.76))
+	eyebrow.add_theme_font_size_override("font_size", 11)
+	if body_bold_font != null:
+		eyebrow.add_theme_font_override("font", body_bold_font)
+	menu_layout.add_child(eyebrow)
 
 	var title := Label.new()
 	title.name = "Title"
-	title.text = "CONQUEST\nCARTES"
+	title.text = "THE AFTERLIGHT\nCATALOGUE"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	title.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	title.add_theme_color_override("font_color", Color("#edca7a"))
+	title.add_theme_color_override("font_color", Color("#f0d28d"))
 	title.add_theme_color_override("font_shadow_color", Color(0.835, 0.667, 0.314, 0.22))
 	title.add_theme_constant_override("shadow_offset_x", 0)
 	title.add_theme_constant_override("shadow_offset_y", 2)
-	title.add_theme_constant_override("line_spacing", -6)
-	title.add_theme_font_size_override("font_size", 66)
+	title.add_theme_constant_override("line_spacing", -5)
+	title.add_theme_font_size_override("font_size", 58)
 	if title_font != null:
 		title.add_theme_font_override("font", title_font)
 	menu_layout.add_child(title)
@@ -2881,30 +2978,38 @@ func _build_home_screen() -> void:
 
 	var subtitle := Label.new()
 	subtitle.name = "Subtitle"
-	subtitle.text = (
-		"A game of kingdoms, coin, and quiet conquest. Build your deck, "
-		+ "raid the market, and out-scheme every rival at the table."
-	)
+	subtitle.text = "A deck-building archive of cards, relics, and quiet decisions."
 	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	subtitle.custom_minimum_size = Vector2(430, 0)
+	subtitle.custom_minimum_size = Vector2(424, 0)
 	subtitle.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	subtitle.add_theme_color_override("font_color", Color(0.905, 0.847, 0.714, 0.82))
+	subtitle.add_theme_color_override("font_color", Color(0.86, 0.80, 0.68, 0.74))
 	subtitle.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.55))
 	subtitle.add_theme_constant_override("shadow_offset_y", 1)
-	subtitle.add_theme_font_size_override("font_size", 16)
+	subtitle.add_theme_font_size_override("font_size", 15)
 	if body_font != null:
 		subtitle.add_theme_font_override("font", body_font)
 	menu_layout.add_child(subtitle)
 
+	var metadata := Label.new()
+	metadata.name = "Metadata"
+	metadata.text = "SOLO  /  LOCAL  /  ONLINE      ARCHIVE 01"
+	metadata.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	metadata.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	metadata.add_theme_color_override("font_color", Color(0.76, 0.69, 0.55, 0.55))
+	metadata.add_theme_font_size_override("font_size", 10)
+	if body_font != null:
+		metadata.add_theme_font_override("font", body_font)
+	menu_layout.add_child(metadata)
+
 	var button_gap := Control.new()
-	button_gap.custom_minimum_size = Vector2(0, 16)
+	button_gap.custom_minimum_size = Vector2(0, 24)
 	menu_layout.add_child(button_gap)
 
 	var button_stack := VBoxContainer.new()
 	button_stack.name = "Buttons"
 	button_stack.custom_minimum_size = Vector2(404, 0)
 	button_stack.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	button_stack.add_theme_constant_override("separation", 11)
+	button_stack.add_theme_constant_override("separation", 10)
 	menu_layout.add_child(button_stack)
 
 	home_new_game_button = _create_home_primary_button("NEW GAME")
@@ -2936,23 +3041,23 @@ func _build_home_screen() -> void:
 	button_row.add_theme_constant_override("separation", 11)
 	button_stack.add_child(button_row)
 
-	var multiplayer_button := _create_home_ghost_button("MULTIPLAYER")
-	multiplayer_button.name = "MultiplayerButton"
-	multiplayer_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	multiplayer_button.pressed.connect(_on_home_multiplayer_pressed)
-	button_row.add_child(multiplayer_button)
+	home_multiplayer_button = _create_home_ghost_button("MULTIPLAYER")
+	home_multiplayer_button.name = "MultiplayerButton"
+	home_multiplayer_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	home_multiplayer_button.pressed.connect(_on_home_multiplayer_pressed)
+	button_row.add_child(home_multiplayer_button)
 
-	var kingdoms_button := _create_home_ghost_button("KINGDOMS")
-	kingdoms_button.name = "KingdomsButton"
-	kingdoms_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	kingdoms_button.pressed.connect(_on_home_kingdoms_pressed)
-	button_row.add_child(kingdoms_button)
+	home_kingdoms_button = _create_home_ghost_button("KINGDOMS")
+	home_kingdoms_button.name = "KingdomsButton"
+	home_kingdoms_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	home_kingdoms_button.pressed.connect(_on_home_kingdoms_pressed)
+	button_row.add_child(home_kingdoms_button)
 
-	var settings_button := _create_home_ghost_button("SETTINGS")
-	settings_button.name = "SettingsButton"
-	settings_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	settings_button.pressed.connect(_on_home_settings_pressed)
-	button_row.add_child(settings_button)
+	home_settings_button = _create_home_ghost_button("SETTINGS")
+	home_settings_button.name = "SettingsButton"
+	home_settings_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	home_settings_button.pressed.connect(_on_home_settings_pressed)
+	button_row.add_child(home_settings_button)
 
 	home_lobby_status_label = Label.new()
 	home_lobby_status_label.name = "LobbyStatus"
@@ -2969,11 +3074,11 @@ func _build_home_screen() -> void:
 
 	var footer := Label.new()
 	footer.name = "HomeFooter"
-	footer.text = "v0.4 · PROTOTYPE      The Bazaar opens to travelers soon."
 	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	footer.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	footer.add_theme_color_override("font_color", Color(0.909, 0.784, 0.475, 0.5))
-	footer.add_theme_font_size_override("font_size", 13)
+	footer.text = "v0.4  /  PROTOTYPE      The Bazaar opens to travelers soon."
+	footer.add_theme_color_override("font_color", Color(0.78, 0.69, 0.51, 0.46))
+	footer.add_theme_font_size_override("font_size", 11)
 	if body_font != null:
 		footer.add_theme_font_override("font", body_font)
 	menu_layout.add_child(footer)
@@ -4233,6 +4338,7 @@ func _create_home_primary_button(label: String) -> Button:
 	var button := Button.new()
 	button.text = label
 	button.custom_minimum_size = Vector2(330, 50)
+	button.focus_mode = Control.FOCUS_ALL
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	button.add_theme_color_override("font_color", Color("#3a2410"))
 	button.add_theme_color_override("font_hover_color", Color("#2a1908"))
@@ -4242,6 +4348,7 @@ func _create_home_primary_button(label: String) -> Button:
 		button.add_theme_font_override("font", title_font)
 	button.add_theme_stylebox_override("normal", _make_end_turn_style(false))
 	button.add_theme_stylebox_override("hover", _make_end_turn_style(true))
+	button.add_theme_stylebox_override("focus", _make_end_turn_style(true))
 	button.add_theme_stylebox_override("pressed", _make_end_turn_style(false))
 	button.add_theme_stylebox_override("disabled", _make_end_turn_style(false, true))
 	return button
@@ -4251,6 +4358,7 @@ func _create_home_ghost_button(label: String) -> Button:
 	var button := Button.new()
 	button.text = label
 	button.custom_minimum_size = Vector2(0, 44)
+	button.focus_mode = Control.FOCUS_ALL
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	button.add_theme_color_override("font_color", COLOR_PARCHMENT)
 	button.add_theme_color_override("font_hover_color", Color.WHITE)
@@ -4265,6 +4373,10 @@ func _create_home_ghost_button(label: String) -> Button:
 	button.add_theme_stylebox_override(
 		"hover",
 		_make_pill_style(Color(0.22, 0.16, 0.1, 0.7), Color(0.835, 0.667, 0.314, 0.7), 11)
+	)
+	button.add_theme_stylebox_override(
+		"focus",
+		_make_pill_style(Color(0.25, 0.18, 0.1, 0.78), Color(0.96, 0.79, 0.42, 0.92), 11)
 	)
 	button.add_theme_stylebox_override(
 		"pressed",
@@ -4373,13 +4485,73 @@ func _show_home_screen(_from_game: bool) -> void:
 		_set_menu_overlay_active(false)
 	if home_overlay != null:
 		home_overlay.show()
+	_start_home_motion()
 
 
 func _hide_home_screen() -> void:
+	_stop_home_motion()
 	if home_overlay != null:
 		home_overlay.hide()
 	# A relic offer may have been waiting behind the menu.
 	_refresh_relic_overlay()
+
+
+func _stop_home_motion() -> void:
+	if home_motion_tween != null and home_motion_tween.is_valid():
+		home_motion_tween.kill()
+	if home_reveal_tween != null and home_reveal_tween.is_valid():
+		home_reveal_tween.kill()
+	home_motion_tween = null
+	home_reveal_tween = null
+	# Always leave the home screen in a deterministic state when it is hidden or
+	# motion is switched off. This is also safe before the first viewport frame
+	# in headless and web builds.
+	if home_art != null:
+		home_art.modulate = Color.WHITE
+	if home_catalogue_plate != null:
+		home_catalogue_plate.modulate = Color.WHITE
+	if home_menu_root != null:
+		home_menu_root.modulate = Color.WHITE
+	if home_ambient_glow != null:
+		home_ambient_glow.modulate = Color(1, 1, 1, 0.16)
+
+
+func _start_home_motion() -> void:
+	_stop_home_motion()
+	if not motion_enabled or home_overlay == null or not home_overlay.visible:
+		return
+	# The reveal is intentionally a single, quiet entrance. The ambient pulse is
+	# independent so disabling motion can kill both tweens without dangling work.
+	if home_art != null:
+		home_art.modulate = Color(1, 1, 1, 0.82)
+	if home_menu_root != null:
+		home_menu_root.modulate = Color(1, 1, 1, 0.0)
+	if home_catalogue_plate != null:
+		home_catalogue_plate.modulate = Color(1, 1, 1, 0.0)
+	if home_ambient_glow != null:
+		home_ambient_glow.modulate = Color(1, 1, 1, 0.0)
+
+	home_reveal_tween = create_tween()
+	home_reveal_tween.set_parallel(true)
+	home_reveal_tween.set_trans(Tween.TRANS_QUAD)
+	home_reveal_tween.set_ease(Tween.EASE_OUT)
+	if home_art != null:
+		home_reveal_tween.tween_property(home_art, "modulate:a", 1.0, 0.72)
+	if home_menu_root != null:
+		home_reveal_tween.tween_property(home_menu_root, "modulate:a", 1.0, 0.58).set_delay(0.12)
+	if home_catalogue_plate != null:
+		home_reveal_tween.tween_property(home_catalogue_plate, "modulate:a", 1.0, 0.48).set_delay(0.24)
+	if home_ambient_glow != null:
+		home_reveal_tween.tween_property(home_ambient_glow, "modulate:a", 0.16, 0.9).set_delay(0.16)
+
+	if home_ambient_glow == null:
+		return
+	home_motion_tween = create_tween()
+	home_motion_tween.set_loops()
+	home_motion_tween.set_trans(Tween.TRANS_SINE)
+	home_motion_tween.set_ease(Tween.EASE_IN_OUT)
+	home_motion_tween.tween_property(home_ambient_glow, "modulate:a", 0.21, 3.8)
+	home_motion_tween.tween_property(home_ambient_glow, "modulate:a", 0.12, 4.2)
 
 
 func _refresh_home_controls() -> void:
@@ -4487,13 +4659,121 @@ func _show_home_tab(tab_name: String) -> void:
 		_refresh_kingdom_tab()
 	elif tab_name == "lobby":
 		_refresh_lobby_panel()
-		if (
-			lobby_pending_mode == "join_online"
-			and not network_enabled
-			and home_lobby_address_input != null
-		):
-			# Joining is all about the code: put the caret right in the box.
-			home_lobby_address_input.grab_focus()
+	_focus_home_panel(tab_name)
+
+
+func _remember_home_modal_opener(opener: Control) -> void:
+	if opener != null and is_instance_valid(opener):
+		home_modal_opener = opener
+
+
+func _remember_nested_home_opener(opener: Control) -> void:
+	if opener != null and is_instance_valid(opener):
+		home_nested_modal_opener = opener
+
+
+func _is_home_focusable(control: Control) -> bool:
+	if (
+		control == null
+		or not is_instance_valid(control)
+		or not control.is_inside_tree()
+		or not control.is_visible_in_tree()
+		or control.focus_mode == Control.FOCUS_NONE
+	):
+		return false
+	if control is BaseButton and (control as BaseButton).disabled:
+		return false
+	return true
+
+
+func _first_home_focusable(candidates: Array) -> Control:
+	for candidate in candidates:
+		if candidate is Control and _is_home_focusable(candidate as Control):
+			return candidate as Control
+	return null
+
+
+func _focus_home_control_deferred(control: Control) -> void:
+	if _is_home_focusable(control):
+		control.grab_focus()
+
+
+func _focus_home_panel(tab_name: String) -> void:
+	var target: Control
+	match tab_name:
+		"settings":
+			if home_settings_panel != null:
+				target = home_settings_panel.find_child("AudioToggle", true, false) as Control
+				if not _is_home_focusable(target):
+					target = home_settings_panel.find_child("BackButton", true, false) as Control
+		"kingdoms":
+			if home_kingdom_tab_list != null:
+				for section in home_kingdom_tab_list.get_children():
+					if section is Control:
+						target = (section as Control).find_child("KingdomTab", true, false) as Control
+						if _is_home_focusable(target):
+							break
+				if not _is_home_focusable(target) and home_kingdoms_panel != null:
+					target = _first_home_focusable(
+						home_kingdoms_panel.find_children("*", "Button", true, false)
+					)
+		"multiplayer":
+			target = _first_home_focusable([
+				home_create_lobby_button,
+				home_join_lobby_button,
+				home_create_online_button,
+				home_join_online_button,
+			])
+			if not _is_home_focusable(target) and home_multiplayer_panel != null:
+				target = home_multiplayer_panel.find_child("BackButton", true, false) as Control
+		"lobby":
+			if (
+				home_lobby_address_input != null
+				and home_lobby_address_input.editable
+				and (
+					lobby_pending_mode == "join"
+					or lobby_pending_mode == "join_online"
+				)
+			):
+				# Joining is all about the address/code: put the caret in the field.
+				target = home_lobby_address_input
+			elif lobby_name_input != null:
+				target = lobby_name_input
+			if not _is_home_focusable(target):
+				target = home_lobby_start_button
+	if _is_home_focusable(target):
+		# Deferring one frame lets the panel visibility and focus scope settle,
+		# while still keeping keyboard navigation inside the newly shown modal.
+		call_deferred("_focus_home_control_deferred", target)
+
+
+func _restore_home_focus() -> void:
+	var target := home_modal_opener
+	if not _is_home_focusable(target):
+		target = _first_home_focusable([
+			home_new_game_button,
+			home_continue_button,
+			home_resign_button,
+			home_multiplayer_button,
+			home_kingdoms_button,
+			home_settings_button,
+		])
+	home_modal_opener = null
+	if _is_home_focusable(target):
+		call_deferred("_focus_home_control_deferred", target)
+
+
+func _restore_nested_home_focus() -> void:
+	var target := home_nested_modal_opener
+	home_nested_modal_opener = null
+	if not _is_home_focusable(target):
+		target = _first_home_focusable([
+			home_lobby_edit_kingdom_button,
+			lobby_name_input,
+			home_lobby_start_button,
+		])
+	if _is_home_focusable(target):
+		call_deferred("_focus_home_control_deferred", target)
 
 
 func _refresh_kingdom_tab() -> void:
@@ -8565,6 +8845,7 @@ func _resign_game() -> void:
 
 func _on_home_multiplayer_pressed() -> void:
 	_play_ui_sound("button_click")
+	_remember_home_modal_opener(home_multiplayer_button)
 	_show_home_tab("multiplayer")
 
 
@@ -8602,11 +8883,19 @@ func _on_home_join_online_pressed() -> void:
 
 func _on_home_settings_pressed() -> void:
 	_play_ui_sound("button_click")
+	_remember_home_modal_opener(home_settings_button)
 	_show_home_tab("settings")
 
 
 func _on_home_kingdoms_pressed() -> void:
 	_play_ui_sound("button_click")
+	var opened_from_lobby := home_lobby_panel != null and home_lobby_panel.visible
+	if opened_from_lobby:
+		# Kingdoms is nested inside Lobby. Keep the original landing opener intact
+		# so closing Lobby can still return focus to Multiplayer.
+		_remember_nested_home_opener(home_lobby_edit_kingdom_button)
+	else:
+		_remember_home_modal_opener(home_kingdoms_button)
 	# Remember whether the kingdom browser was opened from the lobby so
 	# closing it returns there instead of dumping the player to the main menu.
 	kingdom_return_tab = (
@@ -8634,9 +8923,11 @@ func _close_kingdom_browser() -> void:
 		var return_tab := kingdom_return_tab
 		kingdom_return_tab = ""
 		_show_home_tab(return_tab)
+		_restore_nested_home_focus()
 		return
 	if not _home_modal_is_visible():
 		_set_menu_overlay_active(false)
+		_restore_home_focus()
 
 
 func _set_menu_overlay_active(active: bool) -> void:
@@ -8644,6 +8935,11 @@ func _set_menu_overlay_active(active: bool) -> void:
 		menu_backdrop.visible = active
 	if home_menu_root != null:
 		home_menu_root.visible = not active
+	if home_catalogue_plate != null:
+		# The catalogue plate belongs to the landing composition only. Keep it
+		# out of the way of the modal panels instead of letting it show through
+		# their transparent corners.
+		home_catalogue_plate.visible = not active
 
 
 func _input(event: InputEvent) -> void:
@@ -8677,6 +8973,7 @@ func _hide_home_modals() -> void:
 		var return_tab := kingdom_return_tab
 		kingdom_return_tab = ""
 		_show_home_tab(return_tab)
+		_restore_nested_home_focus()
 		return
 	kingdom_return_tab = ""
 	if home_settings_panel != null:
@@ -8688,6 +8985,7 @@ func _hide_home_modals() -> void:
 	if home_lobby_panel != null:
 		home_lobby_panel.hide()
 	_set_menu_overlay_active(false)
+	_restore_home_focus()
 
 
 func _is_audio_unlock_event(event: InputEvent) -> bool:
@@ -8726,6 +9024,10 @@ func _on_sfx_volume_changed(value: float) -> void:
 
 func _on_home_motion_toggled(enabled: bool) -> void:
 	motion_enabled = enabled
+	if enabled:
+		_start_home_motion()
+	else:
+		_stop_home_motion()
 	_play_ui_sound("button_click")
 
 
