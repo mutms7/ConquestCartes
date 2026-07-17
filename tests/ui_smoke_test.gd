@@ -1704,6 +1704,21 @@ func _initialize() -> void:
 		and main_ui.game_state.player.player_name == "Player 2",
 		"Once the snapshot lands, the reassigned client should view its own hand."
 	)
+	var status_row := _player_row(2)
+	var status_name := status_row.find_child("Name", true, false) as Label if status_row != null else null
+	_check(
+		status_row != null
+		and status_row.find_child("TurnBadge", true, false) != null
+		and status_row.find_child("VPBadge", true, false) != null
+		and status_name != null
+		and status_name.clip_text
+		and main_ui.right_ledger.custom_minimum_size.x >= main_ui.RIGHT_DOCK_WIDTH,
+		"Player rows should keep compact turn/VP badges inside the fixed right dock."
+	)
+	_check(
+		main_ui.player_vp_cache.size() == main_ui.game_state.players.size(),
+		"Player VP values should be cached for cooldown-only status refreshes."
+	)
 	_check(
 		_active_ui_uses_original_assets(),
 		"Active UI code should use original assets and no Kenney fantasy-border paths."

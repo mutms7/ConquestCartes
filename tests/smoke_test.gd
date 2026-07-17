@@ -1844,22 +1844,16 @@ func _test_relic_tempo_cards() -> void:
 
 
 func _test_new_relic_boons() -> void:
-	# Sunflower Metronome doubles the first hand-played action each turn.
+	# Sunflower Metronome grants one action at every turn start.
 	var metronome := _empty_game()
 	metronome.player.relics = ["sunflower_metronome"] as Array[String]
-	metronome.player.hand.append(metronome.card_catalog["forge_hall"])
-	for _index in range(7):
-		metronome.player.draw_pile.append(metronome.card_catalog["pebble_coin"])
+	metronome.reset_turn_resources()
 	_check(
-		metronome.play_card(metronome.card_catalog["forge_hall"]),
-		"A metronome action should play."
-	)
-	_check(
-		metronome.player.hand.size() == 6,
-		"Sunflower Metronome should double the first action's draws."
+		metronome.player.actions == 2,
+		"Sunflower Metronome should grant an action at turn start."
 	)
 
-	# Thumbed Ledger rebates a coin on the first buy.
+	# Thumbed Ledger grants two coins on the first buy.
 	var ledger := _create_game_state()
 	if ledger == null:
 		return
@@ -1867,7 +1861,31 @@ func _test_new_relic_boons() -> void:
 	var bought: CardDefinition = ledger.market[0]
 	ledger.player.coins = ledger.get_effective_cost(bought)
 	_check(ledger.buy_card(bought), "A ledger buy should work.")
-	_check(ledger.player.coins == 1, "Thumbed Ledger should rebate 1 coin on the first buy.")
+	_check(ledger.player.coins == 2, "Thumbed Ledger should grant 2 coins on the first buy.")
+
+	# Market Writ grants an additional buy at every turn start.
+	var writ := _empty_game()
+	writ.player.relics = ["market_writ"] as Array[String]
+	writ.reset_turn_resources()
+	_check(writ.player.buys == 2, "Market Writ should grant a buy at turn start.")
+
+	# Culling Reliquary drafts now, then resolves at the next turn start.
+	var culling := _empty_game()
+	culling.player.pending_relic_offer = ["culling_reliquary"] as Array[String]
+	_check(culling.choose_relic(culling.player, "culling_reliquary"), "Culling Reliquary should be claimable.")
+	culling.player.draw_pile.assign([
+		culling.card_catalog["pebble_coin"],
+		culling.card_catalog["homestead"],
+		culling.card_catalog["pebble_coin"],
+		culling.card_catalog["homestead"],
+		culling.card_catalog["pebble_coin"],
+		culling.card_catalog["homestead"],
+	])
+	culling.reset_turn_resources()
+	_check(culling.has_pending_choice(), "Culling Reliquary should ask for a next-turn trash choice.")
+	_check(culling.player.hand.size() == 6, "Culling Reliquary should draw the full deck.")
+	_resolve_choice_by_ids(culling, ["pebble_coin", "homestead"])
+	_check(culling.player.trash_pile.size() == 2, "Culling Reliquary should trash the selected cards.")
 
 	# Ashen Urn pays a coin per trashed card.
 	var urn := _empty_game()

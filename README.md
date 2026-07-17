@@ -1,12 +1,12 @@
-# The Afterlight Catalogue
+# Conquest Cartes
 
 An original fantasy deck-builder, built in Godot 4.7. You start with a thin deck of coins and homesteads, buy better cards from a rotating market, and race to turn the final contents of your deck into victory points. It sits in the classic deck-building tradition while adding its own cards, painted art, relics, and time-based combat.
 
 🌐 **Play it online:** [conquest-cartes.vercel.app](https://conquest-cartes.vercel.app/)
 
-![The Afterlight Catalogue home screen, with its catalogue artwork](docs/screenshots/home.png)
+![Conquest Cartes home screen, with its catalogue artwork](docs/screenshots/home.png)
 
-![The Afterlight Catalogue game in progress: the market of action cards, your treasury and estates, and your opening hand](docs/screenshots/table.png)
+![Conquest Cartes game in progress: the market of action cards, your treasury and estates, and your opening hand](docs/screenshots/table.png)
 
 ## What's in the game
 

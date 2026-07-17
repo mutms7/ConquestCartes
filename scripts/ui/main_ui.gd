@@ -210,6 +210,7 @@ var hand_column: VBoxContainer
 var top_bar: PanelContainer
 var player_status_list: VBoxContainer
 var player_status_rows: Dictionary = {}
+var player_vp_cache: Dictionary = {}
 var discard_pile_art: TextureRect
 var discard_pile_scrim: ColorRect
 var bazaar_button: Button
@@ -353,6 +354,7 @@ var lobby_name_input: LineEdit
 	$Margin/Layout/HudPanel/HudMargin/Hud/ActionStat/ValueRow/Value
 )
 @onready var buy_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/BuyStat/ValueRow/Value
+@onready var vp_label: Label = $Margin/Layout/HudPanel/HudMargin/Hud/VPStat/ValueRow/Value
 @onready var home_button: Button = $Margin/Layout/HudPanel/HudMargin/Hud/HomeButton
 @onready var end_turn_button: Button = $Margin/Layout/HudPanel/HudMargin/Hud/EndTurnButton
 @onready var hud_panel: PanelContainer = $Margin/Layout/HudPanel
@@ -1519,10 +1521,10 @@ func _pending_durations_from_snapshot(data: Array) -> Array[Dictionary]:
 		if typeof(entry) != TYPE_DICTIONARY:
 			continue
 		var card_id := str(entry.get("card_id", ""))
-		if not game_state.card_catalog.has(card_id):
+		if not card_id.is_empty() and not game_state.card_catalog.has(card_id):
 			continue
 		entries.append({
-			"card": game_state.card_catalog[card_id],
+			"card": game_state.card_catalog.get(card_id) if not card_id.is_empty() else null,
 			"effect": entry.get("effect", {}).duplicate(true),
 		})
 	return entries
@@ -1922,6 +1924,7 @@ func _build_bottom_docks() -> void:
 	var coin_stat := coin_label.get_parent().get_parent() as VBoxContainer
 	var action_stat := action_label.get_parent().get_parent() as VBoxContainer
 	var buy_stat := buy_label.get_parent().get_parent() as VBoxContainer
+	var vp_stat := vp_label.get_parent().get_parent() as VBoxContainer
 	var hand_header := hand_count_label.get_parent() as HBoxContainer
 	var root_margin := get_node("Margin") as MarginContainer
 	var main_layout := hud_panel.get_parent() as VBoxContainer
@@ -1953,7 +1956,7 @@ func _build_bottom_docks() -> void:
 	hud_row.add_child(hand_column)
 	hud_row.add_child(right_ledger)
 
-	for stat in [turn_stat, deck_stat, discard_stat, coin_stat, action_stat, buy_stat]:
+	for stat in [turn_stat, deck_stat, discard_stat, coin_stat, action_stat, buy_stat, vp_stat]:
 		stat.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	home_button.custom_minimum_size = Vector2(34, 34)
 	end_turn_button.custom_minimum_size = Vector2(END_TURN_BUTTON_WIDTH, 48)
@@ -1963,15 +1966,18 @@ func _build_bottom_docks() -> void:
 	end_turn_button.clip_text = true
 
 	# Left dock: compact Coins / Actions / Buys ledger, rows split by hairlines.
-	left_stats.add_theme_constant_override("separation", 4)
+	left_stats.add_theme_constant_override("separation", 2)
 	coin_stat.reparent(left_stats)
 	left_stats.add_child(_create_ledger_hairline())
 	action_stat.reparent(left_stats)
 	left_stats.add_child(_create_ledger_hairline())
 	buy_stat.reparent(left_stats)
+	left_stats.add_child(_create_ledger_hairline())
+	vp_stat.reparent(left_stats)
 	_configure_stat_row(coin_stat, COLOR_RESOURCE_ACCENT)
 	_configure_stat_row(action_stat, COLOR_ACTION_ACCENT)
 	_configure_stat_row(buy_stat, COLOR_BRASS)
+	_configure_stat_row(vp_stat, COLOR_VICTORY_ACCENT)
 
 	# Center band: in-play strip above physical draw pile, hand, and discard pile.
 	hand_header.reparent(hand_column)
@@ -2086,7 +2092,9 @@ func _configure_stat_row(stat: VBoxContainer, accent: Color) -> void:
 	# Lay each ledger row out as a single line: [icon] LABEL .......... VALUE.
 	# The icon sits in a fixed-width left column so all three icons share one
 	# vertical line, and values right-align into a column of their own.
-	stat.custom_minimum_size = Vector2(0, 44)
+	# Four compact resource rows (coins/actions/buys/VP) share the fixed HUD
+	# ledger; keep their combined stack above the trash button at every height.
+	stat.custom_minimum_size = Vector2(0, 34)
 	stat.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	stat.add_theme_constant_override("separation", 0)
 	var title := stat.find_child("Title", true, false) as Label
@@ -2100,7 +2108,7 @@ func _configure_stat_row(stat: VBoxContainer, accent: Color) -> void:
 	value_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	value_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	if icon != null:
-		icon.custom_minimum_size = Vector2(26, 26)
+		icon.custom_minimum_size = Vector2(20, 20)
 		icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -2113,17 +2121,17 @@ func _configure_stat_row(stat: VBoxContainer, accent: Color) -> void:
 		title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		title.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		title.add_theme_color_override("font_color", COLOR_BRASS)
-		title.add_theme_font_size_override("font_size", 13)
+		title.add_theme_font_size_override("font_size", 11)
 		if title_font != null:
 			title.add_theme_font_override("font", title_font)
 	if value != null:
 		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		value.custom_minimum_size = Vector2(46, 0)
+		value.custom_minimum_size = Vector2(38, 0)
 		value.size_flags_horizontal = Control.SIZE_SHRINK_END
 		value.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		value.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
-		value.add_theme_font_size_override("font_size", 30)
+		value.add_theme_font_size_override("font_size", 24)
 		if title_font != null:
 			value.add_theme_font_override("font", title_font)
 
@@ -2302,7 +2310,7 @@ func _build_top_bar() -> void:
 
 	var title := Label.new()
 	title.name = "Title"
-	title.text = "AFTERLIGHT CATALOGUE"
+	title.text = "CONQUEST CARTES"
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
 	title.add_theme_font_size_override("font_size", 18)
@@ -2945,7 +2953,7 @@ func _build_home_screen() -> void:
 	plate_layout.add_child(plate_eyebrow)
 	var plate_title := Label.new()
 	plate_title.name = "PlateTitle"
-	plate_title.text = "THE AFTERLIGHT CATALOGUE"
+	plate_title.text = "CONQUEST CARTES"
 	plate_title.add_theme_color_override("font_color", Color(0.96, 0.89, 0.72, 0.9))
 	plate_title.add_theme_font_size_override("font_size", 13)
 	if title_font != null:
@@ -2984,7 +2992,7 @@ func _build_home_screen() -> void:
 
 	var eyebrow := Label.new()
 	eyebrow.name = "Eyebrow"
-	eyebrow.text = "AFTERLIGHT CATALOGUE  /  EDITION 01"
+	eyebrow.text = "CONQUEST CARTES  /  EDITION 01"
 	eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	eyebrow.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	eyebrow.add_theme_color_override("font_color", Color(0.86, 0.70, 0.42, 0.76))
@@ -2995,7 +3003,7 @@ func _build_home_screen() -> void:
 
 	var title := Label.new()
 	title.name = "Title"
-	title.text = "THE AFTERLIGHT\nCATALOGUE"
+	title.text = "CONQUEST\nCARTES"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	title.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	title.add_theme_color_override("font_color", Color("#f0d28d"))
@@ -5586,6 +5594,7 @@ func _apply_imported_theme() -> void:
 	_set_hud_icon("CoinStat", "coin", COLOR_BRASS.lightened(0.18))
 	_set_hud_icon("ActionStat", "action", COLOR_SLATE.lightened(0.32))
 	_set_hud_icon("BuyStat", "buy", COLOR_FOREST.lightened(0.34))
+	_set_hud_icon("VPStat", "victory", COLOR_VICTORY_ACCENT)
 	_set_hud_icon("DeckStat", "deck", COLOR_PARCHMENT_LIGHT)
 	_set_hud_icon("DiscardStat", "discard", COLOR_PARCHMENT)
 	if icon_textures.has("victory"):
@@ -5769,6 +5778,7 @@ func _apply_button_asset_styles(button: Button, texture: Texture2D) -> void:
 func _refresh_ui() -> void:
 	_hide_all_previews()
 	var player := game_state.player
+	_refresh_player_vp_cache()
 	turn_label.text = (
 		"%s  T%d" % [game_state.get_active_player_name(), player.turn_number]
 		if game_state.multiplayer_enabled
@@ -5781,6 +5791,8 @@ func _refresh_ui() -> void:
 	coin_label.text = str(player.coins)
 	action_label.text = str(player.actions)
 	buy_label.text = str(player.buys)
+	var active_vp = player_vp_cache.get(game_state.active_player_index, null)
+	vp_label.text = str(active_vp if active_vp != null else game_state.get_current_victory_points())
 	hand_count_label.text = "%d card%s" % [
 		player.hand.size(),
 		"" if player.hand.size() == 1 else "s",
@@ -5797,9 +5809,19 @@ func _refresh_ui() -> void:
 	_refresh_relic_overlay()
 
 
+func _refresh_player_vp_cache() -> void:
+	player_vp_cache.clear()
+	for index in range(game_state.players.size()):
+		player_vp_cache[index] = game_state.get_current_victory_points(game_state.players[index])
+
+
 func _refresh_player_status() -> void:
 	if player_status_list == null:
 		return
+	# Cooldown ticks refresh these rows every frame; VP is calculated by
+	# _refresh_ui when game state changes, so this path only reads the cache.
+	if player_vp_cache.size() != game_state.players.size():
+		_refresh_player_vp_cache()
 	var you_index := (
 		clampi(local_player_index, 0, game_state.players.size() - 1)
 		if network_enabled and not game_state.players.is_empty()
@@ -5843,9 +5865,9 @@ func _create_player_status_row(index: int) -> PanelContainer:
 	row_panel.add_theme_stylebox_override("panel", _make_player_row_style(false))
 
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 7)
+	margin.add_theme_constant_override("margin_left", 5)
 	margin.add_theme_constant_override("margin_top", 5)
-	margin.add_theme_constant_override("margin_right", 7)
+	margin.add_theme_constant_override("margin_right", 5)
 	margin.add_theme_constant_override("margin_bottom", 5)
 	row_panel.add_child(margin)
 
@@ -5854,18 +5876,19 @@ func _create_player_status_row(index: int) -> PanelContainer:
 	margin.add_child(stack)
 
 	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 5)
+	top.add_theme_constant_override("separation", 3)
 	stack.add_child(top)
 
 	var dot := PanelContainer.new()
 	dot.name = "StatusDot"
-	dot.custom_minimum_size = Vector2(9, 9)
+	dot.custom_minimum_size = Vector2(8, 8)
 	dot.add_theme_stylebox_override("panel", _make_dot_style(COLOR_BRASS))
 	top.add_child(dot)
 
 	var name_label := Label.new()
 	name_label.name = "Name"
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_label.clip_text = true
 	name_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
 	name_label.add_theme_font_size_override("font_size", 10)
 	if title_font != null:
@@ -5874,7 +5897,7 @@ func _create_player_status_row(index: int) -> PanelContainer:
 
 	var turn_badge := PanelContainer.new()
 	turn_badge.name = "TurnBadge"
-	turn_badge.custom_minimum_size = Vector2(54, 18)
+	turn_badge.custom_minimum_size = Vector2(40, 18)
 	turn_badge.add_theme_stylebox_override(
 		"panel",
 		_make_pill_style(Color(0, 0, 0, 0.08), Color(0.835, 0.667, 0.314, 0.44), 5)
@@ -5888,6 +5911,23 @@ func _create_player_status_row(index: int) -> PanelContainer:
 	if title_font != null:
 		turn_text.add_theme_font_override("font", title_font)
 	turn_badge.add_child(turn_text)
+
+	var vp_badge := PanelContainer.new()
+	vp_badge.name = "VPBadge"
+	vp_badge.custom_minimum_size = Vector2(44, 18)
+	vp_badge.add_theme_stylebox_override(
+		"panel",
+		_make_pill_style(Color(0, 0, 0, 0.08), Color(0.878, 0.541, 0.635, 0.52), 5)
+	)
+	top.add_child(vp_badge)
+	var vp_text := Label.new()
+	vp_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vp_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	vp_text.add_theme_color_override("font_color", COLOR_VICTORY_ACCENT)
+	vp_text.add_theme_font_size_override("font_size", 8)
+	if title_font != null:
+		vp_text.add_theme_font_override("font", title_font)
+	vp_badge.add_child(vp_text)
 
 	var status_label := Label.new()
 	status_label.name = "Status"
@@ -5921,6 +5961,7 @@ func _create_player_status_row(index: int) -> PanelContainer:
 		"dot": dot,
 		"name": name_label,
 		"turn": turn_text,
+		"vp": vp_text,
 		"status": status_label,
 		"bar": track,
 		"fill": fill,
@@ -5985,7 +6026,7 @@ func _update_player_status_row(index: int, game_player: PlayerState, you_index: 
 		dot.add_theme_stylebox_override("panel", _make_dot_style(status_color))
 
 	var name_text := _display_name_for(index)
-	if network_enabled and index == 0:
+	if network_enabled and index == 0 and not is_local:
 		name_text += " (host)"
 	if network_enabled and is_local:
 		name_text += " (you)"
@@ -5993,10 +6034,15 @@ func _update_player_status_row(index: int, game_player: PlayerState, you_index: 
 	if name_label.text != name_text:
 		name_label.text = name_text
 
-	var turn_text_value := "TURN %d" % game_player.turn_number
+	var turn_text_value := "T%d" % game_player.turn_number
 	var turn_label: Label = refs["turn"]
 	if turn_label.text != turn_text_value:
 		turn_label.text = turn_text_value
+
+	var vp_text_value := "%d VP" % int(player_vp_cache.get(index, 0))
+	var vp_label: Label = refs["vp"]
+	if vp_label.text != vp_text_value:
+		vp_label.text = vp_text_value
 
 	var status_label: Label = refs["status"]
 	if status_label.text != status_text:

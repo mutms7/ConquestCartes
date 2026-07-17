@@ -180,6 +180,7 @@ func start_all_players() -> void:
 	for index in range(players.size()):
 		var game_player := players[index]
 		game_player.reset_turn_resources()
+		apply_turn_start_relics(game_player)
 		if game_player.hand.is_empty():
 			_set_active_player(index, false)
 			draw_cards(get_turn_draw_count(game_player))
@@ -467,8 +468,10 @@ func reset_turn_resources(resolve_durations: bool = true) -> void:
 func apply_turn_start_relics(target: PlayerState) -> void:
 	if target.relics.has("gilded_purse"):
 		target.coins += 1
-	if target.relics.has("marching_orders"):
+	if target.relics.has("marching_orders") or target.relics.has("sunflower_metronome"):
 		target.actions += 1
+	if target.relics.has("market_writ"):
+		target.buys += 1
 	if target.relics.has("tricksters_die") and not market.is_empty():
 		var discounted: CardDefinition = market[randi() % market.size()]
 		target.turn_flags["die_discount_card_id"] = discounted.id
@@ -486,8 +489,11 @@ func _resolve_pending_durations() -> void:
 	var entries := player.pending_duration_effects.duplicate()
 	player.pending_duration_effects.clear()
 	var repetitions := 2 if player.relics.has("moonwake_mirror") else 1
-	for _repeat_index in range(repetitions):
-		for entry in entries:
+	for entry in entries:
+		var entry_repetitions := (
+			1 if bool(entry.get("effect", {}).get("ignore_duration_mirror", false)) else repetitions
+		)
+		for _repeat_index in range(entry_repetitions):
 			resolution_queue.push_back({
 				"kind": "special",
 				"effect": entry.get("effect", {}).duplicate(true),
@@ -539,6 +545,8 @@ func generate_relic_offer(target: PlayerState) -> bool:
 
 func maybe_offer_turn_relic(target: PlayerState) -> void:
 	# Every mode drafts on the same 7-turn cadence (turns 8, 15, 22, ...).
+	if target.pending_choice != null:
+		return
 	if target.turn_number <= 1 or (target.turn_number - 1) % RELIC_TURN_INTERVAL != 0:
 		return
 	generate_relic_offer(target)
@@ -563,6 +571,17 @@ func choose_relic(target: PlayerState, relic_id: String) -> bool:
 	target.relics.append(relic_id)
 	if relic_id == "swift_hourglass":
 		target.game_cooldown_reduction += 1.0
+	if relic_id == "culling_reliquary":
+		# This relic is drafted during the current turn, so keep the payload in
+		# duration bookkeeping until reset_turn_resources at the next turn start.
+		target.pending_duration_effects.append({
+			"card": null,
+			"effect": {
+				"kind": "relic_full_deck_trash",
+				"amount": 5,
+				"ignore_duration_mirror": true,
+			},
+		})
 	print("[Game] %s claims relic: %s" % [target.player_name, RelicCatalog.get_relic_name(relic_id)])
 	return true
 
@@ -663,16 +682,6 @@ func _play_card_internal(
 		player.actions -= 1
 
 	var total_repetitions := repetitions
-	# Sunflower Metronome: the first action played from hand each turn resolves twice.
-	if (
-		card.card_type == "action"
-		and repetitions == 1
-		and player.relics.has("sunflower_metronome")
-		and not bool(turn_flags.get("metronome_used", false))
-	):
-		turn_flags["metronome_used"] = true
-		total_repetitions = 2
-		print("[Game] Sunflower Metronome doubles %s" % card.card_name)
 
 	player.hand.remove_at(hand_index)
 	player.play_area.append(card)
@@ -851,6 +860,8 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				"SKIP",
 				_hand_trash_choice_context()
 			)
+		"relic_full_deck_trash":
+			_resolve_relic_full_deck_trash(int(effect.get("amount", 5)))
 		"trash_self":
 			_trash_from_play(source_card)
 		"topdeck_from_discard":
@@ -1595,6 +1606,32 @@ func _apply_choice_resolution(
 		"discard_hand_bonus":
 			_move_cards(player.hand, player.discard_pile, cards, "discard")
 			_apply_per_card_bonus(choice.context, cards.size())
+
+
+func _resolve_relic_full_deck_trash(maximum: int) -> void:
+	# A Culling Reliquary resolves before the normal hand draw. Gather the
+	# holder's complete deck (draw + discard) into their hand, then pause on the
+	# standard hand-trash choice so the UI can present the same direct controls.
+	if not player.discard_pile.is_empty():
+		player.draw_pile.append_array(player.discard_pile)
+		player.discard_pile.clear()
+		player.draw_pile.shuffle()
+	while not player.draw_pile.is_empty():
+		var card: CardDefinition = player.draw_pile.pop_back()
+		if card != null:
+			player.hand.append(card)
+	if player.hand.is_empty():
+		return
+	_request_zone_choice(
+		player.hand,
+		"Culling Reliquary: choose up to %d cards from your deck to trash." % maximum,
+		0,
+		mini(maximum, player.hand.size()),
+		"trash_hand",
+		"TRASH SELECTED",
+		"TRASH NONE",
+		_hand_trash_choice_context({"relic_id": "culling_reliquary"})
+	)
 
 
 func _new_choice(
@@ -2520,14 +2557,14 @@ func buy_card(card: CardDefinition) -> bool:
 		return false
 	player.coins -= effective_cost
 	player.buys -= 1
-	# Thumbed Ledger: the first purchase each turn rebates a coin.
+	# Thumbed Ledger: the first purchase each turn rebates two coins.
 	if (
 		player.relics.has("thumbed_ledger")
 		and not bool(turn_flags.get("thumbed_ledger_used", false))
 	):
 		turn_flags["thumbed_ledger_used"] = true
-		player.coins += 1
-		print("[Game] Thumbed Ledger rebates %s 1 coin" % player.player_name)
+		player.coins += 2
+		print("[Game] Thumbed Ledger rebates %s 2 coins" % player.player_name)
 	_gain_from_supply(card, "discard")
 	_prepend_triggered_effects(card, "buy", {"zone": "discard"})
 	for _index in range(int(turn_flags.get("buy_bonus_count", 0))):
@@ -2612,6 +2649,12 @@ func calculate_score() -> int:
 	return _calculate_score_for_player(player)
 
 
+func get_current_victory_points(target: PlayerState = null) -> int:
+	# HUD/player-status callers need the live tally without emitting the verbose
+	# end-game scoring log on every refresh.
+	return _calculate_score_for_player(target if target != null else player, false)
+
+
 func calculate_all_scores() -> Array[int]:
 	var scores: Array[int] = []
 	for game_player in players:
@@ -2619,7 +2662,7 @@ func calculate_all_scores() -> Array[int]:
 	return scores
 
 
-func _calculate_score_for_player(scored_player: PlayerState) -> int:
+func _calculate_score_for_player(scored_player: PlayerState, announce: bool = true) -> int:
 	var score := 0
 	var owned_cards := scored_player.get_all_cards()
 	var owned_counts := {}
@@ -2634,17 +2677,18 @@ func _calculate_score_for_player(scored_player: PlayerState) -> int:
 		if not card.score_card_id.is_empty():
 			score += int(owned_counts.get(card.score_card_id, 0)) * card.score_card_points
 	score += _scoring_relic_bonus(scored_player)
-	print(
-		"[Game] Scoring %s: %d victory points (draw: %d, hand: %d, play: %d, discard: %d)"
-		% [
-			scored_player.player_name,
-			score,
-			scored_player.draw_pile.size(),
-			scored_player.hand.size(),
-			scored_player.play_area.size(),
-			scored_player.discard_pile.size(),
-		]
-	)
+	if announce:
+		print(
+			"[Game] Scoring %s: %d victory points (draw: %d, hand: %d, play: %d, discard: %d)"
+			% [
+				scored_player.player_name,
+				score,
+				scored_player.draw_pile.size(),
+				scored_player.hand.size(),
+				scored_player.play_area.size(),
+				scored_player.discard_pile.size(),
+			]
+		)
 	return score
 
 
