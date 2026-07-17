@@ -29,6 +29,8 @@ const TOP_BAR_HEIGHT := 55.0
 const BOTTOM_BAND_HEIGHT := 276.0
 const CARD_FACE_SIZE := Vector2(123, 165)
 const MARKET_CARD_GAP := 12.0
+const MARKET_GROUP_GAP := 24.0
+const MARKET_GROUP_EXTRA_GAP := MARKET_GROUP_GAP - MARKET_CARD_GAP
 const MARKET_CARPET_FACE_INSET := 2.0
 const CARD_FRAME_BORDER_WIDTH := 2
 const PLAY_AREA_PANEL_HEIGHT := 76.0
@@ -5329,9 +5331,23 @@ func _build_market_board() -> void:
 	briar_hex_side_supply = _create_side_supply_card(GameState.CURSE_CARD_ID, COLOR_CURSE_ACCENT)
 
 	market_container.add_child(treasury_carpet)
-	market_container.add_child(_create_side_supply_holder(pebble_coin_side_supply, "PebbleCoinSideGap"))
+	market_container.add_child(
+		_create_side_supply_holder(
+			pebble_coin_side_supply,
+			"PebbleCoinSideGap",
+			0.0,
+			MARKET_GROUP_EXTRA_GAP
+		)
+	)
 	market_container.add_child(barracks_carpet)
-	market_container.add_child(_create_side_supply_holder(briar_hex_side_supply, "BriarHexSideGap"))
+	market_container.add_child(
+		_create_side_supply_holder(
+			briar_hex_side_supply,
+			"BriarHexSideGap",
+			MARKET_GROUP_EXTRA_GAP,
+			0.0
+		)
+	)
 	market_container.add_child(estates_carpet)
 	resized.connect(_on_market_board_resized)
 
@@ -5356,18 +5372,42 @@ func _ensure_side_supply_cards() -> void:
 			side_button.free()
 	pebble_coin_side_supply = _create_side_supply_card("pebble_coin", COLOR_RESOURCE_ACCENT)
 	briar_hex_side_supply = _create_side_supply_card(GameState.CURSE_CARD_ID, COLOR_CURSE_ACCENT)
-	market_container.add_child(_create_side_supply_holder(pebble_coin_side_supply, "PebbleCoinSideGap"))
+	market_container.add_child(
+		_create_side_supply_holder(
+			pebble_coin_side_supply,
+			"PebbleCoinSideGap",
+			0.0,
+			MARKET_GROUP_EXTRA_GAP
+		)
+	)
 	market_container.move_child(pebble_coin_side_supply.get_parent(), 1)
-	market_container.add_child(_create_side_supply_holder(briar_hex_side_supply, "BriarHexSideGap"))
+	market_container.add_child(
+		_create_side_supply_holder(
+			briar_hex_side_supply,
+			"BriarHexSideGap",
+			MARKET_GROUP_EXTRA_GAP,
+			0.0
+		)
+	)
 	market_container.move_child(briar_hex_side_supply.get_parent(), 3)
 
 
-func _create_side_supply_holder(button: Button, holder_name: String) -> MarginContainer:
+func _create_side_supply_holder(
+	button: Button,
+	holder_name: String,
+	margin_left: float = 0.0,
+	margin_right: float = 0.0
+) -> MarginContainer:
 	var holder := MarginContainer.new()
 	holder.name = holder_name
-	holder.custom_minimum_size = Vector2(CARD_FACE_SIZE.x, 352)
+	holder.custom_minimum_size = Vector2(
+		CARD_FACE_SIZE.x + margin_left + margin_right,
+		352
+	)
 	holder.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	holder.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	holder.add_theme_constant_override("margin_left", roundi(margin_left))
+	holder.add_theme_constant_override("margin_right", roundi(margin_right))
 	holder.add_theme_constant_override("margin_top", 0)
 	button.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	holder.add_child(button)
@@ -6713,7 +6753,10 @@ func _create_card_button(
 	var frame_overlay := Panel.new()
 	frame_overlay.name = "CardFrameOverlay"
 	frame_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	frame_overlay.z_index = 20
+	# Keep the frame in the card's own stacking context. The overlay is added
+	# after CardContent, so it still covers its art/text, while the hand
+	# container's later/front card remains above the entire previous card.
+	frame_overlay.z_index = 0
 	frame_overlay.add_theme_stylebox_override(
 		"panel",
 		_make_card_frame_style(_card_frame_border_color(button))
@@ -7026,7 +7069,7 @@ func _set_hand_trash_hover(button: Button, is_trash_choice: bool, hovered: bool)
 			overlay = Control.new()
 			overlay.name = "TrashHoverOverlay"
 			overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			overlay.z_index = 12
+			overlay.z_index = 0
 			button.add_child(overlay)
 			overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 			var shade := ColorRect.new()
@@ -7052,6 +7095,9 @@ func _set_hand_trash_hover(button: Button, is_trash_choice: bool, hovered: bool)
 			overlay.show()
 	elif overlay != null:
 		overlay.hide()
+	var frame_overlay := button.get_node_or_null("CardFrameOverlay") as Control
+	if frame_overlay != null:
+		button.move_child(frame_overlay, button.get_child_count() - 1)
 
 
 func _on_card_gui_input(

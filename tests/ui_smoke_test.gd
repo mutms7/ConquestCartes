@@ -593,8 +593,8 @@ func _initialize() -> void:
 		"Both fixed side-supply faces should align with the top row of market faces."
 	)
 	_check(
-		_top_market_faces_have_equal_gaps(),
-		"Every adjacent top-row market face should use the same horizontal gap."
+		_top_market_faces_have_grouped_gaps(),
+		"Top-row market faces should use tight internal gaps and larger group gutters."
 	)
 	_check(
 		_central_market_rows_have_equal_gaps(),
@@ -618,8 +618,8 @@ func _initialize() -> void:
 		"Side-supply faces should stay aligned after the viewport is resized."
 	)
 	_check(
-		_top_market_faces_have_equal_gaps(),
-		"Market face gaps should remain equal after the viewport is resized."
+		_top_market_faces_have_grouped_gaps(),
+		"Market group gutters should remain stable after the viewport is resized."
 	)
 	_check(
 		_central_market_rows_have_equal_gaps(),
@@ -862,7 +862,8 @@ func _initialize() -> void:
 		_check(
 			frame_overlay != null
 			and frame_overlay.get_index() > resource_button.get_node("CardContent").get_index()
-			and frame_overlay.z_index > resource_button.get_node("CardContent").z_index
+			and frame_overlay.z_index == resource_button.get_node("CardContent").z_index
+			and frame_overlay.z_as_relative
 			and is_equal_approx(frame_rect.position.x, resource_rect.position.x)
 			and is_equal_approx(frame_rect.position.y, resource_rect.position.y)
 			and is_equal_approx(frame_rect.size.x, resource_rect.size.x)
@@ -888,6 +889,27 @@ func _initialize() -> void:
 			and normal_style.corner_radius_bottom_right == normal_style.border_width_right,
 			"Button card styles should keep their corner radius equal to their border width."
 		)
+		var overlap_pair := _find_overlapping_hand_pair()
+		_check(
+			overlap_pair.size() == 2,
+			"The hand should expose an overlapping card pair for stacking regression coverage."
+		)
+		if overlap_pair.size() == 2:
+			var rear_hand_card := overlap_pair[0] as Control
+			var front_hand_card := overlap_pair[1] as Control
+			var rear_frame := rear_hand_card.get_node_or_null("CardFrameOverlay") as Control
+			var front_frame := front_hand_card.get_node_or_null("CardFrameOverlay") as Control
+			_check(
+				front_hand_card.get_index() > rear_hand_card.get_index()
+				and front_hand_card.z_index == rear_hand_card.z_index
+				and rear_frame != null
+				and front_frame != null
+				and rear_frame.z_index == 0
+				and front_frame.z_index == 0
+				and rear_frame.z_as_relative
+				and front_frame.z_as_relative,
+				"A front hand card should stack above the rear card as a whole, including its frame."
+			)
 		_check(
 			resource_button.has_node("CardContent/CardLayout/ArtFrame/ArtScrim")
 			and resource_button.has_node("CardContent/CardLayout/ArtFrame/AccentLine")
@@ -1979,16 +2001,41 @@ func _all_market_buttons() -> Array[Button]:
 	return buttons
 
 
-func _top_market_faces_have_equal_gaps() -> bool:
+func _find_overlapping_hand_pair() -> Array[Control]:
+	var cards: Array[Control] = []
+	for child in _hand_container().get_children():
+		var card := child as Control
+		if card != null:
+			cards.append(card)
+	for first_index in range(cards.size()):
+		for second_index in range(first_index + 1, cards.size()):
+			if cards[first_index].get_global_rect().intersects(cards[second_index].get_global_rect()):
+				return [cards[first_index], cards[second_index]]
+	return []
+
+
+func _top_market_faces_have_grouped_gaps() -> bool:
 	var faces := _top_market_faces()
 	if faces.size() < 2:
+		return false
+	var expected_gaps := [
+		main_ui.MARKET_CARD_GAP,
+		main_ui.MARKET_GROUP_GAP,
+		main_ui.MARKET_CARD_GAP,
+		main_ui.MARKET_CARD_GAP,
+		main_ui.MARKET_CARD_GAP,
+		main_ui.MARKET_CARD_GAP,
+		main_ui.MARKET_GROUP_GAP,
+		main_ui.MARKET_CARD_GAP,
+	]
+	if faces.size() - 1 != expected_gaps.size():
 		return false
 	for index in range(faces.size() - 1):
 		var current_rect := faces[index].get_global_rect()
 		var next_rect := faces[index + 1].get_global_rect()
 		if not is_equal_approx(
 			next_rect.position.x - current_rect.end.x,
-			main_ui.MARKET_CARD_GAP
+			expected_gaps[index]
 		):
 			return false
 	return true
