@@ -1332,19 +1332,22 @@ func _test_random_market_setup() -> void:
 	for card_id in INACTIVE_CARD_IDS:
 		_check(not first_market.has(card_id), "%s should not appear in the market." % card_id)
 
-	var resource_count := 0
-	var action_count := 0
-	var victory_count := 0
+	var central_ids: Array[String] = []
 	for card in game_state.market:
-		if GameState.MARKET_FIXED_RESOURCE_IDS.has(card.id):
-			resource_count += 1
-		elif GameState.MARKET_FIXED_VICTORY_IDS.has(card.id):
-			victory_count += 1
-		else:
-			action_count += 1
-	_check(resource_count == GameState.MARKET_RESOURCE_COUNT, "Market resource count should match.")
-	_check(action_count == GameState.MARKET_ACTION_COUNT, "Market action count should match.")
-	_check(victory_count == GameState.MARKET_VICTORY_TOTAL, "Market victory count should match.")
+		if not GameState.MARKET_FIXED_RESOURCE_IDS.has(card.id) and not GameState.MARKET_FIXED_VICTORY_IDS.has(card.id):
+			central_ids.append(card.id)
+	_check(
+		central_ids.size() == GameState.MARKET_CENTRAL_COUNT
+		and _unique_string_count(central_ids) == GameState.MARKET_CENTRAL_COUNT,
+		"The central market should contain exactly ten unique random cards."
+	)
+	for central_id in central_ids:
+		_check(
+			_market_candidates_include_card(game_state, central_id)
+			and not GameState.MARKET_FIXED_RESOURCE_IDS.has(central_id)
+			and not GameState.MARKET_FIXED_VICTORY_IDS.has(central_id),
+			"Central card %s should come from the eligible non-fixed pool." % central_id
+		)
 	for fixed_id in GameState.MARKET_FIXED_RESOURCE_IDS + GameState.MARKET_FIXED_VICTORY_IDS:
 		_check(first_market.has(fixed_id), "%s should always anchor the market." % fixed_id)
 
@@ -1365,16 +1368,36 @@ func _test_random_market_setup() -> void:
 	game_state.set_kingdom_enabled(GameState.WITCHING_HOUR_GROUP, false)
 	_check(
 		not game_state.has_enough_market_candidates(),
-		"Market setup should know when kingdom filters cannot fill the action row."
+		"Market setup should know when kingdom filters cannot fill the central row."
 	)
 	game_state.set_kingdom_enabled(GameState.BEGINNER_KINGDOM, true)
 	game_state.set_kingdom_enabled(GameState.HINTERLANDS_GROUP, true)
 	game_state.set_kingdom_enabled(GameState.WITCHING_HOUR_GROUP, true)
 
-	_check(game_state.setup_starting_game(), "A second game should set up.")
+	_check(game_state.setup_starting_game(), "A second game should set up even when a repeat is allowed.")
 	_check(
-		not _same_card_ids(first_market, game_state.get_market_card_ids()),
-		"An immediate new game should choose a different action row."
+		game_state.get_market_card_ids().size() == GameState.MARKET_SIZE,
+		"A repeated automatic setup should still keep the complete market size."
+	)
+
+	# A controlled pool with seven victories, two resources, and one action must
+	# still succeed: the central sample has no type/cost/victory quotas.
+	var controlled_ten := _build_controlled_market_game(10)
+	_check(
+		controlled_ten != null and controlled_ten.has_enough_market_candidates(),
+		"Exactly ten eligible central cards should be sufficient regardless of type mix."
+	)
+	if controlled_ten != null:
+		_check(
+			controlled_ten.setup_starting_game()
+			and _central_market_ids(controlled_ten).size() == GameState.MARKET_CENTRAL_COUNT,
+			"A ten-card mixed-type pool should produce exactly ten central cards."
+		)
+	var controlled_nine := _build_controlled_market_game(9)
+	_check(
+		controlled_nine != null and not controlled_nine.has_enough_market_candidates()
+		and not controlled_nine.setup_starting_game(),
+		"Nine eligible central cards should fail cleanly rather than inventing a quota fill."
 	)
 
 
@@ -1929,6 +1952,45 @@ func _create_game_state() -> GameState:
 	return game_state
 
 
+func _build_controlled_market_game(candidate_count: int) -> GameState:
+	var game_state := GameState.new()
+	if not game_state.load_cards(CARD_DATA_PATH):
+		return null
+	var source_catalog := game_state.card_catalog.duplicate()
+	game_state.card_catalog.clear()
+	for card_id in [
+		"pebble_coin",
+		"homestead",
+		"silver_leaf",
+		"amber_circlet",
+		"briar_gate",
+		"royal_charter",
+		"briar_hex",
+	]:
+		game_state.card_catalog[card_id] = source_catalog[card_id]
+	for index in range(candidate_count):
+		var card_type := "victory" if index < 7 else "resource" if index < 9 else "action"
+		var card := CardDefinition.from_dict({
+			"id": "controlled_%02d" % index,
+			"name": "Controlled %02d" % index,
+			"type": card_type,
+			"cost": 1 + index,
+			"description": "A controlled market sample card.",
+			"market_enabled": true,
+		})
+		game_state.card_catalog[card.id] = card
+	return game_state
+
+
+func _central_market_ids(game_state: GameState) -> Array[String]:
+	var central_ids: Array[String] = []
+	for card in game_state.market:
+		if GameState.MARKET_FIXED_RESOURCE_IDS.has(card.id) or GameState.MARKET_FIXED_VICTORY_IDS.has(card.id):
+			continue
+		central_ids.append(card.id)
+	return central_ids
+
+
 func _owned_card_count(game_state: GameState) -> int:
 	return game_state.player.get_all_cards().size()
 
@@ -2024,13 +2086,11 @@ func _resolve_choice_by_ids(game_state: GameState, card_ids: Array[String]) -> v
 	_check(game_state.resolve_choice(tokens), "Pending choice should accept selected cards.")
 
 
-func _same_card_ids(first: Array[String], second: Array[String]) -> bool:
-	if first.size() != second.size():
-		return false
-	for card_id in first:
-		if not second.has(card_id):
-			return false
-	return true
+func _unique_string_count(values: Array[String]) -> int:
+	var unique: Dictionary = {}
+	for value in values:
+		unique[value] = true
+	return unique.size()
 
 
 func _check(condition: bool, message: String) -> void:

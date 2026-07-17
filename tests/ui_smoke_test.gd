@@ -563,8 +563,8 @@ func _initialize() -> void:
 		"The left market column should render two resource piles."
 	)
 	_check(
-		_barracks_cards().get_child_count() == GameState.MARKET_ACTION_COUNT,
-		"The center market grid should render ten action piles."
+		_barracks_cards().get_child_count() == GameState.MARKET_CENTRAL_COUNT,
+		"The center market grid should render ten random central piles."
 	)
 	_check(
 		_estates_cards().get_child_count() == GameState.MARKET_VICTORY_TOTAL,
@@ -579,6 +579,39 @@ func _initialize() -> void:
 		and main_ui.briar_hex_side_supply.custom_minimum_size == main_ui.CARD_FACE_SIZE,
 		"Pebble Coin and Briar Hex should render as full finite side-supply card faces."
 	)
+	var market_top_card := _treasury_cards().get_child(0) as Control
+	_check(
+		market_top_card != null
+		and is_equal_approx(
+			main_ui.pebble_coin_side_supply.get_global_rect().position.y,
+			market_top_card.get_global_rect().position.y
+		)
+		and is_equal_approx(
+			main_ui.briar_hex_side_supply.get_global_rect().position.y,
+			market_top_card.get_global_rect().position.y
+		),
+		"Both fixed side-supply faces should align with the top row of market faces."
+	)
+	var original_root_size := root.size
+	root.size = Vector2i(1366, 768)
+	await process_frame
+	await process_frame
+	market_top_card = _treasury_cards().get_child(0) as Control
+	_check(
+		market_top_card != null
+		and is_equal_approx(
+			main_ui.pebble_coin_side_supply.get_global_rect().position.y,
+			market_top_card.get_global_rect().position.y
+		)
+		and is_equal_approx(
+			main_ui.briar_hex_side_supply.get_global_rect().position.y,
+			market_top_card.get_global_rect().position.y
+		),
+		"Side-supply faces should stay aligned after the viewport is resized."
+	)
+	root.size = original_root_size
+	await process_frame
+	await process_frame
 	_check(
 		main_ui.game_state.get_supply_count("pebble_coin") == GameState.PEBBLE_SIDE_SUPPLY_COUNT
 		and main_ui.game_state.get_supply_count(GameState.CURSE_CARD_ID) == GameState.CURSE_SUPPLY_COUNT,
@@ -636,7 +669,7 @@ func _initialize() -> void:
 	)
 	_check(
 		_barracks_follows_cost_path(),
-		"Action piles should descend from top-right to top-left, then bottom-right to bottom-left."
+		"Central piles should descend from top-right to top-left, then bottom-right to bottom-left."
 	)
 	_check(
 		_market_scroll().horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED
@@ -1252,7 +1285,6 @@ func _initialize() -> void:
 			"Fresh singleplayer clicks should play cards immediately."
 		)
 
-	var market_before_restart: Array[String] = main_ui.game_state.get_market_card_ids()
 	main_ui.game_state.player.coins = 8
 	main_ui.game_state.player.discard_pile.append(main_ui.game_state.card_catalog["silver_leaf"])
 	main_ui._refresh_ui()
@@ -1273,8 +1305,9 @@ func _initialize() -> void:
 	_check(main_ui.last_ui_sound_name == "draw", "Home New Game should finish with draw feedback.")
 	var market_after_restart: Array[String] = main_ui.game_state.get_market_card_ids()
 	_check(
-		not _same_card_ids(market_before_restart, market_after_restart),
-		"Home New Game should display a different market."
+		market_after_restart.size() == GameState.MARKET_SIZE
+		and _unique_string_count(market_after_restart) == GameState.MARKET_SIZE,
+		"Home New Game should rebuild a complete unique market; repeating a sample is allowed."
 	)
 	_check(_hud_value("TurnStat") == "Turn 1", "Home New Game should reset the turn counter.")
 	_check(_hud_value("CoinStat") == "0", "Home New Game should reset coins.")
@@ -2199,13 +2232,11 @@ func _right_click_control(control: Control) -> void:
 	root.push_input(release, true)
 
 
-func _same_card_ids(first: Array[String], second: Array[String]) -> bool:
-	if first.size() != second.size():
-		return false
-	for card_id in first:
-		if not second.has(card_id):
-			return false
-	return true
+func _unique_string_count(values: Array[String]) -> int:
+	var unique: Dictionary = {}
+	for value in values:
+		unique[value] = true
+	return unique.size()
 
 
 func _color_distance(first: Color, second: Color) -> float:

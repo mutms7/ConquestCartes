@@ -5318,10 +5318,15 @@ func _build_market_board() -> void:
 	briar_hex_side_supply = _create_side_supply_card(GameState.CURSE_CARD_ID, COLOR_CURSE_ACCENT)
 
 	market_container.add_child(treasury_carpet)
-	market_container.add_child(pebble_coin_side_supply)
+	market_container.add_child(_create_side_supply_holder(pebble_coin_side_supply, "PebbleCoinSideGap"))
 	market_container.add_child(barracks_carpet)
-	market_container.add_child(briar_hex_side_supply)
+	market_container.add_child(_create_side_supply_holder(briar_hex_side_supply, "BriarHexSideGap"))
 	market_container.add_child(estates_carpet)
+	resized.connect(_on_market_board_resized)
+
+
+func _on_market_board_resized() -> void:
+	call_deferred("_align_side_supply_faces")
 
 
 func _ensure_side_supply_cards() -> void:
@@ -5329,15 +5334,50 @@ func _ensure_side_supply_cards() -> void:
 	# layout immediately. Replace the two placeholders once the catalog exists,
 	# preserving their gap positions between Treasury/Barracks and Barracks/Estates.
 	for side_button in [pebble_coin_side_supply, briar_hex_side_supply]:
-		if side_button != null and is_instance_valid(side_button) and side_button.get_parent() == market_container:
+		if side_button == null or not is_instance_valid(side_button):
+			continue
+		var old_holder := side_button.get_parent() as Control
+		if old_holder != null and old_holder.get_parent() == market_container:
+			market_container.remove_child(old_holder)
+			old_holder.free()
+		elif side_button.get_parent() == market_container:
 			market_container.remove_child(side_button)
 			side_button.free()
 	pebble_coin_side_supply = _create_side_supply_card("pebble_coin", COLOR_RESOURCE_ACCENT)
 	briar_hex_side_supply = _create_side_supply_card(GameState.CURSE_CARD_ID, COLOR_CURSE_ACCENT)
-	market_container.add_child(pebble_coin_side_supply)
-	market_container.move_child(pebble_coin_side_supply, 1)
-	market_container.add_child(briar_hex_side_supply)
-	market_container.move_child(briar_hex_side_supply, 3)
+	market_container.add_child(_create_side_supply_holder(pebble_coin_side_supply, "PebbleCoinSideGap"))
+	market_container.move_child(pebble_coin_side_supply.get_parent(), 1)
+	market_container.add_child(_create_side_supply_holder(briar_hex_side_supply, "BriarHexSideGap"))
+	market_container.move_child(briar_hex_side_supply.get_parent(), 3)
+
+
+func _create_side_supply_holder(button: Button, holder_name: String) -> MarginContainer:
+	var holder := MarginContainer.new()
+	holder.name = holder_name
+	holder.custom_minimum_size = Vector2(CARD_FACE_SIZE.x, 352)
+	holder.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	holder.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	holder.add_theme_constant_override("margin_top", 0)
+	button.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	holder.add_child(button)
+	return holder
+
+
+func _align_side_supply_faces() -> void:
+	if market_resource_container == null or market_resource_container.get_child_count() == 0:
+		return
+	var first_market_card := market_resource_container.get_child(0) as Control
+	if first_market_card == null:
+		return
+	var target_top := first_market_card.get_global_rect().position.y
+	for side_button in [pebble_coin_side_supply, briar_hex_side_supply]:
+		if side_button == null or not is_instance_valid(side_button):
+			continue
+		var holder := side_button.get_parent() as MarginContainer
+		if holder == null:
+			continue
+		var holder_top := holder.get_global_rect().position.y
+		holder.add_theme_constant_override("margin_top", maxi(0, roundi(target_top - holder_top)))
 
 func _create_market_carpet(
 	carpet_name: String,
@@ -6144,7 +6184,7 @@ func _refresh_market() -> void:
 	_clear_container(market_victory_container)
 
 	var resource_cards: Array[CardDefinition] = []
-	var action_cards: Array[CardDefinition] = []
+	var central_cards: Array[CardDefinition] = []
 	var victory_cards: Array[CardDefinition] = []
 	for card in game_state.market:
 		if GameState.MARKET_FIXED_RESOURCE_IDS.has(card.id):
@@ -6152,14 +6192,14 @@ func _refresh_market() -> void:
 		elif GameState.MARKET_FIXED_VICTORY_IDS.has(card.id):
 			victory_cards.append(card)
 		else:
-			action_cards.append(card)
+			central_cards.append(card)
 
 	_render_market_cards(
 		_sort_market_cards_descending(resource_cards),
 		market_resource_container
 	)
 	_render_market_cards(
-		_arrange_action_market(action_cards),
+		_arrange_central_market(central_cards),
 		market_action_container
 	)
 	_render_market_cards(
@@ -6168,6 +6208,7 @@ func _refresh_market() -> void:
 	)
 	_refresh_side_supply_card(pebble_coin_side_supply, "pebble_coin")
 	_refresh_side_supply_card(briar_hex_side_supply, GameState.CURSE_CARD_ID)
+	call_deferred("_align_side_supply_faces")
 
 
 func _render_market_cards(
@@ -6287,7 +6328,7 @@ func _replace_numeric_rule_phrase(text: String, pattern: String, keep_prefix: bo
 	return formatted_text
 
 
-func _arrange_action_market(
+func _arrange_central_market(
 	cards: Array[CardDefinition]
 ) -> Array[CardDefinition]:
 	var sorted_cards := _sort_market_cards_descending(cards)

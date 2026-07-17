@@ -15,13 +15,11 @@ const STARTING_CARD_COUNTS := {
 }
 
 const MARKET_RESOURCE_COUNT := 2
-const MARKET_ACTION_COUNT := 10
+const MARKET_CENTRAL_COUNT := 10
 const MARKET_VICTORY_TOTAL := 2
-const MARKET_HYBRID_VICTORY_MIN := 0
-const MARKET_HYBRID_VICTORY_MAX := 0
-const MARKET_SIZE := MARKET_RESOURCE_COUNT + MARKET_ACTION_COUNT + MARKET_VICTORY_TOTAL
-# The market's two resource slots and two victory slots are always these cards.
-# Every other treasure and victory card is folded into the action pool.
+const MARKET_SIZE := MARKET_RESOURCE_COUNT + MARKET_CENTRAL_COUNT + MARKET_VICTORY_TOTAL
+# The market's two Treasury slots and two Estates slots are always these cards.
+# The ten central slots draw uniformly from every other eligible card.
 const MARKET_FIXED_RESOURCE_IDS := ["silver_leaf", "amber_circlet"]
 const MARKET_FIXED_VICTORY_IDS := ["briar_gate", "royal_charter"]
 const BASE_KINGDOM := "Base Kingdom"
@@ -106,7 +104,6 @@ func load_cards(path: String) -> bool:
 
 
 func setup_starting_game(player_count: int = 1) -> bool:
-	var previous_market_ids := get_market_card_ids()
 	_create_players(maxi(1, player_count))
 	turn_flags.clear()
 	resolution_queue.clear()
@@ -129,7 +126,7 @@ func setup_starting_game(player_count: int = 1) -> bool:
 			% [game_player.player_name, game_player.draw_pile.size()]
 		)
 
-	return _setup_random_market(previous_market_ids)
+	return _setup_random_market()
 
 
 func _create_players(player_count: int) -> void:
@@ -343,16 +340,7 @@ func set_card_enabled_for_market(card_id: String, enabled: bool) -> void:
 
 
 func has_enough_market_candidates() -> bool:
-	var pools := _categorize_candidates()
-	var hybrid_count := MARKET_HYBRID_VICTORY_MIN
-	hybrid_count = mini(hybrid_count, pools["hybrid_victory"].size())
-	var normal_victory_count := MARKET_VICTORY_TOTAL - hybrid_count
-	return (
-		pools["resource"].size() >= MARKET_RESOURCE_COUNT
-		and pools["action"].size() >= MARKET_ACTION_COUNT
-		and pools["normal_victory"].size() >= normal_victory_count
-		and pools["hybrid_victory"].size() >= hybrid_count
-	)
+	return get_random_market_candidates().size() >= MARKET_CENTRAL_COUNT
 
 
 func get_supply_count(card_id: String) -> int:
@@ -410,38 +398,24 @@ func get_effective_cost(card: CardDefinition) -> int:
 	return maxi(0, cost)
 
 
-func _setup_random_market(previous_market_ids: Array[String]) -> bool:
-	var pools := _categorize_candidates()
-	var hybrid_count := MARKET_HYBRID_VICTORY_MIN
-	var hybrid_span := MARKET_HYBRID_VICTORY_MAX - MARKET_HYBRID_VICTORY_MIN
-	if hybrid_span > 0:
-		hybrid_count += randi() % (hybrid_span + 1)
-	hybrid_count = mini(hybrid_count, pools["hybrid_victory"].size())
-	var normal_victory_count := MARKET_VICTORY_TOTAL - hybrid_count
-
-	var requirements := [
-		["resource", MARKET_RESOURCE_COUNT],
-		["action", MARKET_ACTION_COUNT],
-		["normal_victory", normal_victory_count],
-		["hybrid_victory", hybrid_count],
-	]
+func _setup_random_market() -> bool:
+	var random_pool := get_random_market_candidates()
+	if random_pool.size() < MARKET_CENTRAL_COUNT:
+		push_error(
+			"Not enough eligible cards for the central market (need %d, have %d)."
+			% [MARKET_CENTRAL_COUNT, random_pool.size()]
+		)
+		return false
+	random_pool.shuffle()
 	var selected: Array[CardDefinition] = []
-	for requirement in requirements:
-		var pool_key: String = requirement[0]
-		var needed: int = requirement[1]
-		var pool: Array = pools[pool_key]
-		if pool.size() < needed:
-			push_error(
-				"Not enough '%s' cards for the market (need %d, have %d)."
-				% [pool_key, needed, pool.size()]
-			)
+	for fixed_id in MARKET_FIXED_RESOURCE_IDS + MARKET_FIXED_VICTORY_IDS:
+		var fixed_card := card_catalog.get(fixed_id) as CardDefinition
+		if fixed_card == null:
+			push_error("Missing fixed market card definition: %s" % fixed_id)
 			return false
-		pool.shuffle()
-		for index in range(needed):
-			selected.append(pool[index])
-
-	if _has_same_card_ids(selected, previous_market_ids):
-		_swap_one_card(selected, pools, previous_market_ids)
+		selected.append(fixed_card)
+	for index in range(MARKET_CENTRAL_COUNT):
+		selected.append(random_pool[index])
 
 	market.assign(selected)
 	_initialize_supply_piles()
@@ -465,28 +439,13 @@ func _initialize_supply_piles() -> void:
 		supply_piles[CURSE_CARD_ID] = CURSE_SUPPLY_COUNT
 
 
-func _card_category(card: CardDefinition) -> String:
-	if MARKET_FIXED_RESOURCE_IDS.has(card.id):
-		return "resource"
-	if MARKET_FIXED_VICTORY_IDS.has(card.id):
-		return "normal_victory"
-	# Every other card (actions plus all other treasures and victory cards)
-	# competes for the action slots.
-	return "action"
-
-
-func _categorize_candidates() -> Dictionary:
-	var pools := {
-		"resource": [],
-		"action": [],
-		"normal_victory": [],
-		"hybrid_victory": [],
-	}
+func get_random_market_candidates() -> Array[CardDefinition]:
+	var candidates: Array[CardDefinition] = []
 	for card in get_market_candidates():
-		var category := _card_category(card)
-		if pools.has(category):
-			pools[category].append(card)
-	return pools
+		if MARKET_FIXED_RESOURCE_IDS.has(card.id) or MARKET_FIXED_VICTORY_IDS.has(card.id):
+			continue
+		candidates.append(card)
+	return candidates
 
 
 func _is_catalog_card_before(first: CardDefinition, second: CardDefinition) -> bool:
@@ -495,38 +454,6 @@ func _is_catalog_card_before(first: CardDefinition, second: CardDefinition) -> b
 	if first.cost != second.cost:
 		return first.cost < second.cost
 	return first.card_name.naturalnocasecmp_to(second.card_name) < 0
-
-
-func _swap_one_card(
-	selected: Array[CardDefinition],
-	pools: Dictionary,
-	previous_market_ids: Array[String]
-) -> void:
-	for category in pools:
-		var pool: Array = pools[category]
-		for candidate in pool:
-			if previous_market_ids.has(candidate.id) or _selection_has_id(selected, candidate.id):
-				continue
-			for index in range(selected.size()):
-				if _card_category(selected[index]) == category:
-					selected[index] = candidate
-					return
-
-
-func _selection_has_id(cards: Array[CardDefinition], card_id: String) -> bool:
-	for card in cards:
-		if card.id == card_id:
-			return true
-	return false
-
-
-func _has_same_card_ids(cards: Array[CardDefinition], card_ids: Array[String]) -> bool:
-	if cards.size() != card_ids.size():
-		return false
-	for card in cards:
-		if not card_ids.has(card.id):
-			return false
-	return true
 
 
 func reset_turn_resources(resolve_durations: bool = true) -> void:
