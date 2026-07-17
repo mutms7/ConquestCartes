@@ -592,6 +592,14 @@ func _initialize() -> void:
 		),
 		"Both fixed side-supply faces should align with the top row of market faces."
 	)
+	_check(
+		_top_market_faces_have_equal_gaps(),
+		"Every adjacent top-row market face should use the same horizontal gap."
+	)
+	_check(
+		_central_market_rows_have_equal_gaps(),
+		"Every adjacent central-market face should use the same horizontal gap."
+	)
 	var original_root_size := root.size
 	root.size = Vector2i(1366, 768)
 	await process_frame
@@ -608,6 +616,14 @@ func _initialize() -> void:
 			market_top_card.get_global_rect().position.y
 		),
 		"Side-supply faces should stay aligned after the viewport is resized."
+	)
+	_check(
+		_top_market_faces_have_equal_gaps(),
+		"Market face gaps should remain equal after the viewport is resized."
+	)
+	_check(
+		_central_market_rows_have_equal_gaps(),
+		"Central-market face gaps should remain equal after the viewport is resized."
 	)
 	root.size = original_root_size
 	await process_frame
@@ -838,6 +854,39 @@ func _initialize() -> void:
 		_check(
 			normal_style != null and normal_style.border_width_left >= 2,
 			"Card outlines should remain clear in their normal state."
+		)
+		var frame_overlay := resource_button.get_node_or_null("CardFrameOverlay") as Panel
+		var frame_style := frame_overlay.get_theme_stylebox("panel") as StyleBoxFlat if frame_overlay != null else null
+		var resource_rect := resource_button.get_global_rect()
+		var frame_rect := frame_overlay.get_global_rect() if frame_overlay != null else Rect2()
+		_check(
+			frame_overlay != null
+			and frame_overlay.get_index() > resource_button.get_node("CardContent").get_index()
+			and frame_overlay.z_index > resource_button.get_node("CardContent").z_index
+			and is_equal_approx(frame_rect.position.x, resource_rect.position.x)
+			and is_equal_approx(frame_rect.position.y, resource_rect.position.y)
+			and is_equal_approx(frame_rect.size.x, resource_rect.size.x)
+			and is_equal_approx(frame_rect.size.y, resource_rect.size.y),
+			"The outer card frame should overlay the complete content bounds."
+		)
+		_check(
+			frame_style != null
+			and frame_style.border_width_left == main_ui.CARD_FRAME_BORDER_WIDTH
+			and frame_style.border_width_top == main_ui.CARD_FRAME_BORDER_WIDTH
+			and frame_style.border_width_right == main_ui.CARD_FRAME_BORDER_WIDTH
+			and frame_style.border_width_bottom == main_ui.CARD_FRAME_BORDER_WIDTH
+			and frame_style.corner_radius_top_left == main_ui.CARD_FRAME_BORDER_WIDTH
+			and frame_style.corner_radius_top_right == main_ui.CARD_FRAME_BORDER_WIDTH
+			and frame_style.corner_radius_bottom_right == main_ui.CARD_FRAME_BORDER_WIDTH
+			and frame_style.corner_radius_bottom_left == main_ui.CARD_FRAME_BORDER_WIDTH
+			and frame_style.border_color == main_ui._get_card_type_accent("resource"),
+			"The outer frame should use a 2px type-colored border with matching subtle corners."
+		)
+		_check(
+			normal_style != null
+			and normal_style.corner_radius_top_left == normal_style.border_width_left
+			and normal_style.corner_radius_bottom_right == normal_style.border_width_right,
+			"Button card styles should keep their corner radius equal to their border width."
 		)
 		_check(
 			resource_button.has_node("CardContent/CardLayout/ArtFrame/ArtScrim")
@@ -1928,6 +1977,60 @@ func _all_market_buttons() -> Array[Button]:
 		for child in container.get_children():
 			buttons.append(child as Button)
 	return buttons
+
+
+func _top_market_faces_have_equal_gaps() -> bool:
+	var faces := _top_market_faces()
+	if faces.size() < 2:
+		return false
+	for index in range(faces.size() - 1):
+		var current_rect := faces[index].get_global_rect()
+		var next_rect := faces[index + 1].get_global_rect()
+		if not is_equal_approx(
+			next_rect.position.x - current_rect.end.x,
+			main_ui.MARKET_CARD_GAP
+		):
+			return false
+	return true
+
+
+func _top_market_faces() -> Array[Control]:
+	var target_y := INF
+	for container in [_treasury_cards(), _barracks_cards(), _estates_cards()]:
+		for child in container.get_children():
+			target_y = minf(target_y, (child as Control).get_global_rect().position.y)
+	var faces: Array[Control] = []
+	for container in [_treasury_cards(), _barracks_cards(), _estates_cards()]:
+		for child in container.get_children():
+			var face := child as Control
+			if is_equal_approx(face.get_global_rect().position.y, target_y):
+				faces.append(face)
+	for side_face in [main_ui.pebble_coin_side_supply, main_ui.briar_hex_side_supply]:
+		var side_control := side_face as Control
+		if side_control != null and is_equal_approx(side_control.get_global_rect().position.y, target_y):
+			faces.append(side_control)
+	faces.sort_custom(_market_face_before)
+	return faces
+
+
+func _central_market_rows_have_equal_gaps() -> bool:
+	var buttons := _barracks_cards().get_children()
+	if buttons.size() != GameState.MARKET_CENTRAL_COUNT:
+		return false
+	for row_start in [0, 5]:
+		for index in range(row_start, row_start + 4):
+			var current_rect := (buttons[index] as Control).get_global_rect()
+			var next_rect := (buttons[index + 1] as Control).get_global_rect()
+			if not is_equal_approx(
+				next_rect.position.x - current_rect.end.x,
+				main_ui.MARKET_CARD_GAP
+			):
+				return false
+	return true
+
+
+func _market_face_before(first: Control, second: Control) -> bool:
+	return first.get_global_rect().position.x < second.get_global_rect().position.x
 
 
 func _container_has_type(container: GridContainer, card_type: String) -> bool:

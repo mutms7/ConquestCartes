@@ -28,6 +28,9 @@ const TABLE_SCALE := 0.667
 const TOP_BAR_HEIGHT := 55.0
 const BOTTOM_BAND_HEIGHT := 276.0
 const CARD_FACE_SIZE := Vector2(123, 165)
+const MARKET_CARD_GAP := 12.0
+const MARKET_CARPET_FACE_INSET := 2.0
+const CARD_FRAME_BORDER_WIDTH := 2
 const PLAY_AREA_PANEL_HEIGHT := 76.0
 const PLAY_AREA_CONTENT_HEIGHT := 64.0
 const PLAYED_CARD_SIZE := Vector2(72, 64)
@@ -5279,7 +5282,13 @@ func _build_market_board() -> void:
 	market_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	market_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 
-	market_container.add_theme_constant_override("separation", 16)
+	# Zone carpets add a 2px face inset on each side. Subtract that inset from
+	# the inter-zone separation so the visible card-to-card gap matches the
+	# central grid's named market spacing constant.
+	market_container.add_theme_constant_override(
+		"separation",
+		int(MARKET_CARD_GAP - MARKET_CARPET_FACE_INSET)
+	)
 	market_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	market_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	market_container.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -5287,7 +5296,7 @@ func _build_market_board() -> void:
 	var treasury := _create_market_carpet(
 		"TreasuryCarpet",
 		1,
-		CARD_FACE_SIZE.x + 4,
+		CARD_FACE_SIZE.x + MARKET_CARPET_FACE_INSET * 2.0,
 		COLOR_TREASURY_CARPET,
 		COLOR_BRASS
 	)
@@ -5297,18 +5306,20 @@ func _build_market_board() -> void:
 	var barracks := _create_market_carpet(
 		"BarracksCarpet",
 		5,
-		CARD_FACE_SIZE.x * 5.0 + 12.0 * 4.0 + 4.0,
+		CARD_FACE_SIZE.x * 5.0 + MARKET_CARD_GAP * 4.0 + MARKET_CARPET_FACE_INSET * 2.0,
 		COLOR_BARRACKS_CARPET,
 		COLOR_ACTION_ACCENT
 	)
 	barracks_carpet = barracks.panel
-	barracks_carpet.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Keep the zone at its measured card width so the centred grid's outer face
+	# inset remains the same as Treasury/Estates when the viewport has spare room.
+	barracks_carpet.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	market_action_container = barracks.cards
 
 	var estates := _create_market_carpet(
 		"EstatesCarpet",
 		1,
-		CARD_FACE_SIZE.x + 4,
+		CARD_FACE_SIZE.x + MARKET_CARPET_FACE_INSET * 2.0,
 		COLOR_ESTATES_CARPET,
 		COLOR_VICTORY_ACCENT
 	)
@@ -5429,7 +5440,7 @@ func _create_market_carpet(
 	# faces keep their exact size and ratio rather than stretching to fill.
 	cards.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	cards.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	cards.add_theme_constant_override("h_separation", 12)
+	cards.add_theme_constant_override("h_separation", int(MARKET_CARD_GAP))
 	cards.add_theme_constant_override("v_separation", 8)
 	layout.add_child(cards)
 
@@ -5480,6 +5491,7 @@ func _refresh_side_supply_card(button: Button, card_id: String) -> void:
 	button.set_meta("visual_state", visual_state)
 	button.set_meta("supply_count", count)
 	button.disabled = count <= 0 or (direct_supply_gain_choice and not selecting_gain) or (not direct_supply_gain_choice and not affordable)
+	_refresh_card_frame(button)
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if not button.disabled else Control.CURSOR_ARROW
 	button.modulate = Color.WHITE if not button.disabled else Color(0.74, 0.72, 0.66, 0.62)
 	var pile_badge := button.get_node_or_null("PileBadge") as Control
@@ -6013,6 +6025,7 @@ func _refresh_hand() -> void:
 		var visual_state := HAND_PLAYABLE if playable else HAND_UNPLAYABLE
 		var button := _create_card_button(card, visual_state)
 		button.disabled = not playable
+		_refresh_card_frame(button)
 		button.mouse_default_cursor_shape = (
 			Control.CURSOR_POINTING_HAND if playable else Control.CURSOR_ARROW
 		)
@@ -6230,6 +6243,7 @@ func _render_market_cards(
 			visual_state = MARKET_AFFORDABLE if affordable else MARKET_UNAFFORDABLE
 		var button := _create_card_button(card, visual_state)
 		button.disabled = game_state.get_supply_count(card.id) <= 0 or (direct_supply_gain_choice and not selecting_gain)
+		_refresh_card_frame(button)
 		button.mouse_default_cursor_shape = (
 			Control.CURSOR_POINTING_HAND
 			if (selecting_gain or (not direct_supply_gain_choice and affordable))
@@ -6445,7 +6459,7 @@ func _create_card_button(
 		or visual_state == HAND_PLAYABLE
 		or visual_state.begins_with("kingdom_")
 	)
-	var outline_width := 2
+	var outline_width := CARD_FRAME_BORDER_WIDTH
 	var border_color: Color = type_palette.accent
 	if is_disabled_face:
 		border_color = Color(0, 0, 0, 0.45)
@@ -6501,6 +6515,10 @@ func _create_card_button(
 		"disabled",
 		_make_card_style(card_surface.darkened(0.12), Color(0, 0, 0, 0.45), outline_width, false)
 	)
+	button.mouse_entered.connect(_refresh_card_frame.bind(button, true))
+	button.mouse_exited.connect(_refresh_card_frame.bind(button, false))
+	button.focus_entered.connect(_set_card_frame_focus.bind(button, true))
+	button.focus_exited.connect(_set_card_frame_focus.bind(button, false))
 
 	var content := MarginContainer.new()
 	content.name = "CardContent"
@@ -6692,7 +6710,68 @@ func _create_card_button(
 	elif visual_state == HAND_UNPLAYABLE:
 		button.modulate = Color(0.78, 0.78, 0.74, 1.0)
 
+	var frame_overlay := Panel.new()
+	frame_overlay.name = "CardFrameOverlay"
+	frame_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame_overlay.z_index = 20
+	frame_overlay.add_theme_stylebox_override(
+		"panel",
+		_make_card_frame_style(_card_frame_border_color(button))
+	)
+	button.add_child(frame_overlay)
+	frame_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_refresh_card_frame(button, false)
+
 	return button
+
+
+func _refresh_card_frame(button: Control, hovered: bool = false) -> void:
+	if button == null or not is_instance_valid(button):
+		return
+	button.set_meta("card_frame_hovered", hovered)
+	var frame_overlay := button.get_node_or_null("CardFrameOverlay") as Panel
+	if frame_overlay == null:
+		return
+	frame_overlay.add_theme_stylebox_override(
+		"panel",
+		_make_card_frame_style(_card_frame_border_color(button))
+	)
+
+
+func _set_card_frame_focus(button: Control, focused: bool) -> void:
+	if button == null or not is_instance_valid(button):
+		return
+	button.set_meta("card_frame_focused", focused)
+	_refresh_card_frame(button, bool(button.get_meta("card_frame_hovered", false)))
+
+
+func _card_frame_border_color(button: Control) -> Color:
+	var visual_state := str(button.get_meta("visual_state", ""))
+	var card_button := button as Button
+	if (
+		(card_button != null and card_button.disabled)
+		or visual_state == MARKET_UNAFFORDABLE
+		or visual_state == HAND_UNPLAYABLE
+	):
+		return Color(0, 0, 0, 0.45)
+	var palette := _get_card_type_palette(str(button.get_meta("card_type", "")))
+	return (
+		palette.hover_border
+		if bool(button.get_meta("card_frame_hovered", false))
+		or bool(button.get_meta("card_frame_focused", false))
+		else palette.accent
+	)
+
+
+func _make_card_frame_style(border_color: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0, 0, 0, 0)
+	style.border_color = border_color
+	style.set_border_width_all(CARD_FRAME_BORDER_WIDTH)
+	style.set_corner_radius_all(CARD_FRAME_BORDER_WIDTH)
+	style.shadow_color = Color.TRANSPARENT
+	style.shadow_size = 0
+	return style
 
 
 func _create_price_badge(cost: int) -> Control:
@@ -7460,7 +7539,7 @@ func _make_card_style(
 	# alone, not by a coloured halo. Both states use the same restrained dark drop
 	# shadow so the table reads as a clean row of cards rather than a glowing one.
 	var style := _make_flat_card_style(color, border_color, border_width)
-	style.set_corner_radius_all(0)
+	style.set_corner_radius_all(border_width)
 	style.shadow_color = Color(0, 0, 0, 0.45)
 	style.shadow_size = 7 if highlighted else 5
 	style.shadow_offset = Vector2(0, 4)
