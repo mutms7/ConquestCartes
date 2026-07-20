@@ -1,7 +1,7 @@
 extends SceneTree
 
 const CARD_DATA_PATH := "res://data/cards/starter_cards.json"
-const EXPECTED_CARD_COUNT := 87
+const EXPECTED_CARD_COUNT := 114
 const WORDING_GUIDE_PATH := "res://docs/card_wording_conventions.md"
 const INACTIVE_CARD_IDS := [
 	"starpath_seeker",
@@ -10,6 +10,8 @@ const INACTIVE_CARD_IDS := [
 	"astral_spyglass",
 	"relic_seeker",
 	"briar_hex",
+	"auric_reserve",
+	"crownland_expanse",
 ]
 # Timer cards that only appear in multiplayer markets (excluded from solo).
 const MULTIPLAYER_ONLY_CARD_IDS := [
@@ -112,6 +114,33 @@ const WITCHING_HOUR_CARD_IDS := [
 	"sowing_moon",
 	"long_causeway",
 ]
+const CROWNWEALTH_CARD_IDS := [
+	"gilded_ledger",
+	"cairn_appraiser",
+	"skyline_foundry",
+	"sealed_treaty",
+	"ember_forge",
+	"royal_exchange",
+	"grand_bazaar",
+	"copper_harbor",
+	"courtly_echo",
+	"sable_loan",
+	"minted_seal",
+	"stone_monument",
+	"veil_broker",
+	"quarry_mark",
+	"raucous_bell",
+	"crown_vessel",
+	"watchtower_chart",
+	"chance_engine",
+	"twin_pillars",
+	"venture_compass",
+	"artisan_vault",
+	"merchant_guild",
+	"route_toll",
+	"capital_mirror",
+	"granary_riddle",
+]
 
 var failure_count := 0
 
@@ -189,6 +218,18 @@ func _test_card_catalog() -> void:
 				game_state.card_catalog[card_id].card_group == GameState.WITCHING_HOUR_GROUP,
 				"%s should belong to the named Witching Hour card group." % card_id
 			)
+	for card_id in CROWNWEALTH_CARD_IDS:
+		_check(game_state.card_catalog.has(card_id), "Crownwealth card %s should exist." % card_id)
+		if game_state.card_catalog.has(card_id):
+			_check(
+				game_state.card_catalog[card_id].card_group == GameState.CROWNWEALTH_GROUP,
+				"%s should belong to the named Crownwealth card group." % card_id
+			)
+	_check(
+		game_state.card_catalog[GameState.CROWNWEALTH_RESOURCE_ID].card_type == "resource"
+		and game_state.card_catalog[GameState.CROWNWEALTH_VICTORY_ID].card_type == "victory",
+		"Crownwealth side supplies should use resource and victory types."
+	)
 	for card_id in GameState.REQUIRED_CARD_IDS:
 		_check(game_state.card_catalog.has(card_id), "Required card %s should exist." % card_id)
 		if game_state.card_catalog.has(card_id):
@@ -353,8 +394,27 @@ func _test_supply_piles() -> void:
 	_check(
 		game_state.get_supply_count("briar_hex") == GameState.CURSE_SUPPLY_COUNT
 		and GameState.CURSE_SUPPLY_COUNT == 20
-		and game_state.get_supply_count("pebble_coin") == GameState.PEBBLE_SIDE_SUPPLY_COUNT,
+		and game_state.get_supply_count("pebble_coin") == GameState.PEBBLE_SIDE_SUPPLY_COUNT
+		and game_state.get_supply_count(GameState.CROWNWEALTH_RESOURCE_ID)
+			== GameState.CROWNWEALTH_RESOURCE_SUPPLY_COUNT
+		and game_state.get_supply_count(GameState.CROWNWEALTH_VICTORY_ID)
+			== GameState.CROWNWEALTH_VICTORY_SUPPLY_COUNT,
 		"The Briar Hex pile should stay at 20 and Pebble Coin should have a finite side pile."
+	)
+	game_state.set_kingdom_enabled(GameState.CROWNWEALTH_GROUP, false)
+	_check(
+		game_state.get_side_supply_card_ids() == GameState.SIDE_SUPPLY_CARD_IDS
+		and game_state.get_supply_count(GameState.CROWNWEALTH_RESOURCE_ID) == 0
+		and game_state.get_supply_count(GameState.CROWNWEALTH_VICTORY_ID) == 0,
+		"Disabling Crownwealth should remove its side-supply entries."
+	)
+	game_state.set_kingdom_enabled(GameState.CROWNWEALTH_GROUP, true)
+	_check(
+		game_state.get_supply_count(GameState.CROWNWEALTH_RESOURCE_ID)
+			== GameState.CROWNWEALTH_RESOURCE_SUPPLY_COUNT
+		and game_state.get_supply_count(GameState.CROWNWEALTH_VICTORY_ID)
+			== GameState.CROWNWEALTH_VICTORY_SUPPLY_COUNT,
+		"Re-enabling Crownwealth should restore only its two side supplies."
 	)
 	var pebble: CardDefinition = game_state.card_catalog["pebble_coin"]
 	var pebble_count := game_state.get_supply_count("pebble_coin")
@@ -394,6 +454,20 @@ func _test_supply_piles() -> void:
 	_check(
 		game_state.get_empty_supply_pile_count() == 2,
 		"Finite side piles should participate in the authoritative empty-pile count."
+	)
+	game_state.set_supply_count(card.id, starting_count)
+	game_state.set_supply_count("pebble_coin", GameState.PEBBLE_SIDE_SUPPLY_COUNT)
+	game_state.set_supply_count(GameState.CROWNWEALTH_VICTORY_ID, 0)
+	_check(
+		game_state.is_game_end_condition_met(),
+		"An empty Crownwealth victory pile should end a game while the pack is enabled."
+	)
+	game_state.set_supply_count("pebble_coin", 17)
+	game_state.set_kingdom_enabled(GameState.CROWNWEALTH_GROUP, false)
+	_check(
+		game_state.get_supply_count("pebble_coin") == 17
+		and not game_state.is_game_end_condition_met(),
+		"Removing Crownwealth should preserve other supplies and its premium-victory end condition."
 	)
 
 
@@ -1366,6 +1440,7 @@ func _test_random_market_setup() -> void:
 	game_state.set_kingdom_enabled(GameState.BEGINNER_KINGDOM, false)
 	game_state.set_kingdom_enabled(GameState.HINTERLANDS_GROUP, false)
 	game_state.set_kingdom_enabled(GameState.WITCHING_HOUR_GROUP, false)
+	game_state.set_kingdom_enabled(GameState.CROWNWEALTH_GROUP, false)
 	_check(
 		not game_state.has_enough_market_candidates(),
 		"Market setup should know when kingdom filters cannot fill the central row."
@@ -1373,6 +1448,7 @@ func _test_random_market_setup() -> void:
 	game_state.set_kingdom_enabled(GameState.BEGINNER_KINGDOM, true)
 	game_state.set_kingdom_enabled(GameState.HINTERLANDS_GROUP, true)
 	game_state.set_kingdom_enabled(GameState.WITCHING_HOUR_GROUP, true)
+	game_state.set_kingdom_enabled(GameState.CROWNWEALTH_GROUP, true)
 
 	_check(game_state.setup_starting_game(), "A second game should set up even when a repeat is allowed.")
 	_check(

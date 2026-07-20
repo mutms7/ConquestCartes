@@ -26,7 +26,14 @@ const BASE_KINGDOM := "Base Kingdom"
 const BEGINNER_KINGDOM := "First Harvest"
 const HINTERLANDS_GROUP := "Hinterlands"
 const WITCHING_HOUR_GROUP := "Witching Hour"
-const KINGDOM_ORDER := [BASE_KINGDOM, BEGINNER_KINGDOM, HINTERLANDS_GROUP, WITCHING_HOUR_GROUP]
+const CROWNWEALTH_GROUP := "Crownwealth"
+const KINGDOM_ORDER := [
+	BASE_KINGDOM,
+	BEGINNER_KINGDOM,
+	HINTERLANDS_GROUP,
+	WITCHING_HOUR_GROUP,
+	CROWNWEALTH_GROUP,
+]
 const REQUIRED_CARD_IDS := [
 	"pebble_coin",
 	"silver_leaf",
@@ -42,6 +49,10 @@ const RESOURCE_SUPPLY_COUNT := 12
 const VICTORY_SUPPLY_COUNT := 8
 const CURSE_SUPPLY_COUNT := 20
 const CURSE_CARD_ID := "briar_hex"
+const CROWNWEALTH_RESOURCE_ID := "auric_reserve"
+const CROWNWEALTH_VICTORY_ID := "crownland_expanse"
+const CROWNWEALTH_RESOURCE_SUPPLY_COUNT := 60
+const CROWNWEALTH_VICTORY_SUPPLY_COUNT := 12
 ## Fixed side supplies sit outside the randomized market and can be purchased
 ## directly. Pebble Coin uses a modest finite pile so its zero-cost buy remains
 ## useful without becoming an infinite-deck escape hatch.
@@ -298,6 +309,8 @@ func get_card_kingdom(card: CardDefinition) -> String:
 		return HINTERLANDS_GROUP
 	if card.card_group == WITCHING_HOUR_GROUP:
 		return WITCHING_HOUR_GROUP
+	if card.card_group == CROWNWEALTH_GROUP:
+		return CROWNWEALTH_GROUP
 	return BEGINNER_KINGDOM
 
 
@@ -325,6 +338,11 @@ func set_kingdom_enabled(kingdom: String, enabled: bool) -> void:
 		disabled_kingdoms.erase(kingdom)
 	else:
 		disabled_kingdoms[kingdom] = true
+	# Side supplies are part of the pack lifecycle, not randomized market
+	# entries. Keep all existing market pile counts intact when this toggle
+	# changes during a game.
+	if kingdom == CROWNWEALTH_GROUP and not supply_piles.is_empty():
+		_set_crownwealth_side_supplies(enabled)
 
 
 func is_card_enabled_for_market(card_id: String) -> bool:
@@ -349,11 +367,22 @@ func get_supply_count(card_id: String) -> int:
 
 
 func is_side_supply_card(card_id: String) -> bool:
-	return SIDE_SUPPLY_CARD_IDS.has(card_id)
+	if SIDE_SUPPLY_CARD_IDS.has(card_id):
+		return true
+	return (
+		is_kingdom_enabled(CROWNWEALTH_GROUP)
+		and card_id in [CROWNWEALTH_RESOURCE_ID, CROWNWEALTH_VICTORY_ID]
+	)
 
 
 func get_side_supply_card_ids() -> Array[String]:
-	return SIDE_SUPPLY_CARD_IDS.duplicate()
+	var card_ids: Array[String] = []
+	for side_card_id in SIDE_SUPPLY_CARD_IDS:
+		card_ids.append(side_card_id)
+	if is_kingdom_enabled(CROWNWEALTH_GROUP):
+		card_ids.append(CROWNWEALTH_RESOURCE_ID)
+		card_ids.append(CROWNWEALTH_VICTORY_ID)
+	return card_ids
 
 
 func set_supply_count(card_id: String, amount: int) -> void:
@@ -375,6 +404,10 @@ func is_game_end_condition_met() -> bool:
 	return (
 		get_empty_supply_pile_count() >= SUPPLY_EMPTY_END_COUNT
 		or get_supply_count(SIX_VP_CARD_ID) <= 0
+		or (
+			is_kingdom_enabled(CROWNWEALTH_GROUP)
+			and get_supply_count(CROWNWEALTH_VICTORY_ID) <= 0
+		)
 	)
 
 
@@ -438,6 +471,18 @@ func _initialize_supply_piles() -> void:
 		supply_piles["pebble_coin"] = PEBBLE_SIDE_SUPPLY_COUNT
 	if card_catalog.has(CURSE_CARD_ID):
 		supply_piles[CURSE_CARD_ID] = CURSE_SUPPLY_COUNT
+	_set_crownwealth_side_supplies(is_kingdom_enabled(CROWNWEALTH_GROUP))
+
+
+func _set_crownwealth_side_supplies(enabled: bool) -> void:
+	if not enabled:
+		supply_piles.erase(CROWNWEALTH_RESOURCE_ID)
+		supply_piles.erase(CROWNWEALTH_VICTORY_ID)
+		return
+	if card_catalog.has(CROWNWEALTH_RESOURCE_ID):
+		supply_piles[CROWNWEALTH_RESOURCE_ID] = CROWNWEALTH_RESOURCE_SUPPLY_COUNT
+	if card_catalog.has(CROWNWEALTH_VICTORY_ID):
+		supply_piles[CROWNWEALTH_VICTORY_ID] = CROWNWEALTH_VICTORY_SUPPLY_COUNT
 
 
 func get_random_market_candidates() -> Array[CardDefinition]:
@@ -1973,6 +2018,10 @@ func _default_supply_count(card: CardDefinition) -> int:
 		return PEBBLE_SIDE_SUPPLY_COUNT
 	if card != null and card.id == CURSE_CARD_ID:
 		return CURSE_SUPPLY_COUNT
+	if card != null and card.id == CROWNWEALTH_RESOURCE_ID:
+		return CROWNWEALTH_RESOURCE_SUPPLY_COUNT
+	if card != null and card.id == CROWNWEALTH_VICTORY_ID:
+		return CROWNWEALTH_VICTORY_SUPPLY_COUNT
 	match card.card_type:
 		"victory":
 			return VICTORY_SUPPLY_COUNT
