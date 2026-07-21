@@ -1394,25 +1394,49 @@ func _complete_network_player_cleanup(player_index: int) -> void:
 func _broadcast_network_snapshot() -> void:
 	if not network_enabled or not network_is_host:
 		return
-	var snapshot := _create_network_snapshot()
+	# Every peer gets a view scoped to its own seat.  The host keeps its
+	# authoritative state locally; guests receive their own hand/deck and only
+	# redacted hidden zones and choices for opponents.
 	if network_mode == NETWORK_MODE_ONLINE:
-		_send_online_signal("all", {
-			"method": "apply_network_snapshot",
-			"snapshot": snapshot,
-		})
+		for relay_client in network_peer_to_player.keys():
+			var client_id := str(relay_client)
+			var seat := int(network_peer_to_player[relay_client])
+			if client_id.is_empty() or client_id == online_relay_client_id:
+				continue
+			_send_online_signal(client_id, {
+				"method": "apply_network_snapshot",
+				"snapshot": _create_network_snapshot(seat),
+			})
 	else:
-		rpc("_rpc_apply_network_snapshot", snapshot)
+		for peer_id in network_peer_to_player.keys():
+			var remote_peer := int(peer_id)
+			var seat := int(network_peer_to_player[peer_id])
+			if remote_peer <= 1:
+				continue
+			rpc_id(remote_peer, "_rpc_apply_network_snapshot", _create_network_snapshot(seat))
 	_refresh_ui()
 
 
-func _create_network_snapshot() -> Dictionary:
+func _create_network_snapshot(recipient_player_index: int = -1) -> Dictionary:
+	# Keep the no-argument form safe for any future caller in a live network
+	# table; offline/local tests may still request a complete diagnostic view.
+	var snapshot_recipient := (
+		local_player_index if network_enabled and recipient_player_index < 0 else recipient_player_index
+	)
 	var player_snapshots: Array[Dictionary] = []
-	for game_player in game_state.players:
+	for index in range(game_state.players.size()):
+		var game_player: PlayerState = game_state.players[index]
+		var is_recipient := snapshot_recipient < 0 or index == snapshot_recipient
 		player_snapshots.append({
 			"name": game_player.player_name,
 			"turn_number": game_player.turn_number,
-			"draw": _card_ids_from_zone(game_player.draw_pile),
-			"hand": _card_ids_from_zone(game_player.hand),
+			# Hidden zones are only sent as identities to their owner (or to the
+			# legacy full-snapshot caller). Counts remain available to future UI
+			# surfaces without disclosing card identities or deck order.
+			"draw": _card_ids_from_zone(game_player.draw_pile) if is_recipient else [],
+			"draw_count": game_player.draw_pile.size(),
+			"hand": _card_ids_from_zone(game_player.hand) if is_recipient else [],
+			"hand_count": game_player.hand.size(),
 			"play": _card_ids_from_zone(game_player.play_area),
 			"play_display": _serialize_play_display_records(game_player),
 			"discard": _card_ids_from_zone(game_player.discard_pile),
@@ -1423,12 +1447,15 @@ func _create_network_snapshot() -> Dictionary:
 			"coins": game_player.coins,
 			"actions": game_player.actions,
 			"buys": game_player.buys,
+			"vp_tokens": game_player.vp_tokens,
 			"cooldown_reduction": game_player.end_turn_cooldown_reduction,
 			"game_cooldown_reduction": game_player.game_cooldown_reduction,
 			"relics": game_player.relics.duplicate(),
 			"relic_offer": game_player.pending_relic_offer.duplicate(),
-			"turn_flags": _serialize_turn_flags(game_player.turn_flags),
-			"pending_choice": _serialize_choice(game_player.pending_choice),
+			"turn_flags": _serialize_turn_flags(game_player.turn_flags) if is_recipient else {},
+			# Even the prompt/resolver can reveal a private Reaction in hand, so
+			# only the owning peer receives any pending-choice payload.
+			"pending_choice": _serialize_choice(game_player.pending_choice, true) if is_recipient else {},
 			"cleanup_in_progress": game_player.cleanup_in_progress,
 			"ending_turn": game_player.ending_turn,
 			"cooldown_remaining": game_player.cooldown_remaining,
@@ -1535,26 +1562,66 @@ func _pending_durations_from_snapshot(data: Array) -> Array[Dictionary]:
 func _serialize_turn_flags(flags: Dictionary) -> Dictionary:
 	var serialized: Dictionary = {}
 	for key in flags:
-		var value = flags[key]
-		match typeof(value):
-			TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING:
-				serialized[key] = value
+		serialized[key] = _serialize_turn_flag_value(flags[key])
 	return serialized
 
 
-func _serialize_choice(choice: CardChoice) -> Dictionary:
+func _serialize_turn_flag_value(value: Variant) -> Variant:
+	if value is CardDefinition:
+		return {"__card_ref__": (value as CardDefinition).id}
+	match typeof(value):
+		TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING:
+			return value
+		TYPE_DICTIONARY:
+			var result: Dictionary = {}
+			for key in value:
+				result[key] = _serialize_turn_flag_value(value[key])
+			return result
+		TYPE_ARRAY:
+			var entries: Array = []
+			for item in value:
+				entries.append(_serialize_turn_flag_value(item))
+			return entries
+	return null
+
+
+func _deserialize_turn_flag_value(value: Variant) -> Variant:
+	if typeof(value) == TYPE_DICTIONARY:
+		if value.has("__card_ref__"):
+			return game_state.card_catalog.get(str(value.get("__card_ref__", "")))
+		var result: Dictionary = {}
+		for key in value:
+			result[key] = _deserialize_turn_flag_value(value[key])
+		return result
+	if typeof(value) == TYPE_ARRAY:
+		var entries: Array = []
+		for item in value:
+			entries.append(_deserialize_turn_flag_value(item))
+		return entries
+	return value
+
+
+func _deserialize_turn_flags(flags: Dictionary) -> Dictionary:
+	var restored: Dictionary = {}
+	for key in flags:
+		restored[key] = _deserialize_turn_flag_value(flags[key])
+	return restored
+
+
+func _serialize_choice(choice: CardChoice, include_candidates: bool = true) -> Dictionary:
 	if choice == null:
 		return {}
 	var candidates: Array[Dictionary] = []
-	for candidate in choice.candidates:
-		var card: CardDefinition = candidate.get("card") as CardDefinition
-		if card == null:
-			continue
-		candidates.append({
-			"token": str(candidate.get("token", "")),
-			"card_id": card.id,
-			"subtitle": str(candidate.get("subtitle", "")),
-		})
+	if include_candidates:
+		for candidate in choice.candidates:
+			var card: CardDefinition = candidate.get("card") as CardDefinition
+			if card == null:
+				continue
+			candidates.append({
+				"token": str(candidate.get("token", "")),
+				"card_id": card.id,
+				"subtitle": str(candidate.get("subtitle", "")),
+			})
 	return {
 		"id": choice.id,
 		"prompt": choice.prompt,
@@ -1563,9 +1630,45 @@ func _serialize_choice(choice: CardChoice) -> Dictionary:
 		"confirm_text": choice.confirm_text,
 		"skip_text": choice.skip_text,
 		"resolver": choice.resolver,
-		"context": choice.context.duplicate(true),
+		"context": _serialize_choice_context(choice.context) if include_candidates else {},
 		"candidates": candidates,
 	}
+
+
+func _serialize_choice_context(value: Variant) -> Variant:
+	# Choice continuations often retain revealed/gained CardDefinition objects.
+	# Convert those references to stable IDs before sending a snapshot; raw
+	# RefCounted instances are not JSON-safe and desync online choices.
+	if value is CardDefinition:
+		return {"__card_ref__": (value as CardDefinition).id}
+	match typeof(value):
+		TYPE_DICTIONARY:
+			var result: Dictionary = {}
+			for key in value:
+				result[key] = _serialize_choice_context(value[key])
+			return result
+		TYPE_ARRAY:
+			var entries: Array = []
+			for item in value:
+				entries.append(_serialize_choice_context(item))
+			return entries
+	return value
+
+
+func _deserialize_choice_context(value: Variant) -> Variant:
+	if typeof(value) == TYPE_DICTIONARY:
+		if value.has("__card_ref__"):
+			return game_state.card_catalog.get(str(value.get("__card_ref__", "")))
+		var result: Dictionary = {}
+		for key in value:
+			result[key] = _deserialize_choice_context(value[key])
+		return result
+	if typeof(value) == TYPE_ARRAY:
+		var entries: Array = []
+		for item in value:
+			entries.append(_deserialize_choice_context(item))
+		return entries
+	return value
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -1596,6 +1699,7 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		synced_player.coins = int(player_data.get("coins", 0))
 		synced_player.actions = int(player_data.get("actions", 1))
 		synced_player.buys = int(player_data.get("buys", 1))
+		synced_player.vp_tokens = int(player_data.get("vp_tokens", 0))
 		synced_player.end_turn_cooldown_reduction = float(
 			player_data.get("cooldown_reduction", 0.0)
 		)
@@ -1605,7 +1709,7 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		synced_player.relics = _string_array(player_data.get("relics", []))
 		synced_player.pending_relic_offer = _string_array(player_data.get("relic_offer", []))
 		synced_player.times_attacked = int(player_data.get("times_attacked", 0))
-		synced_player.turn_flags = player_data.get("turn_flags", {}).duplicate(true)
+		synced_player.turn_flags = _deserialize_turn_flags(player_data.get("turn_flags", {}))
 		synced_player.pending_choice = _choice_from_snapshot(player_data.get("pending_choice", {}))
 		synced_player.cleanup_in_progress = bool(player_data.get("cleanup_in_progress", false))
 		synced_player.ending_turn = bool(player_data.get("ending_turn", false))
@@ -1698,7 +1802,7 @@ func _choice_from_snapshot(choice_data: Dictionary) -> CardChoice:
 	choice.confirm_text = str(choice_data.get("confirm_text", "CONFIRM"))
 	choice.skip_text = str(choice_data.get("skip_text", "SKIP"))
 	choice.resolver = str(choice_data.get("resolver", ""))
-	choice.context = choice_data.get("context", {}).duplicate(true)
+	choice.context = _deserialize_choice_context(choice_data.get("context", {}))
 	for candidate_data in choice_data.get("candidates", []):
 		var card: CardDefinition = (
 			game_state.card_catalog.get(str(candidate_data.get("card_id", "")))
@@ -6146,7 +6250,7 @@ func _refresh_end_turn_button() -> void:
 		end_turn_button.text = "CONFIRM"
 		end_turn_button.disabled = (
 			not _can_control_active_player()
-			or not current_choice.is_valid_selection(selected_choice_tokens)
+			or not _choice_selection_is_valid(selected_choice_tokens)
 		)
 		end_turn_button.modulate = Color.WHITE
 		return
@@ -6577,7 +6681,7 @@ func _can_play_card(card: CardDefinition) -> bool:
 		or not _can_interact_with_local_player()
 		or turn_manager.game_over
 		or game_state.has_pending_choice()
-		or not card.is_playable()
+		or not game_state.is_card_playable(card)
 	):
 		return false
 	if card.card_type == "action" and game_state.player.actions <= 0:
@@ -8896,9 +9000,16 @@ func _refresh_choice_controls() -> void:
 		choice_selection_label.text = (
 			"Select %d–%d  •  %d selected" % [minimum, maximum, count]
 		)
-	choice_confirm_button.disabled = not current_choice.is_valid_selection(selected_choice_tokens)
+	choice_confirm_button.disabled = not _choice_selection_is_valid(selected_choice_tokens)
 	choice_skip_button.visible = minimum == 0
 	_refresh_end_turn_button()
+
+
+func _choice_selection_is_valid(tokens: Array[String]) -> bool:
+	if current_choice == null or not current_choice.is_valid_selection(tokens):
+		return false
+	var allowed_sizes: Array = current_choice.context.get("allowed_selection_sizes", [])
+	return allowed_sizes.is_empty() or allowed_sizes.has(tokens.size())
 
 
 func _on_choice_confirmed() -> void:
@@ -9063,7 +9174,7 @@ func _on_end_turn_pressed() -> void:
 		_on_respite_ready_pressed()
 		return
 	if direct_hand_choice and _choice_is_hand_trash(current_choice) and current_choice != null:
-		if current_choice.is_valid_selection(selected_choice_tokens):
+		if _choice_selection_is_valid(selected_choice_tokens):
 			_submit_choice(selected_choice_tokens.duplicate())
 		return
 	if game_state.has_pending_choice() or not _can_control_active_player():

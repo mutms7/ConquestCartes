@@ -25,6 +25,9 @@ var pending_relic_offer: Array[String] = []
 # End-of-game scoring relic drafted in solo play (empty until chosen). Grants
 # bonus victory points at the final tally based on the player's playstyle.
 var scoring_relic: String = ""
+# Victory-point tokens are kept outside the deck and are added directly to the
+# final tally (Bishop, Monument, and Investment-style effects use these).
+var vp_tokens: int = 0
 var end_turn_cooldown_reduction: float = 0.0
 # Persists for the whole conquest (game); not reset each turn.
 var game_cooldown_reduction: float = 0.0
@@ -58,6 +61,7 @@ func clear_all() -> void:
 	relics.clear()
 	pending_relic_offer.clear()
 	scoring_relic = ""
+	vp_tokens = 0
 	times_attacked = 0
 	turn_flags.clear()
 	pending_choice = null

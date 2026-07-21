@@ -86,7 +86,9 @@ func _on_cleanup_completed() -> void:
 	var turn_based_multiplayer := (
 		game_state.turn_based_enabled and game_state.get_player_count() > 1
 	)
-	game_state.reset_turn_resources(not turn_based_multiplayer)
+	# In turn-based tables the ender's redraw happens before control advances;
+	# defer start-turn reactions until that player actually receives control.
+	game_state.reset_turn_resources(not turn_based_multiplayer, not turn_based_multiplayer)
 
 	if game_state.is_game_end_condition_met():
 		cooldown_remaining = 0.0
@@ -107,7 +109,10 @@ func _on_cleanup_completed() -> void:
 	# control to the next player and start their turn (no timer involved).
 	if game_state.turn_based_enabled and game_state.get_player_count() > 1:
 		game_state.advance_active_player()
-		game_state.reset_turn_resources()
+		game_state.reset_turn_resources(true, true)
+		# This player's hand was drawn during their previous cleanup, so arm the
+		# reaction window immediately on taking control rather than drawing again.
+		game_state._arm_start_turn_reactions()
 		game_state.check_idle_relics()
 		turn_number = game_state.player.turn_number
 		print(

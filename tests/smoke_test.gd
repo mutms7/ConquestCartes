@@ -1,6 +1,7 @@
 extends SceneTree
 
 const CARD_DATA_PATH := "res://data/cards/starter_cards.json"
+const MAIN_UI_SCRIPT := preload("res://scripts/ui/main_ui.gd")
 const EXPECTED_CARD_COUNT := 114
 const WORDING_GUIDE_PATH := "res://docs/card_wording_conventions.md"
 const INACTIVE_CARD_IDS := [
@@ -21,8 +22,8 @@ const MULTIPLAYER_ONLY_CARD_IDS := [
 	"stolen_minute",
 	"lantern_vigil",
 ]
-# Cards that reach other players (attacks and Scholar's Hall's shared draw) do
-# nothing solo, so they are pulled from singleplayer markets as well.
+# Cards whose effects only matter in multiplayer (attacks, shared draws, or
+# attack immunity) do nothing solo, so they are pulled from singleplayer markets.
 const MULTIPLAYER_ONLY_INTERACTION_CARD_IDS := [
 	"roadside_reaver",
 	"royal_clerk",
@@ -33,6 +34,10 @@ const MULTIPLAYER_ONLY_INTERACTION_CARD_IDS := [
 	"briar_hut",
 	"thornbinder",
 	"council_hearth",
+	"hedgewarden",
+	"sealed_treaty",
+	"sable_loan",
+	"raucous_bell",
 ]
 const EXPECTED_ART_LINKED_NAMES := {
 	"wishing_garden": "Wishing Stone",
@@ -152,11 +157,14 @@ func _initialize() -> void:
 	_test_draw_across_shuffle_boundary()
 	_test_scoring()
 	_test_supply_piles()
+	_test_crownwealth_cards()
 	_test_turn_cooldown()
 	_test_turn_based_mode()
 	_test_multiplayer_only_timer_cards()
 	_test_relic_system()
 	_test_multiplayer_lobby_attacks()
+	_test_crownwealth_multiplayer_choices()
+	_test_network_snapshot_redaction()
 	_test_multiplayer_game_end()
 	_test_special_effects()
 	_test_hinterland_expansion()
@@ -398,8 +406,16 @@ func _test_supply_piles() -> void:
 		and game_state.get_supply_count(GameState.CROWNWEALTH_RESOURCE_ID)
 			== GameState.CROWNWEALTH_RESOURCE_SUPPLY_COUNT
 		and game_state.get_supply_count(GameState.CROWNWEALTH_VICTORY_ID)
-			== GameState.CROWNWEALTH_VICTORY_SUPPLY_COUNT,
+			== GameState.CROWNWEALTH_VICTORY_SUPPLY_COUNT_2P,
 		"The Briar Hex pile should stay at 20 and Pebble Coin should have a finite side pile."
+	)
+	var three_player := GameState.new()
+	_check(three_player.load_cards(CARD_DATA_PATH), "Three-player side-supply test should load card data.")
+	_check(three_player.setup_starting_game(3), "Three-player side-supply test should set up.")
+	_check(
+		three_player.get_supply_count(GameState.CROWNWEALTH_RESOURCE_ID) == 12
+		and three_player.get_supply_count(GameState.CROWNWEALTH_VICTORY_ID) == 12,
+		"Three-player Crownwealth side supplies should be 12/12."
 	)
 	game_state.set_kingdom_enabled(GameState.CROWNWEALTH_GROUP, false)
 	_check(
@@ -413,7 +429,7 @@ func _test_supply_piles() -> void:
 		game_state.get_supply_count(GameState.CROWNWEALTH_RESOURCE_ID)
 			== GameState.CROWNWEALTH_RESOURCE_SUPPLY_COUNT
 		and game_state.get_supply_count(GameState.CROWNWEALTH_VICTORY_ID)
-			== GameState.CROWNWEALTH_VICTORY_SUPPLY_COUNT,
+			== GameState.CROWNWEALTH_VICTORY_SUPPLY_COUNT_2P,
 		"Re-enabling Crownwealth should restore only its two side supplies."
 	)
 	var pebble: CardDefinition = game_state.card_catalog["pebble_coin"]
@@ -468,6 +484,151 @@ func _test_supply_piles() -> void:
 		game_state.get_supply_count("pebble_coin") == 17
 		and not game_state.is_game_end_condition_met(),
 		"Removing Crownwealth should preserve other supplies and its premium-victory end condition."
+	)
+
+
+func _test_crownwealth_cards() -> void:
+	# Keep a compact, data-driven contract for every Crownwealth card.  This
+	# catches accidental ID/type/cost/effect drift while the focused checks below
+	# exercise the new resolution hooks.
+	var game_state := _empty_game()
+	var contracts := {
+		"gilded_ledger": ["action", 5, "vault"], "cairn_appraiser": ["action", 4, "bishop"],
+		"skyline_foundry": ["action", 5, "city_empty_bonus"], "sealed_treaty": ["action", 4, "attack"],
+		"ember_forge": ["action", 7, "forge"], "royal_exchange": ["resource", 5, "war_chest"],
+		"grand_bazaar": ["action", 6, "buy_restriction"], "copper_harbor": ["resource", 4, "investment"],
+		"courtly_echo": ["action", 7, "replay_action"], "sable_loan": ["action", 5, "attack"],
+		"minted_seal": ["action", 5, "mint_copy_resource"], "stone_monument": ["action", 4, "gain_vp_tokens"],
+		"veil_broker": ["resource", 7, "bank"], "quarry_mark": ["resource", 4, "reduce_costs"],
+		"raucous_bell": ["action", 5, "attack"], "crown_vessel": ["resource", 6, "hoard_buy"],
+		"watchtower_chart": ["action", 3, "watchtower_reaction"], "chance_engine": ["resource", 5, "crystal_ball"],
+		"twin_pillars": ["action", 4, "base"], "venture_compass": ["resource", 4, "tiara_play_resource"],
+		"artisan_vault": ["resource", 3, "anvil"], "merchant_guild": ["action", 8, "peddler_discount"],
+		"route_toll": ["resource", 5, "collection_gain"], "capital_mirror": ["action", 7, "remodel"],
+		"granary_riddle": ["action", 5, "draw_per_type_in_hand"],
+	}
+	for card_id in contracts:
+		var card: CardDefinition = game_state.card_catalog[card_id]
+		var expected: Array = contracts[card_id]
+		_check(card.card_type == expected[0] and card.cost == expected[1], "%s base contract should match." % card_id)
+		var kinds: Array[String] = []
+		for effect in card.special_effects:
+			kinds.append(str(effect.get("kind", "")))
+		_check(expected[2] == "base" or kinds.has(expected[2]), "%s effect contract should include %s." % [card_id, expected[2]])
+	_check(game_state.card_catalog["gilded_ledger"].draw_cards == 2 and game_state.card_catalog["gilded_ledger"].gain_actions == 0, "Vault base outputs should match.")
+	_check(game_state.card_catalog["cairn_appraiser"].gain_coins == 1, "Bishop base output should match.")
+	_check(game_state.card_catalog["skyline_foundry"].draw_cards == 1 and game_state.card_catalog["skyline_foundry"].gain_actions == 2, "City base outputs should match.")
+	_check(game_state.card_catalog["sealed_treaty"].gain_coins == 2, "Clerk base output should match.")
+	_check(game_state.card_catalog["royal_exchange"].coin_value == 0 and game_state.card_catalog["sable_loan"].gain_coins == 3, "War Chest and hex attack outputs should match.")
+	_check(game_state.card_catalog["grand_bazaar"].draw_cards == 1 and game_state.card_catalog["grand_bazaar"].gain_actions == 1 and game_state.card_catalog["grand_bazaar"].gain_buys == 1 and game_state.card_catalog["grand_bazaar"].gain_coins == 2, "Bazaar outputs should match.")
+	_check(game_state.card_catalog["courtly_echo"].special_effects[0].get("repetitions", 0) == 3, "Triple replay should use three repetitions.")
+	var court_prompt := _empty_game()
+	var court_card: CardDefinition = court_prompt.card_catalog["courtly_echo"]
+	court_prompt.player.hand = [court_card, court_prompt.card_catalog["twin_pillars"]]
+	_check(court_prompt.play_card(court_card), "Courtly Echo should open its replay choice.")
+	_check(
+		court_prompt.has_pending_choice()
+		and court_prompt.pending_choice.prompt.contains("3 times")
+		and court_prompt.pending_choice.confirm_text.contains("3 TIMES"),
+		"Courtly Echo should label its choice as a three-play effect."
+	)
+	_resolve_first_choice(court_prompt)
+	_check(game_state.card_catalog["stone_monument"].gain_coins == 2 and game_state.card_catalog["stone_monument"].gain_buys == 0, "Monument outputs should match.")
+	_check(game_state.card_catalog["quarry_mark"].coin_value == 1 and game_state.card_catalog["quarry_mark"].special_effects[0].get("amount", 0) == 2, "Quarry discount output should match.")
+	_check(game_state.card_catalog["raucous_bell"].draw_cards == 3 and game_state.card_catalog["raucous_bell"].gain_actions == 0, "Rabble reveal output should match.")
+	_check(game_state.card_catalog["crown_vessel"].coin_value == 2 and game_state.card_catalog["watchtower_chart"].special_effects[0].get("amount", 0) == 6, "Hoard and Watchtower outputs should match.")
+	_check(game_state.card_catalog["twin_pillars"].draw_cards == 1 and game_state.card_catalog["twin_pillars"].gain_actions == 2 and game_state.card_catalog["twin_pillars"].gain_buys == 1, "Twin Pillars outputs should match.")
+	_check(game_state.card_catalog["venture_compass"].gain_buys == 1 and game_state.card_catalog["artisan_vault"].coin_value == 1, "Tiara and Anvil outputs should match.")
+	_check(game_state.card_catalog["merchant_guild"].draw_cards == 1 and game_state.card_catalog["merchant_guild"].gain_actions == 1 and game_state.card_catalog["merchant_guild"].gain_coins == 1, "Peddler base outputs should match.")
+	_check(game_state.card_catalog["route_toll"].gain_buys == 1 and game_state.card_catalog["capital_mirror"].special_effects[0].get("cost_delta", 0) == 3, "Collection and Expand outputs should match.")
+	_check(game_state.card_catalog["granary_riddle"].draw_cards == 0 and game_state.card_catalog["granary_riddle"].special_effects[0].get("card_type", "") == "resource", "Granary should count the resources revealed in hand.")
+	var minted_kinds: Array[String] = []
+	for effect in game_state.card_catalog["minted_seal"].special_effects:
+		minted_kinds.append(str(effect.get("kind", "")))
+	_check(minted_kinds.has("mint_gain_cleanup") and game_state.card_catalog["minted_seal"].special_effects[1].get("trigger_scope", "self") == "self", "Mint should clean played resources only when gained.")
+	var tiara_kinds: Array[String] = []
+	for effect in game_state.card_catalog["venture_compass"].special_effects:
+		tiara_kinds.append(str(effect.get("kind", "")))
+	_check(tiara_kinds.has("tiara_gain_reaction"), "Tiara should react to gains.")
+	game_state.market.append(game_state.card_catalog["sable_loan"])
+	var briar_hex: CardDefinition = game_state.card_catalog["briar_hex"]
+	_check(game_state.card_has_type(briar_hex, "resource"), "Briar Hex should become a resource while Sable Loan is in the market.")
+	game_state.player.hand.append(briar_hex)
+	var coins_before_hex := game_state.player.coins
+	_check(game_state.play_card(briar_hex), "Briar Hex should be playable as a resource while Sable Loan is in the market.")
+	_check(game_state.player.coins == coins_before_hex + 1, "Briar Hex should give one coin while Sable Loan is in the market.")
+
+	# Representative execution contracts for choice, token, cost, and reaction hooks.
+	var ledger: CardDefinition = game_state.card_catalog["gilded_ledger"]
+	game_state.player.hand.assign([ledger, game_state.card_catalog["pebble_coin"], game_state.card_catalog["silver_leaf"]])
+	_check(game_state.play_card(ledger), "Gilded Ledger should play.")
+	if game_state.has_pending_choice():
+		_check(game_state.pending_choice.context is Dictionary and game_state.pending_choice.resolver == "vault_discard", "Vault choice context should be serializable.")
+		_resolve_choice_by_ids(game_state, ["pebble_coin", "silver_leaf"])
+	_check(game_state.player.coins >= 2, "Vault should pay one coin per discarded card.")
+
+	var crystal := _empty_game()
+	crystal.player.hand.append(crystal.card_catalog["chance_engine"])
+	crystal.player.draw_pile.append(crystal.card_catalog["pebble_coin"])
+	_check(crystal.play_card(crystal.card_catalog["chance_engine"]), "Chance Engine should play.")
+	_check(crystal.has_pending_choice(), "Crystal Ball should offer top-card modes.")
+	if crystal.has_pending_choice():
+		_check(crystal.pending_choice.candidates.size() >= 2, "Crystal Ball should expose multiple modes.")
+
+	var monument := _empty_game()
+	monument.player.hand.append(monument.card_catalog["stone_monument"])
+	_check(monument.play_card(monument.card_catalog["stone_monument"]), "Stone Monument should play.")
+	_check(monument.player.vp_tokens == 1, "Stone Monument should grant one VP token.")
+
+	var quarry := _empty_game()
+	var action: CardDefinition = quarry.card_catalog["grand_bazaar"]
+	quarry.player.hand.append(quarry.card_catalog["quarry_mark"])
+	_check(quarry.play_card(quarry.card_catalog["quarry_mark"]), "Quarry Mark should play.")
+	_check(quarry.get_effective_cost(action) == maxi(0, action.cost - 2), "Quarry Mark should discount actions only.")
+
+	var guild := _empty_game()
+	guild.player.play_area.assign([guild.card_catalog["grand_bazaar"], guild.card_catalog["gilded_ledger"]])
+	_check(guild.get_effective_cost(guild.card_catalog["merchant_guild"]) == 4, "Merchant Guild cost should drop by two per action in play.")
+
+	var granary := _empty_game()
+	granary.player.hand.assign([granary.card_catalog["granary_riddle"], granary.card_catalog["pebble_coin"], granary.card_catalog["silver_leaf"]])
+	granary.player.draw_pile.assign([granary.card_catalog["homestead"], granary.card_catalog["homestead"]])
+	_check(granary.play_card(granary.card_catalog["granary_riddle"]), "Granary Riddle should play.")
+	_check(granary.player.hand.size() == 4, "Granary Riddle should draw once per resource revealed in hand.")
+
+	var repeated := _empty_game()
+	var repeated_tiara: CardDefinition = repeated.card_catalog["venture_compass"]
+	var repeated_collection: CardDefinition = repeated.card_catalog["route_toll"]
+	repeated.player.hand = [repeated_tiara, repeated_collection]
+	_check(repeated.play_card(repeated_tiara), "Tiara should play for repeated Collection trigger test.")
+	_resolve_choice_by_ids(repeated, ["route_toll"])
+	var repeated_action: CardDefinition = repeated.card_catalog["gilded_ledger"]
+	repeated.market.append(repeated_action)
+	repeated.supply_piles[repeated_action.id] = 10
+	repeated._gain_card_by_id(repeated_action.id, "discard")
+	repeated._process_resolution_queue()
+	_resolve_mode(repeated, "leave")
+	_check(repeated.player.vp_tokens == 2, "Playing Collection twice should register two gain triggers.")
+	repeated._trash_from_play(repeated_collection)
+	repeated._gain_card_by_id(repeated_action.id, "discard")
+	repeated._process_resolution_queue()
+	_resolve_mode(repeated, "leave")
+	_check(repeated.player.vp_tokens == 4, "Collection triggers should persist after their source leaves play this turn.")
+
+	var tiara_topdeck := _empty_game()
+	var topdeck_tiara: CardDefinition = tiara_topdeck.card_catalog["venture_compass"]
+	var topdeck_gain: CardDefinition = tiara_topdeck.card_catalog["gilded_ledger"]
+	tiara_topdeck.player.hand = [topdeck_tiara]
+	tiara_topdeck.market.append(topdeck_gain)
+	tiara_topdeck.supply_piles[topdeck_gain.id] = 10
+	_check(tiara_topdeck.play_card(topdeck_tiara), "Tiara should play for its gain-topdeck test.")
+	tiara_topdeck._gain_card_by_id(topdeck_gain.id, "discard")
+	tiara_topdeck._process_resolution_queue()
+	_resolve_mode(tiara_topdeck, "topdeck")
+	_check(
+		tiara_topdeck.player.draw_pile.has(topdeck_gain)
+		and not tiara_topdeck.player.discard_pile.has(topdeck_gain),
+		"Tiara should move a gained card from discard onto the deck."
 	)
 
 
@@ -658,6 +819,21 @@ func _test_turn_based_mode() -> void:
 		"Turn-based play should cycle back around the table."
 	)
 
+	# A turn-based player's redraw occurs before control advances and must not
+	# fire their Clerk reaction. It becomes eligible only when their next turn
+	# actually begins.
+	var clerk: CardDefinition = game_state.card_catalog["sealed_treaty"]
+	game_state.players[0].hand = [clerk]
+	game_state.players[0].draw_pile = [clerk]
+	game_state.set_active_player_index(0)
+	_finish_turn(turn_manager)
+	_check(game_state.active_player_index == 1, "Turn-based Clerk deferral should pass to player two.")
+	_check(game_state.players[0].pending_choice == null, "A Clerk drawn during pre-turn redraw must wait.")
+	_finish_turn(turn_manager)
+	_finish_turn(turn_manager)
+	_check(game_state.active_player_index == 0 and game_state.has_pending_choice(), "Clerk should react when its owner receives control.")
+	_resolve_first_choice(game_state)
+
 
 func _test_multiplayer_lobby_attacks() -> void:
 	var game_state := GameState.new()
@@ -690,6 +866,250 @@ func _test_multiplayer_lobby_attacks() -> void:
 		game_state.get_active_player_name() == first_player_name,
 		"End Turn should keep the local player view active for parallel play."
 	)
+
+
+func _test_crownwealth_multiplayer_choices() -> void:
+	# Choices for opponent portions are owned by the victim seat and resolve one
+	# at a time, while returning control to the attacking player afterward.
+	var vault := _empty_multiplayer_game()
+	var ledger: CardDefinition = vault.card_catalog["gilded_ledger"]
+	vault.players[0].hand = [ledger]
+	vault.players[1].hand = [vault.card_catalog["pebble_coin"], vault.card_catalog["silver_leaf"]]
+	vault.players[1].draw_pile = [vault.card_catalog["homestead"]]
+	vault.set_active_player_index(0)
+	_check(vault.play_card(ledger), "Vault should play in multiplayer.")
+	_check(vault.has_pending_choice() and vault.pending_choice.resolver == "vault_discard", "Vault should ask for the active discard choice first.")
+	_resolve_choice_by_ids(vault, [])
+	_check(vault.active_player_index == 1 and vault.has_pending_choice(), "Vault should then hand an opponent choice to the victim seat.")
+	_check(vault.pending_choice.resolver == "vault_discard", "Vault victim should choose whether to discard two cards.")
+	_resolve_choice_by_ids(vault, [])
+	_check(vault.active_player_index == 0, "Vault should return control to the attacking player.")
+	_check(vault.players[1].hand.size() == 2, "Declining Vault should leave the opponent hand unchanged.")
+
+	var vault_reward := _empty_multiplayer_game()
+	var reward_vault: CardDefinition = vault_reward.card_catalog["gilded_ledger"]
+	vault_reward.players[0].hand = [reward_vault]
+	vault_reward.players[0].draw_pile = [
+		vault_reward.card_catalog["pebble_coin"],
+		vault_reward.card_catalog["silver_leaf"],
+	]
+	vault_reward.players[1].hand = [
+		vault_reward.card_catalog["pebble_coin"],
+		vault_reward.card_catalog["silver_leaf"],
+	]
+	vault_reward.players[1].draw_pile = [vault_reward.card_catalog["homestead"]]
+	vault_reward.set_active_player_index(0)
+	_check(vault_reward.play_card(reward_vault), "Vault should begin its reward path.")
+	var owner_coins_before := vault_reward.players[0].coins
+	_resolve_choice_by_ids(vault_reward, ["pebble_coin", "silver_leaf"])
+	_check(
+		vault_reward.players[0].coins == owner_coins_before + 2,
+		"Vault owner should gain one coin per discarded card."
+	)
+	_check(vault_reward.active_player_index == 1 and vault_reward.has_pending_choice(), "Vault should offer the opponent reaction.")
+	var opponent_coins_before := vault_reward.players[1].coins
+	_resolve_choice_by_ids(vault_reward, ["pebble_coin", "silver_leaf"])
+	_check(
+		vault_reward.players[1].hand.size() == 1
+		and vault_reward.players[1].hand[0].id == "homestead",
+		"Vault opponent should discard two cards and draw one."
+	)
+	_check(
+		vault_reward.players[1].coins == opponent_coins_before,
+		"Vault opponent should not gain coins for the reaction discard."
+	)
+
+	var vault_sequence := GameState.new()
+	_check(vault_sequence.load_cards(CARD_DATA_PATH), "Three-player choice test should load card data.")
+	_check(vault_sequence.setup_starting_game(3), "A three-player lobby should set up.")
+	vault_sequence.start_all_players()
+	var sequence_vault: CardDefinition = vault_sequence.card_catalog["gilded_ledger"]
+	vault_sequence.players[0].hand = [sequence_vault]
+	vault_sequence.players[0].draw_pile = [
+		vault_sequence.card_catalog["pebble_coin"],
+		vault_sequence.card_catalog["silver_leaf"],
+	]
+	vault_sequence.players[1].hand = [vault_sequence.card_catalog["pebble_coin"], vault_sequence.card_catalog["silver_leaf"]]
+	vault_sequence.players[2].hand = [vault_sequence.card_catalog["pebble_coin"], vault_sequence.card_catalog["silver_leaf"]]
+	vault_sequence.set_active_player_index(0)
+	_check(vault_sequence.play_card(sequence_vault), "Three-player Vault should play.")
+	_resolve_choice_by_ids(vault_sequence, [])
+	_check(vault_sequence.active_player_index == 1 and vault_sequence.has_pending_choice(), "First opponent should receive the Vault choice.")
+	_resolve_choice_by_ids(vault_sequence, [])
+	_check(vault_sequence.active_player_index == 2 and vault_sequence.has_pending_choice(), "Second opponent should receive the Vault choice.")
+	_resolve_choice_by_ids(vault_sequence, [])
+	_check(vault_sequence.active_player_index == 0, "Three-player opponent choices should restore the original attacker.")
+
+	var bishop := _empty_multiplayer_game()
+	var appraiser: CardDefinition = bishop.card_catalog["cairn_appraiser"]
+	bishop.players[0].hand = [appraiser]
+	bishop.players[1].hand = [bishop.card_catalog["pebble_coin"]]
+	bishop.set_active_player_index(0)
+	_check(bishop.play_card(appraiser), "Bishop should play with an empty active hand.")
+	_check(bishop.active_player_index == 1 and bishop.has_pending_choice(), "Bishop should still ask an opponent when the active hand is empty.")
+	_resolve_choice_by_ids(bishop, [])
+	_check(bishop.active_player_index == 0, "Bishop should return control after the opponent decision.")
+	_check(bishop.players[1].trash_pile.is_empty(), "A declined Bishop victim choice should not trash a card.")
+
+	var bishop_reward := _empty_multiplayer_game()
+	var reward_bishop: CardDefinition = bishop_reward.card_catalog["cairn_appraiser"]
+	var bishop_target_card: CardDefinition = bishop_reward.card_catalog["silver_leaf"]
+	bishop_reward.players[0].hand = [reward_bishop]
+	bishop_reward.players[1].hand = [bishop_target_card]
+	bishop_reward.set_active_player_index(0)
+	_check(bishop_reward.play_card(reward_bishop), "Bishop should begin its opponent reward path.")
+	var opponent_vp_before := bishop_reward.players[1].vp_tokens
+	_resolve_choice_by_ids(bishop_reward, ["silver_leaf"])
+	_check(
+		bishop_reward.players[1].trash_pile.has(bishop_target_card),
+		"Bishop opponent should trash the selected card."
+	)
+	_check(
+		bishop_reward.players[1].vp_tokens == opponent_vp_before,
+		"Bishop opponent should not gain VP for trashing a card."
+	)
+
+	var treaty := _empty_multiplayer_game()
+	var treaty_card: CardDefinition = treaty.card_catalog["sealed_treaty"]
+	treaty.players[0].hand = [treaty_card]
+	for _index in range(5):
+		treaty.players[1].hand.append(treaty.card_catalog["pebble_coin"])
+	treaty.set_active_player_index(0)
+	_check(treaty.play_card(treaty_card), "Sealed Treaty should play in multiplayer.")
+	_check(treaty.active_player_index == 1 and treaty.has_pending_choice(), "Sealed Treaty should give each eligible victim a genuine choice.")
+	_resolve_first_choice(treaty)
+	_check(treaty.active_player_index == 0, "Sealed Treaty should restore the attacker after the victim choice.")
+
+	var war := _empty_multiplayer_game()
+	var exchange: CardDefinition = war.card_catalog["royal_exchange"]
+	war.players[1].hand = [exchange]
+	war.set_active_player_index(1)
+	_check(war.play_card(exchange), "War Chest should play in multiplayer.")
+	_check(war.active_player_index == 0 and war.has_pending_choice(), "War Chest naming should belong to the player on the left.")
+	_resolve_first_choice(war)
+	_check(war.active_player_index == 1, "War Chest should return to the exchanger for the gain choice.")
+
+	var war_three := GameState.new()
+	_check(war_three.load_cards(CARD_DATA_PATH), "Three-player War Chest test should load card data.")
+	_check(war_three.setup_starting_game(3), "A three-player War Chest table should set up.")
+	war_three.start_all_players()
+	var exchange_three: CardDefinition = war_three.card_catalog["royal_exchange"]
+	war_three.players[1].hand = [exchange_three]
+	war_three.set_active_player_index(1)
+	_check(war_three.play_card(exchange_three), "Three-player War Chest should play.")
+	_check(war_three.active_player_index == 2, "War Chest left seat should follow the +1 turn order in three-player games.")
+	_resolve_first_choice(war_three)
+	_check(war_three.active_player_index == 1, "Three-player War Chest should return to the exchanger.")
+
+	var reductions := _empty_game()
+	var quarry: CardDefinition = reductions.card_catalog["quarry_mark"]
+	var forge_target: CardDefinition = reductions.card_catalog["ember_forge"]
+	reductions.market.append(quarry)
+	reductions.market.append(forge_target)
+	reductions.supply_piles[forge_target.id] = 10
+	reductions.turn_flags["typed_cost_reductions"] = {"action": 2}
+	_check(reductions.get_non_buy_cost(forge_target) == forge_target.cost - 2, "Typed Quarry reductions should affect non-buy costs.")
+	_check(reductions.get_gain_candidates(forge_target.cost - 2).has(forge_target), "Typed reductions should make reduced-cost gains eligible.")
+
+	var start_reaction := _empty_multiplayer_game()
+	var sealed: CardDefinition = start_reaction.card_catalog["sealed_treaty"]
+	start_reaction.players[0].hand.clear()
+	start_reaction.players[0].draw_pile = [sealed]
+	start_reaction.set_active_player_index(0)
+	start_reaction.reset_turn_resources()
+	start_reaction.draw_cards(1)
+	_check(start_reaction.has_pending_choice(), "The turn-start draw should offer a Clerk reaction.")
+	_resolve_first_choice(start_reaction)
+	start_reaction.player.draw_pile = [sealed]
+	start_reaction.draw_cards(1)
+	_check(not start_reaction.has_pending_choice(), "Cards drawn after the turn-start reaction window must not become reactions.")
+
+	var parallel_start := GameState.new()
+	_check(parallel_start.load_cards(CARD_DATA_PATH), "Parallel Clerk test should load card data.")
+	_check(parallel_start.setup_starting_game(2), "Parallel Clerk test should set up two players.")
+	for parallel_player in parallel_start.players:
+		parallel_player.clear_all()
+		parallel_player.draw_pile = [parallel_start.card_catalog["sealed_treaty"]]
+	parallel_start.start_all_players()
+	_check(
+		parallel_start.players[0].pending_choice != null
+		and parallel_start.players[1].pending_choice != null,
+		"Parallel multiplayer should open each player's first-turn Clerk reaction window."
+	)
+
+	# Target-owned gain reactions resolve in order and retain the attack queue:
+	# Watchtower may trash the curse before a later Tiara trigger attempts to
+	# topdeck it, and that later trigger must not resurrect the trashed card.
+	var reaction_order := _empty_multiplayer_game()
+	var watchtower: CardDefinition = reaction_order.card_catalog["watchtower_chart"]
+	var tiara: CardDefinition = reaction_order.card_catalog["venture_compass"]
+	var sable: CardDefinition = reaction_order.card_catalog["sable_loan"]
+	reaction_order.players[1].hand = [watchtower, tiara]
+	reaction_order.set_active_player_index(1)
+	_check(reaction_order.play_card(tiara), "Target Tiara should play before the gain attack.")
+	reaction_order.players[0].hand = [sable]
+	reaction_order.set_active_player_index(0)
+	_check(reaction_order.play_card(sable), "Sable attack should begin the target gain pipeline.")
+	_check(reaction_order.active_player_index == 1 and reaction_order.has_pending_choice(), "Target Watchtower should own the first gain reaction.")
+	_resolve_mode(reaction_order, "trash")
+	_check(reaction_order.active_player_index == 1 and reaction_order.has_pending_choice(), "Later Tiara gain trigger should resolve for the target.")
+	_resolve_mode(reaction_order, "topdeck")
+	var attacked_card: CardDefinition = reaction_order.card_catalog["briar_hex"]
+	_check(reaction_order.active_player_index == 0, "Attack resolution should return to the attacker after target reactions.")
+	_check(reaction_order.players[1].trash_pile.has(attacked_card), "Watchtower should trash the target's gained curse.")
+	_check(
+		not reaction_order.players[1].hand.has(attacked_card)
+		and not reaction_order.players[1].discard_pile.has(attacked_card)
+		and not reaction_order.players[1].draw_pile.has(attacked_card),
+		"A later Tiara trigger must not resurrect a card already trashed by Watchtower."
+	)
+
+
+func _empty_multiplayer_game() -> GameState:
+	var game_state := GameState.new()
+	_check(game_state.load_cards(CARD_DATA_PATH), "Multiplayer choice test should load card data.")
+	_check(game_state.setup_starting_game(2), "Multiplayer choice test should set up two players.")
+	game_state.start_all_players()
+	return game_state
+
+
+func _test_network_snapshot_redaction() -> void:
+	var game_state := GameState.new()
+	_check(game_state.load_cards(CARD_DATA_PATH), "Snapshot redaction test should load card data.")
+	_check(game_state.setup_starting_game(3), "Snapshot redaction test should set up three players.")
+	var hidden_hand_card: CardDefinition = game_state.card_catalog["pebble_coin"]
+	var hidden_deck_card: CardDefinition = game_state.card_catalog["silver_leaf"]
+	for index in range(game_state.players.size()):
+		game_state.players[index].hand = [hidden_hand_card]
+		game_state.players[index].draw_pile = [hidden_deck_card, hidden_hand_card]
+	var choice := CardChoice.new()
+	choice.id = 77
+	choice.prompt = "Choose a hidden card"
+	choice.minimum = 1
+	choice.maximum = 1
+	choice.resolver = "trash_hand"
+	choice.add_candidate("hidden:77", hidden_hand_card)
+	game_state.players[0].pending_choice = choice
+	var ui = MAIN_UI_SCRIPT.new()
+	ui.game_state = game_state
+	ui.network_enabled = true
+	ui.local_player_index = 1
+	var guest_snapshot: Dictionary = ui._create_network_snapshot()
+	var host_view: Dictionary = guest_snapshot["players"][0]
+	var guest_view: Dictionary = guest_snapshot["players"][1]
+	_check(host_view["hand"].is_empty(), "Guests should not receive another player's hand identities.")
+	_check(host_view["draw"].is_empty(), "Guests should not receive another player's deck order.")
+	_check(host_view["hand_count"] == 1 and host_view["draw_count"] == 2, "Redacted zones should preserve card counts.")
+	_check(
+		(host_view["pending_choice"] as Dictionary).is_empty(),
+		"Guests should not receive another player's pending choice metadata."
+	)
+	_check(
+		(guest_view["hand"] as Array).size() == 1
+		and str((guest_view["hand"] as Array)[0]) == "pebble_coin",
+		"The owning guest should receive their actionable hand identities."
+	)
+	ui.free()
 
 
 func _test_multiplayer_game_end() -> void:

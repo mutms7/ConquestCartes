@@ -1195,6 +1195,7 @@
   },
   {
     "id": "hedgewarden",
+    "multiplayer_only": true,
     "name": "Hedgewarden",
     "type": "action",
     "group": "Witching Hour",
@@ -1583,9 +1584,14 @@
     "group": "Crownwealth",
     "art_id": "quiet_archive",
     "cost": 5,
-    "description": "Draw 2 cards. Gain 1 action.",
+    "description": "Draw 2 cards. You may discard any number of cards for 1 coin each. Each other player may discard 2 cards to draw 1 card.",
     "draw_cards": 2,
-    "gain_actions": 1
+    "special_effects": [
+      {
+        "kind": "vault",
+        "label": "Discard for Coins"
+      }
+    ]
   },
   {
     "id": "cairn_appraiser",
@@ -1594,13 +1600,17 @@
     "group": "Crownwealth",
     "art_id": "reliquary_key",
     "cost": 4,
-    "description": "Trash a card from your hand. Gain 1 coin.",
+    "description": "Gain 1 coin and 1 VP token. Trash a card from your hand. Gain 1 VP token for each 2 coins in its cost. Each other player may trash a card from their hand.",
     "gain_coins": 1,
     "special_effects": [
       {
-        "kind": "trash_from_hand",
+        "kind": "gain_vp_tokens",
         "amount": 1,
-        "label": "Trash a Card"
+        "label": "Gain a VP Token"
+      },
+      {
+        "kind": "bishop",
+        "label": "Trash for VP Tokens"
       }
     ]
   },
@@ -1611,20 +1621,27 @@
     "group": "Crownwealth",
     "art_id": "bellfoundry_village",
     "cost": 5,
-    "description": "Draw 2 cards. Gain 1 action.",
-    "draw_cards": 2,
-    "gain_actions": 1
+    "description": "Draw 1 card. Gain 2 actions. If at least 1 supply pile is empty, draw 1 card. If at least 2 supply piles are empty, gain 1 buy and 1 coin.",
+    "draw_cards": 1,
+    "gain_actions": 2,
+    "special_effects": [
+      {"kind": "city_empty_bonus", "buy_at": 2, "coin_at": 2, "draw_at": 1, "label": "Empty-Pile Bonuses"}
+    ]
   },
   {
     "id": "sealed_treaty",
+    "multiplayer_only": true,
     "name": "Sealed Treaty",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "royal_clerk",
-    "cost": 5,
-    "description": "Gain 2 buys and 2 coins.",
-    "gain_buys": 2,
-    "gain_coins": 2
+    "cost": 4,
+    "description": "Gain 2 coins. Each other player with at least 5 cards in hand puts a card from their hand on top of their deck. At the start of your turn, you may play this from your hand without using an action.",
+    "gain_coins": 2,
+    "special_effects": [
+      {"kind": "attack", "mode": "topdeck_hand_size", "target_hand_size": 5, "label": "Put on Deck at 5 Cards"},
+      {"kind": "start_turn", "trigger": "start_turn", "label": "Start-Turn Play"}
+    ]
   },
   {
     "id": "ember_forge",
@@ -1632,31 +1649,28 @@
     "type": "action",
     "group": "Crownwealth",
     "art_id": "hearthsong",
-    "cost": 4,
-    "description": "Gain a card costing up to 4.",
+    "cost": 7,
+    "description": "Trash any number of cards from your hand. Gain a card costing exactly the total cost of the trashed cards.",
     "special_effects": [
       {
-        "kind": "gain_from_supply",
-        "max_cost": 4,
-        "destination": "discard",
-        "label": "Choose Cost 4"
+        "kind": "forge",
+        "label": "Forge Exact Total"
       }
     ]
   },
   {
     "id": "royal_exchange",
     "name": "Royal Exchange",
-    "type": "action",
+    "type": "resource",
     "group": "Crownwealth",
     "art_id": "silverleaf_broker",
     "cost": 5,
-    "description": "Gain 3 coins. Gain a cheaper card.",
-    "gain_coins": 3,
+    "description": "The player to your left names a card. Gain a card costing up to 5, except cards named for War Chests this turn.",
     "special_effects": [
       {
-        "kind": "gain_cheaper",
-        "destination": "discard",
-        "label": "Gain a Cheaper Card"
+        "kind": "war_chest",
+        "max_cost": 5,
+        "label": "Name and Gain"
       }
     ]
   },
@@ -1667,10 +1681,14 @@
     "group": "Crownwealth",
     "art_id": "lantern_bazaar",
     "cost": 6,
-    "description": "Draw 2 cards. Gain 1 action and 1 buy.",
-    "draw_cards": 2,
+    "description": "Draw 1 card. Gain 1 action, 1 buy, and 2 coins. You cannot buy this while a Pebble Coin is in play.",
+    "draw_cards": 1,
     "gain_actions": 1,
-    "gain_buys": 1
+    "gain_buys": 1,
+    "gain_coins": 2,
+    "special_effects": [
+      {"kind": "buy_restriction", "requirement_card_id": "pebble_coin", "label": "No Pebble in Play"}
+    ]
   },
   {
     "id": "copper_harbor",
@@ -1678,9 +1696,11 @@
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "amber_circlet",
-    "cost": 3,
-    "description": "Gain 2 coins.",
-    "coin_value": 2
+    "cost": 4,
+    "description": "Trash a card from your hand. Choose one: gain 1 coin, or trash this and reveal your hand to gain 1 VP token for each differently named resource there.",
+    "special_effects": [
+      {"kind": "investment", "label": "Invest for Coins or VP"}
+    ]
   },
   {
     "id": "courtly_echo",
@@ -1689,27 +1709,38 @@
     "group": "Crownwealth",
     "art_id": "echoing_hall",
     "cost": 7,
-    "description": "You may play an action card from your hand twice without spending another action.",
+    "description": "You may play an action card from your hand three times without spending another action.",
     "special_effects": [
       {
         "kind": "replay_action",
-        "label": "Replay an Action"
+        "repetitions": 3,
+        "label": "Play an Action Three Times"
       }
     ]
   },
   {
     "id": "sable_loan",
+    "multiplayer_only": true,
     "name": "Sable Loan",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "river_ward",
-    "cost": 3,
-    "description": "Gain 2 coins. Discard your deck.",
-    "gain_coins": 2,
+    "cost": 5,
+    "description": "Gain 3 coins. Each other player gains a Briar Hex. Briar Hexes are resources worth 1 coin when played.",
+    "gain_coins": 3,
     "special_effects": [
       {
-        "kind": "discard_deck",
-        "label": "Discard Your Deck"
+        "kind": "attack",
+        "mode": "gain_curse",
+        "card_id": "briar_hex",
+        "label": "Attack: Give a Hex"
+      },
+      {
+        "kind": "global_card_rule",
+        "target_card_id": "briar_hex",
+        "add_type": "resource",
+        "coin_value": 1,
+        "label": "Briar Hexes Give 1 Coin"
       }
     ]
   },
@@ -1720,13 +1751,16 @@
     "group": "Crownwealth",
     "art_id": "quiet_chapel",
     "cost": 5,
-    "description": "Trash up to 2 resources from your hand.",
+    "description": "You may reveal a resource from your hand, then gain a copy. When you gain this, trash the non-duration resources you played this turn.",
     "special_effects": [
       {
-        "kind": "trash_filtered",
-        "card_type": "resource",
-        "amount": 2,
-        "label": "Trash up to 2 Resources"
+        "kind": "mint_copy_resource",
+        "label": "Reveal and Copy Resource"
+      },
+      {
+        "kind": "mint_gain_cleanup",
+        "trigger": "gain",
+        "label": "Gain: Clear Played Resources"
       }
     ]
   },
@@ -1737,54 +1771,59 @@
     "group": "Crownwealth",
     "art_id": "sunspire_monument",
     "cost": 4,
-    "description": "Gain 2 coins and 1 buy.",
-    "gain_buys": 1,
-    "gain_coins": 2
+    "description": "Gain 2 coins and 1 VP token.",
+    "gain_coins": 2,
+    "special_effects": [
+      {"kind": "gain_vp_tokens", "amount": 1, "label": "Gain a VP Token"}
+    ]
   },
   {
     "id": "veil_broker",
     "name": "Veil Broker",
-    "type": "action",
+    "type": "resource",
     "group": "Crownwealth",
     "art_id": "moonwell_token",
-    "cost": 4,
-    "description": "Gain 8 coins minus 1 coin for each card in your hand.",
+    "cost": 7,
+    "description": "Gain 1 coin for each resource in play.",
     "special_effects": [
       {
-        "kind": "dynamic_hand_coins",
-        "base_amount": 8,
-        "per_card": 1,
-        "label": "Coins for a Small Hand"
+        "kind": "bank",
+        "per_resource": 1,
+        "label": "Coin per Resource in Play"
       }
     ]
   },
   {
     "id": "quarry_mark",
     "name": "Quarry Mark",
-    "type": "action",
+    "type": "resource",
     "group": "Crownwealth",
     "art_id": "starlit_causeway",
     "cost": 4,
-    "description": "Gain 2 actions. Cards cost 2 less this turn, to a minimum of 0.",
-    "gain_actions": 2,
+    "description": "Gain 1 coin. Action cards cost 2 less this turn, to a minimum of 0.",
+    "coin_value": 1,
     "special_effects": [
       {
         "kind": "reduce_costs",
         "amount": 2,
+        "card_type": "action",
         "label": "Costs -2 This Turn"
       }
     ]
   },
   {
     "id": "raucous_bell",
+    "multiplayer_only": true,
     "name": "Raucous Bell",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "village_bell",
     "cost": 5,
-    "description": "Draw 3 cards. Gain 1 action.",
+    "description": "Draw 3 cards. Attack: each other player reveals the top 3 cards of their deck, discards the resources and actions, and puts the rest back on top in any order.",
     "draw_cards": 3,
-    "gain_actions": 1
+    "special_effects": [
+      {"kind": "attack", "mode": "reveal_discard_reorder", "amount": 3, "label": "Attack: Scatter the Top 3"}
+    ]
   },
   {
     "id": "crown_vessel",
@@ -1792,9 +1831,12 @@
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "firefly_gold",
-    "cost": 5,
-    "description": "Gain 3 coins.",
-    "coin_value": 3
+    "cost": 6,
+    "description": "Gain 2 coins. This turn, when you gain a victory card that you bought, gain an Amber Circlet.",
+    "coin_value": 2
+    ,"special_effects": [
+      {"kind": "hoard_buy", "trigger": "buy", "trigger_scope": "in_play", "label": "Bought Victory: Gain Amber"}
+    ]
   },
   {
     "id": "watchtower_chart",
@@ -1803,28 +1845,33 @@
     "group": "Crownwealth",
     "art_id": "astral_vault",
     "cost": 3,
-    "description": "Draw until you have 6 cards in your hand.",
+    "description": "Draw until you have 6 cards in hand. When you gain a card, you may reveal this from hand to trash it or put it on top of your deck.",
     "special_effects": [
       {
-        "kind": "draw_to_size",
+        "kind": "simple_draw_to_size",
         "amount": 6,
         "label": "Draw to 6"
+      },
+      {
+        "kind": "watchtower_reaction",
+        "trigger": "gain_reaction",
+        "label": "React to a Gain"
       }
     ]
   },
   {
     "id": "chance_engine",
     "name": "Chance Engine",
-    "type": "action",
+    "type": "resource",
     "group": "Crownwealth",
     "art_id": "tinker_wren",
-    "cost": 4,
-    "description": "Look at the top 2 cards of your deck. Trash or discard any number of them, then return the rest in any order.",
+    "cost": 5,
+    "description": "Gain 1 coin. Look at the top card of your deck. You may trash it, discard it, or play it if it is a resource or action; otherwise leave it on top.",
+    "coin_value": 1,
     "special_effects": [
       {
-        "kind": "inspect_top",
-        "amount": 2,
-        "label": "Check Top 2"
+        "kind": "crystal_ball",
+        "label": "Choose the Top Card"
       }
     ]
   },
@@ -1834,41 +1881,47 @@
     "type": "action",
     "group": "Crownwealth",
     "art_id": "long_causeway",
-    "cost": 6,
-    "description": "Gain 2 actions and 2 buys.",
+    "cost": 4,
+    "description": "Draw 1 card. Gain 2 actions and 1 buy.",
+    "draw_cards": 1,
     "gain_actions": 2,
-    "gain_buys": 2
+    "gain_buys": 1
   },
   {
     "id": "venture_compass",
     "name": "Venture Compass",
-    "type": "action",
+    "type": "resource",
     "group": "Crownwealth",
     "art_id": "orchard_surveyor",
-    "cost": 5,
-    "description": "Gain 2 coins. Look at the top card of your deck. Choose whether to discard it or return it to the top of your deck.",
-    "gain_coins": 2,
+    "cost": 4,
+    "description": "Gain 1 buy. You may play a resource from your hand twice without using an action. This turn, when you gain a card, you may put it on top of your deck.",
+    "gain_buys": 1,
     "special_effects": [
       {
-        "kind": "inspect_top_one",
-        "label": "Check Top Card"
+        "kind": "tiara_play_resource",
+        "label": "Play a Resource Twice"
+      },
+      {
+        "kind": "tiara_gain_reaction",
+        "trigger": "gain",
+        "trigger_scope": "in_play",
+        "label": "Put a Gain on Deck"
       }
     ]
   },
   {
     "id": "artisan_vault",
     "name": "Artisan Vault",
-    "type": "action",
+    "type": "resource",
     "group": "Crownwealth",
     "art_id": "weavers_loom",
-    "cost": 5,
-    "description": "Gain a card costing up to 6 to your hand.",
+    "cost": 3,
+    "description": "Gain 1 coin. You may discard a resource from your hand to gain a card costing up to 4.",
+    "coin_value": 1,
     "special_effects": [
       {
-        "kind": "gain_from_supply",
-        "max_cost": 6,
-        "destination": "hand",
-        "label": "Choose Cost 6 to Hand"
+        "kind": "anvil",
+        "label": "Discard Resource for a Gain"
       }
     ]
   },
@@ -1878,32 +1931,31 @@
     "type": "action",
     "group": "Crownwealth",
     "art_id": "lantern_bargainer",
-    "cost": 5,
-    "description": "Gain 2 coins. This turn, whenever you buy a card, gain a cheaper card.",
-    "gain_coins": 2,
+    "cost": 8,
+    "description": "Draw 1 card. Gain 1 action and 1 coin. During your Buy phase, only this card costs 2 less per action card in play, to a minimum of 0.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "gain_coins": 1,
     "special_effects": [
       {
-        "kind": "register_buy_bonus",
-        "label": "Buy: Gain Cheaper"
+        "kind": "peddler_discount",
+        "amount": 2,
+        "label": "Actions in Play: Cost -2"
       }
     ]
   },
   {
     "id": "route_toll",
     "name": "Route Toll",
-    "type": "action",
+    "type": "resource",
     "group": "Crownwealth",
     "art_id": "river_trail",
-    "cost": 3,
-    "description": "Gain 1 buy. If you have at least 5 cards in your trash pile, gain 2 coins.",
+    "cost": 5,
+    "description": "Gain 2 coins and 1 buy. This turn, whenever you gain an action card, gain 1 VP token.",
+    "coin_value": 2,
     "gain_buys": 1,
     "special_effects": [
-      {
-        "kind": "trash_size_bonus",
-        "threshold": 5,
-        "gain_coins": 2,
-        "label": "Trash Pile: +2 Coins"
-      }
+      {"kind": "collection_gain", "trigger": "gain", "trigger_scope": "in_play", "amount": 1, "reward": "vp_token", "label": "Action Gain: +1 VP Token"}
     ]
   },
   {
@@ -1912,13 +1964,13 @@
     "type": "action",
     "group": "Crownwealth",
     "art_id": "wishing_crossroads",
-    "cost": 6,
-    "description": "Trash a card from your hand. Gain a different card costing exactly 2 more.",
+    "cost": 7,
+    "description": "Trash a card from your hand. Gain a card costing up to 3 more.",
     "special_effects": [
       {
-        "kind": "upgrade_exact_nonself",
-        "cost_delta": 2,
-        "label": "Develop +2"
+        "kind": "remodel",
+        "cost_delta": 3,
+        "label": "Expand Up to +3"
       }
     ]
   },
@@ -1928,14 +1980,14 @@
     "type": "action",
     "group": "Crownwealth",
     "art_id": "wishing_stone",
-    "cost": 2,
-    "description": "Draw 1 card for each victory card in your hand.",
+    "cost": 5,
+    "description": "Reveal your hand. Draw 1 card for each resource in it.",
     "special_effects": [
       {
         "kind": "draw_per_type_in_hand",
-        "card_type": "victory",
+        "card_type": "resource",
         "amount": 1,
-        "label": "Draw per Victory"
+        "label": "Draw per Resource"
       }
     ]
   },
