@@ -203,7 +203,7 @@
   },
   {
     "id": "council_hearth",
-    "name": "Council Room",
+    "name": "Council",
     "type": "action",
     "art_id": "scholars_hall",
     "cost": 5,
@@ -446,7 +446,7 @@
   },
   {
     "id": "echoing_hall",
-    "name": "Throne Room",
+    "name": "Throne",
     "type": "action",
     "art_id": "echoing_hall",
     "cost": 4,
@@ -557,7 +557,7 @@
   },
   {
     "id": "firefly_gold",
-    "name": "Fool's Gold",
+    "name": "Pyrite",
     "type": "resource",
     "group": "Hinterlands",
     "art_id": "firefly_gold",
@@ -617,7 +617,7 @@
   },
   {
     "id": "bellfoundry_village",
-    "name": "Border Village",
+    "name": "Frontier",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "bellfoundry_village",
@@ -750,7 +750,7 @@
   },
   {
     "id": "village_handyman",
-    "name": "Jack of All Trades",
+    "name": "Jack",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "village_handyman",
@@ -823,7 +823,7 @@
   },
   {
     "id": "acorn_spicebroker",
-    "name": "Spice Merchant",
+    "name": "Spicer",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "acorn_spicebroker",
@@ -1456,7 +1456,7 @@
   },
   {
     "id": "merchant_barge",
-    "name": "Merchant Ship",
+    "name": "Galleon",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "merchant_barge",
@@ -1660,12 +1660,12 @@
   },
   {
     "id": "royal_exchange",
-    "name": "War Chest",
+    "name": "Coffer",
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "silverleaf_broker",
     "cost": 5,
-    "description": "The player to your left names a card. Gain a card costing up to 5, except cards named for War Chests this turn.",
+    "description": "The player to your left names a card. Gain a card costing up to 5, except cards named for Coffers this turn.",
     "special_effects": [
       {
         "kind": "war_chest",
@@ -1676,7 +1676,7 @@
   },
   {
     "id": "grand_bazaar",
-    "name": "Grand Market",
+    "name": "Bazaar",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "lantern_bazaar",
@@ -1704,7 +1704,7 @@
   },
   {
     "id": "courtly_echo",
-    "name": "King's Court",
+    "name": "Court",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "echoing_hall",
@@ -1861,7 +1861,7 @@
   },
   {
     "id": "chance_engine",
-    "name": "Crystal Ball",
+    "name": "Oracle",
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "tinker_wren",
@@ -1877,7 +1877,7 @@
   },
   {
     "id": "twin_pillars",
-    "name": "Worker's Village",
+    "name": "Township",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "long_causeway",
