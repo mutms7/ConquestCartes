@@ -983,6 +983,20 @@ func _initialize() -> void:
 			and _card_effect(resource_button).get_theme_font_size("normal_font_size") >= 7,
 			"Hand card titles and rules text should use the scaled 2a type."
 		)
+		var hand_effect_slot := resource_button.get_node("CardContent/CardLayout/EffectSlot") as Control
+		_check(
+			hand_effect_slot != null
+			and hand_effect_slot.custom_minimum_size.y >= main_ui.CARD_EFFECT_MIN_HEIGHT
+			and is_equal_approx(
+				(_card_name(resource_button).position.y - main_ui.CARD_ART_TOP_INSET - main_ui.HAND_CARD_ART_HEIGHT),
+				1.0
+			)
+			and is_equal_approx(
+				(hand_effect_slot.position.y - main_ui.CARD_ART_TOP_INSET - main_ui.HAND_CARD_ART_HEIGHT),
+				main_ui.CARD_NAME_HEIGHT + 1.0
+			),
+			"Card rules should have a three-line slot with the title and rules lifted together."
+		)
 		_check(
 			resource_button.custom_minimum_size == main_ui.CARD_FACE_SIZE
 			and _all_market_buttons()[0].custom_minimum_size == main_ui.CARD_FACE_SIZE,
@@ -2364,7 +2378,11 @@ func _card_text_layout_is_clear(button: Button) -> bool:
 		art_frame.get_global_rect().position.y <= button_rect.position.y + 8.0
 		and art_frame.get_global_rect().end.y <= text_scrim.get_global_rect().position.y + 1.0
 		and text_scrim.get_global_rect().position.y <= name_label.get_global_rect().position.y
-		and name_label.get_global_rect().end.y <= effect_slot.get_global_rect().position.y + 1.0
+		# The title and rules boxes intentionally overlap by a few pixels after
+		# lifting the three-line rules area; their actual glyph baselines remain
+		# separated, while the larger boxes stay inside the face.
+		and name_label.get_global_rect().end.y
+			<= effect_slot.get_global_rect().position.y + main_ui.CARD_EFFECT_LIFT
 		and effect_label.get_global_rect().position.y >= effect_slot.get_global_rect().position.y
 		and effect_label.get_global_rect().end.y <= meta_row.get_global_rect().position.y + 4.0
 		and footer_gap >= 0.0

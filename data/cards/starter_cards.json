@@ -1364,7 +1364,7 @@
     "group": "Witching Hour",
     "art_id": "pilgrim_stone",
     "cost": 4,
-    "description": "Gain 2 coins. Trash this. If you can hold another relic, draft a relic.",
+    "description": "Gain 2 coins. Trash this. You may replace one of your relics with a newly drafted relic.",
     "gain_coins": 2,
     "special_effects": [
       {
@@ -1373,7 +1373,8 @@
       },
       {
         "kind": "offer_relic_draft",
-        "label": "Draft a Relic"
+        "replace_owned": true,
+        "label": "Replace a Relic"
       }
     ]
   },

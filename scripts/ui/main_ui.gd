@@ -52,6 +52,8 @@ const CARD_NAME_Y := 88.0
 const CARD_NAME_HEIGHT := 20.0
 const CARD_EFFECT_Y := 110.0
 const CARD_EFFECT_HEIGHT := 42.0
+const CARD_EFFECT_LIFT := 4.0
+const CARD_EFFECT_MIN_HEIGHT := 30.0
 const CARD_META_Y := 153.0
 const CARD_META_HEIGHT := 10.0
 const HUD_LEDGER_WIDTH := 158.0
@@ -306,6 +308,9 @@ var respite_ready_seats: Array[int] = []
 var relic_overlay: Control
 var relic_options_row: HBoxContainer
 var relic_overlay_offer: Array[String] = []
+var relic_overlay_stage := ""
+var relic_overlay_title_label: Label
+var relic_overlay_subtitle_label: Label
 
 # End-of-game summary and the solo scoring-relic draft (both built in code).
 var summary_overlay: Control
@@ -1474,6 +1479,7 @@ func _create_network_snapshot(recipient_player_index: int = -1) -> Dictionary:
 			"game_cooldown_reduction": game_player.game_cooldown_reduction,
 			"relics": game_player.relics.duplicate(),
 			"relic_offer": game_player.pending_relic_offer.duplicate(),
+			"relic_replacement": game_player.pending_relic_replacement.duplicate(true),
 			"turn_flags": _serialize_turn_flags(game_player.turn_flags) if is_recipient else {},
 			# Even the prompt/resolver can reveal a private Reaction in hand, so
 			# only the owning peer receives any pending-choice payload.
@@ -1731,6 +1737,10 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		)
 		synced_player.relics = _string_array(player_data.get("relics", []))
 		synced_player.pending_relic_offer = _string_array(player_data.get("relic_offer", []))
+		var replacement_data = player_data.get("relic_replacement", {})
+		synced_player.pending_relic_replacement = (
+			replacement_data.duplicate(true) if typeof(replacement_data) == TYPE_DICTIONARY else {}
+		)
 		synced_player.times_attacked = int(player_data.get("times_attacked", 0))
 		synced_player.turn_flags = _deserialize_turn_flags(player_data.get("turn_flags", {}))
 		synced_player.pending_choice = _choice_from_snapshot(player_data.get("pending_choice", {}))
@@ -2740,6 +2750,7 @@ func _build_relic_overlay() -> void:
 	if title_font != null:
 		title.add_theme_font_override("font", title_font)
 	layout.add_child(title)
+	relic_overlay_title_label = title
 
 	var subtitle := Label.new()
 	subtitle.name = "Subtitle"
@@ -2750,6 +2761,7 @@ func _build_relic_overlay() -> void:
 	if body_font != null:
 		subtitle.add_theme_font_override("font", body_font)
 	layout.add_child(subtitle)
+	relic_overlay_subtitle_label = subtitle
 
 	relic_options_row = HBoxContainer.new()
 	relic_options_row.name = "RelicOptions"
@@ -3033,21 +3045,53 @@ func _local_relic_offer() -> Array[String]:
 	return _local_view_player().pending_relic_offer
 
 
+func _local_relic_replacement() -> Dictionary:
+	if not has_active_game or game_state.players.is_empty() or turn_manager.game_over:
+		return {}
+	if home_overlay != null and home_overlay.visible:
+		return {}
+	return _local_view_player().pending_relic_replacement
+
+
+func _local_relic_options() -> Array[String]:
+	var replacement := _local_relic_replacement()
+	if not replacement.is_empty() and str(replacement.get("stage", "")) == "choose_owned":
+		return _local_view_player().relics.duplicate()
+	return _local_relic_offer()
+
+
 func _refresh_relic_overlay() -> void:
 	if relic_overlay == null:
 		return
-	var offer := _local_relic_offer()
+	var replacement := _local_relic_replacement()
+	var stage := str(replacement.get("stage", ""))
+	var offer := _local_relic_options()
 	if offer.is_empty():
 		if relic_overlay.visible:
 			relic_overlay.hide()
 		relic_overlay_offer.clear()
+		relic_overlay_stage = ""
 		return
-	if relic_overlay.visible and offer == relic_overlay_offer:
+	if relic_overlay.visible and stage == relic_overlay_stage and offer == relic_overlay_offer:
 		return
+	relic_overlay_stage = stage
 	relic_overlay_offer = offer.duplicate()
 	_clear_container(relic_options_row)
 	for relic_id in offer:
 		relic_options_row.add_child(_create_relic_option_button(relic_id))
+	if relic_overlay_title_label != null:
+		relic_overlay_title_label.text = (
+			"REPLACE A RELIC" if stage == "choose_owned" else
+			"CHOOSE A REPLACEMENT" if stage == "draft" else "CLAIM A RELIC"
+		)
+	if relic_overlay_subtitle_label != null:
+		relic_overlay_subtitle_label.text = (
+			"Choose a relic to trade for a newly drafted boon."
+			if stage == "choose_owned" else
+			"Choose a new boon, or pass to keep your current relic."
+			if stage == "draft" else
+			"A boon that lasts the rest of the conquest."
+		)
 	relic_overlay.show()
 	last_animation_event = "relic_offer"
 	_play_ui_sound("draw")
@@ -3057,8 +3101,10 @@ func _on_relic_option_pressed(relic_id: String) -> void:
 	_play_ui_sound("button_click" if relic_id.is_empty() else "buy_card")
 	if _is_network_client():
 		_send_network_client_request("request_relic_choice", {"relic_id": relic_id})
-		# Clear the offer optimistically; the next host snapshot is authoritative.
-		_local_view_player().pending_relic_offer.clear()
+		# Clear only the visible draft optimistically; replacement context remains
+		# until the host snapshot confirms the selected stage.
+		if relic_overlay_stage != "choose_owned":
+			_local_view_player().pending_relic_offer.clear()
 		_refresh_ui()
 		return
 	if game_state.choose_relic(_local_view_player(), relic_id):
@@ -6323,7 +6369,7 @@ func _update_player_status_row(index: int, game_player: PlayerState, you_index: 
 	if not connected:
 		status_color = COLOR_UNAVAILABLE
 		status_text = "Disconnected"
-	elif not game_player.pending_relic_offer.is_empty():
+	elif not game_player.pending_relic_offer.is_empty() or not game_player.pending_relic_replacement.is_empty():
 		status_color = COLOR_CURSE_ACCENT
 		status_text = "Choosing relic"
 	elif game_player.pending_choice != null:
@@ -7014,10 +7060,12 @@ func _create_card_button(
 
 	var art_height := HAND_CARD_ART_HEIGHT if is_hand_card else CARD_ART_HEIGHT
 	var text_scrim_y := CARD_ART_TOP_INSET + art_height
-	var name_y := text_scrim_y + 3.0
-	var effect_y := name_y + CARD_NAME_HEIGHT + 2.0
+	# Give the rules block a little more vertical room while moving its title by
+	# exactly half as much, keeping the two text regions visually centred.
+	var name_y := text_scrim_y + 3.0 - CARD_EFFECT_LIFT * 0.5
+	var effect_y := text_scrim_y + 3.0 + CARD_NAME_HEIGHT + 2.0 - CARD_EFFECT_LIFT
 	var meta_y := CARD_META_Y
-	var effect_height := maxf(24.0, meta_y - effect_y - 1.0)
+	var effect_height := maxf(CARD_EFFECT_MIN_HEIGHT, meta_y - effect_y - 1.0)
 	var art_texture := _load_card_texture(card.art_id)
 	var art_frame := Panel.new()
 	art_frame.name = "ArtFrame"
@@ -7102,7 +7150,8 @@ func _create_card_button(
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.clip_text = true
 	name_label.add_theme_color_override("font_color", type_palette.name_text)
-	name_label.add_theme_font_size_override("font_size", 11)
+	# Keep the title compact enough to leave a clean three-line rules block.
+	name_label.add_theme_font_size_override("font_size", 10)
 	if title_font != null:
 		name_label.add_theme_font_override("font", title_font)
 	layout.add_child(name_label)
@@ -7140,10 +7189,10 @@ func _create_card_button(
 	effect_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	effect_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	effect_label.add_theme_color_override("default_color", type_palette.description_text)
-	effect_label.add_theme_font_size_override("normal_font_size", 10)
-	effect_label.add_theme_font_size_override("bold_font_size", 10)
+	effect_label.add_theme_font_size_override("normal_font_size", 9)
+	effect_label.add_theme_font_size_override("bold_font_size", 9)
 	# A touch more line spacing keeps the larger rules text from feeling cramped.
-	effect_label.add_theme_constant_override("line_separation", 2)
+	effect_label.add_theme_constant_override("line_separation", 1)
 	if body_font != null:
 		effect_label.add_theme_font_override("normal_font", body_font)
 	if body_bold_font != null:

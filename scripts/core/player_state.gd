@@ -22,6 +22,10 @@ var turn_number: int = 1
 # Conquest-long relic boons and the current unclaimed draft offer (relic ids).
 var relics: Array[String] = []
 var pending_relic_offer: Array[String] = []
+# Optional two-stage context for effects that replace an existing relic.  The
+# dictionary is deliberately data-shaped (stage/replaced_relic_id) so it can be
+# copied into network snapshots without depending on a UI node or card id.
+var pending_relic_replacement: Dictionary = {}
 # End-of-game scoring relic drafted in solo play (empty until chosen). Grants
 # bonus victory points at the final tally based on the player's playstyle.
 var scoring_relic: String = ""
@@ -65,6 +69,7 @@ func clear_all() -> void:
 	turn_number = 1
 	relics.clear()
 	pending_relic_offer.clear()
+	pending_relic_replacement.clear()
 	scoring_relic = ""
 	vp_tokens = 0
 	times_attacked = 0

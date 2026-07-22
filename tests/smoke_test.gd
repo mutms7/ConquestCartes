@@ -1168,6 +1168,11 @@ func _test_network_snapshot_redaction() -> void:
 	choice.resolver = "trash_hand"
 	choice.add_candidate("hidden:77", hidden_hand_card)
 	game_state.players[0].pending_choice = choice
+	game_state.players[1].pending_relic_offer = ["dawn_banner"] as Array[String]
+	game_state.players[1].pending_relic_replacement = {
+		"stage": "draft",
+		"replaced_relic_id": "victory_levy",
+	}
 	var ui = MAIN_UI_SCRIPT.new()
 	ui.game_state = game_state
 	ui.network_enabled = true
@@ -1186,6 +1191,11 @@ func _test_network_snapshot_redaction() -> void:
 		(guest_view["hand"] as Array).size() == 1
 		and str((guest_view["hand"] as Array)[0]) == "pebble_coin",
 		"The owning guest should receive their actionable hand identities."
+	)
+	_check(
+		str((guest_view["relic_replacement"] as Dictionary).get("stage", "")) == "draft"
+		and str((guest_view["relic_replacement"] as Dictionary).get("replaced_relic_id", "")) == "victory_levy",
+		"Network snapshots should retain the active relic replacement stage."
 	)
 	ui.free()
 
@@ -2013,6 +2023,65 @@ func _test_relic_system() -> void:
 		"Declining should clear the offer without claiming a relic."
 	)
 
+	# Pilgrim's replacement draft is optional, keeps the old relic until the
+	# final pick, and works at the four-relic cap without increasing the count.
+	var pilgrim_empty := _empty_game()
+	_check(
+		not pilgrim_empty.begin_relic_replacement(pilgrim_empty.player),
+		"Pilgrim should do nothing when no relic is owned."
+	)
+	var pilgrim := _empty_game()
+	pilgrim.player.relics = ["victory_levy"] as Array[String]
+	_check(
+		pilgrim.begin_relic_replacement(pilgrim.player)
+		and str(pilgrim.player.pending_relic_replacement.get("stage", "")) == "choose_owned",
+		"Pilgrim should open a first-stage owned-relic choice."
+	)
+	_check(
+		not pilgrim.choose_relic(pilgrim.player, "not_owned"),
+		"Pilgrim should reject an unowned relic in the replacement stage."
+	)
+	_check(
+		pilgrim.choose_relic(pilgrim.player, "victory_levy")
+		and str(pilgrim.player.pending_relic_replacement.get("stage", "")) == "draft"
+		and pilgrim.player.pending_relic_offer.size() == 3
+		and pilgrim.player.relics == (["victory_levy"] as Array[String]),
+		"Pilgrim should draft three replacements while retaining the old relic."
+	)
+	var replacement_pick: String = pilgrim.player.pending_relic_offer[0]
+	_check(
+		pilgrim.choose_relic(pilgrim.player, replacement_pick)
+		and pilgrim.player.relics.size() == 1
+		and pilgrim.player.relics.has(replacement_pick)
+		and not pilgrim.player.relics.has("victory_levy")
+		and pilgrim.player.pending_relic_replacement.is_empty(),
+		"Pilgrim should exchange exactly one relic after the drafted pick."
+	)
+	var pilgrim_decline := _empty_game()
+	pilgrim_decline.player.relics = ["victory_levy"] as Array[String]
+	pilgrim_decline.begin_relic_replacement(pilgrim_decline.player)
+	_check(
+		pilgrim_decline.choose_relic(pilgrim_decline.player, "")
+		and pilgrim_decline.player.relics == (["victory_levy"] as Array[String]),
+		"Declining Pilgrim's first stage should keep the owned relic."
+	)
+	var pilgrim_cap := _empty_game()
+	pilgrim_cap.player.relics = [
+		"victory_levy", "seekers_compass", "dawn_banner", "gilded_purse",
+	] as Array[String]
+	_check(
+		pilgrim_cap.begin_relic_replacement(pilgrim_cap.player)
+		and pilgrim_cap.choose_relic(pilgrim_cap.player, "gilded_purse")
+		and pilgrim_cap.player.pending_relic_offer.size() == 3,
+		"Pilgrim should still offer a replacement at the relic cap."
+	)
+	var cap_replacement_pick: String = pilgrim_cap.player.pending_relic_offer[0]
+	_check(
+		pilgrim_cap.choose_relic(pilgrim_cap.player, cap_replacement_pick)
+		and pilgrim_cap.player.relics.size() == 4,
+		"A capped replacement should preserve the relic cap."
+	)
+
 	# Timed multiplayer shares the same 7-turn cadence, and its pool may include
 	# the cooldown relic (it is the only mode with an end-turn timer).
 	var timed := _empty_game()
@@ -2044,6 +2113,19 @@ func _test_relic_system() -> void:
 	_check(
 		is_equal_approx(timed.get_end_turn_cooldown_seconds(), 4.0),
 		"The Swift Hourglass reduction should persist across turns."
+	)
+	_check(
+		timed.begin_relic_replacement(timed.player)
+		and timed.choose_relic(timed.player, "swift_hourglass")
+		and timed.player.pending_relic_offer.size() == 3,
+		"Swift Hourglass should be eligible for Pilgrim replacement."
+	)
+	var hourglass_replacement: String = timed.player.pending_relic_offer[0]
+	_check(
+		timed.choose_relic(timed.player, hourglass_replacement)
+		and not timed.player.relics.has("swift_hourglass")
+		and is_equal_approx(timed.get_end_turn_cooldown_seconds(), 5.0),
+		"Replacing Swift Hourglass should restore the normal end-turn cooldown."
 	)
 
 	# Relic cap: a full rail stops producing offers.
@@ -2386,12 +2468,18 @@ func _test_relic_tempo_cards() -> void:
 
 	var stone_game := _empty_game()
 	var stone: CardDefinition = stone_game.card_catalog["pilgrim_stone"]
+	stone_game.player.relics = ["dawn_banner"] as Array[String]
 	stone_game.player.hand.append(stone)
 	_check(stone_game.play_card(stone), "Pilgrim Stone should play.")
 	_check(stone_game.player.trash_pile.has(stone), "Pilgrim Stone should trash itself.")
 	_check(
-		stone_game.player.pending_relic_offer.size() == 3,
-		"Pilgrim Stone should open a relic draft."
+		str(stone_game.player.pending_relic_replacement.get("stage", "")) == "choose_owned",
+		"Pilgrim Stone should open the owned-relic replacement stage."
+	)
+	_check(
+		stone_game.choose_relic(stone_game.player, "dawn_banner")
+		and stone_game.player.pending_relic_offer.size() == 3,
+		"Pilgrim Stone should open a replacement relic draft after the owned pick."
 	)
 
 	var minute_game := _create_game_state()

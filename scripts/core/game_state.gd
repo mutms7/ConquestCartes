@@ -660,8 +660,10 @@ func relic_pool_includes_cooldown() -> bool:
 	return multiplayer_enabled and not turn_based_enabled
 
 
-func generate_relic_offer(target: PlayerState) -> bool:
-	if target.relics.size() >= RelicCatalog.RELIC_CAP:
+func generate_relic_offer(target: PlayerState, allow_at_cap: bool = false) -> bool:
+	if target == null:
+		return false
+	if not allow_at_cap and target.relics.size() >= RelicCatalog.RELIC_CAP:
 		return false
 	if not target.pending_relic_offer.is_empty():
 		return false
@@ -683,6 +685,22 @@ func generate_relic_offer(target: PlayerState) -> bool:
 	return true
 
 
+func begin_relic_replacement(target: PlayerState) -> bool:
+	# Replacement drafts are optional and start by asking which existing boon the
+	# player is willing to trade.  Keep the old relic in place until a new one is
+	# claimed so declining at either stage leaves the collection unchanged.
+	if target == null or target.relics.is_empty():
+		return false
+	if not target.pending_relic_offer.is_empty() or not target.pending_relic_replacement.is_empty():
+		return false
+	target.pending_relic_replacement = {
+		"stage": "choose_owned",
+		"replaced_relic_id": "",
+	}
+	print("[Game] %s may replace one of their relics" % target.player_name)
+	return true
+
+
 func maybe_offer_turn_relic(target: PlayerState) -> void:
 	# Every mode drafts on the same 7-turn cadence (turns 8, 15, 22, ...).
 	if target.pending_choice != null:
@@ -695,6 +713,8 @@ func maybe_offer_turn_relic(target: PlayerState) -> void:
 func choose_relic(target: PlayerState, relic_id: String) -> bool:
 	if target == null:
 		return false
+	if not target.pending_relic_replacement.is_empty():
+		return _choose_relic_replacement(target, relic_id)
 	if relic_id.is_empty():
 		# Declining the draft clears the offer without claiming anything.
 		if target.pending_relic_offer.is_empty():
@@ -708,6 +728,54 @@ func choose_relic(target: PlayerState, relic_id: String) -> bool:
 		target.pending_relic_offer.clear()
 		return false
 	target.pending_relic_offer.clear()
+	_apply_relic_claim(target, relic_id)
+	print("[Game] %s claims relic: %s" % [target.player_name, RelicCatalog.get_relic_name(relic_id)])
+	return true
+
+
+func _choose_relic_replacement(target: PlayerState, relic_id: String) -> bool:
+	var stage := str(target.pending_relic_replacement.get("stage", ""))
+	if stage == "choose_owned":
+		if relic_id.is_empty():
+			target.pending_relic_replacement.clear()
+			print("[Game] %s declines the relic replacement" % target.player_name)
+			return true
+		if not target.relics.has(relic_id):
+			return false
+		target.pending_relic_replacement["stage"] = "draft"
+		target.pending_relic_replacement["replaced_relic_id"] = relic_id
+		if not generate_relic_offer(target, true):
+			target.pending_relic_replacement.clear()
+			return false
+		print(
+			"[Game] %s selected %s for relic replacement"
+			% [target.player_name, RelicCatalog.get_relic_name(relic_id)]
+		)
+		return true
+	if stage != "draft":
+		return false
+	if relic_id.is_empty():
+		target.pending_relic_offer.clear()
+		target.pending_relic_replacement.clear()
+		print("[Game] %s declines the relic replacement draft" % target.player_name)
+		return true
+	if not target.pending_relic_offer.has(relic_id):
+		return false
+	var replaced_relic_id := str(target.pending_relic_replacement.get("replaced_relic_id", ""))
+	if replaced_relic_id.is_empty() or not target.relics.has(replaced_relic_id):
+		return false
+	# Remove first, then append, so replacement can also be used at the cap while
+	# preserving the invariant that one relic is exchanged for one relic.
+	_remove_relic_claim(target, replaced_relic_id)
+	target.relics.erase(replaced_relic_id)
+	target.pending_relic_offer.clear()
+	target.pending_relic_replacement.clear()
+	_apply_relic_claim(target, relic_id)
+	print("[Game] %s claims relic: %s" % [target.player_name, RelicCatalog.get_relic_name(relic_id)])
+	return true
+
+
+func _apply_relic_claim(target: PlayerState, relic_id: String) -> void:
 	target.relics.append(relic_id)
 	if relic_id == "swift_hourglass":
 		target.game_cooldown_reduction += 1.0
@@ -722,8 +790,17 @@ func choose_relic(target: PlayerState, relic_id: String) -> bool:
 				"ignore_duration_mirror": true,
 			},
 		})
-	print("[Game] %s claims relic: %s" % [target.player_name, RelicCatalog.get_relic_name(relic_id)])
-	return true
+
+
+func _remove_relic_claim(target: PlayerState, relic_id: String) -> void:
+	if relic_id == "swift_hourglass":
+		target.game_cooldown_reduction = maxf(0.0, target.game_cooldown_reduction - 1.0)
+	elif relic_id == "culling_reliquary":
+		var remaining_duration: Array[Dictionary] = []
+		for entry in target.pending_duration_effects:
+			if str(entry.get("effect", {}).get("kind", "")) != "relic_full_deck_trash":
+				remaining_duration.append(entry)
+		target.pending_duration_effects = remaining_duration
 
 
 func check_idle_relics() -> void:
@@ -1807,7 +1884,10 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 		"draw_per_relic":
 			draw_cards(player.relics.size() * int(effect.get("amount", 1)))
 		"offer_relic_draft":
-			generate_relic_offer(player)
+			if bool(effect.get("replace_owned", false)):
+				begin_relic_replacement(player)
+			else:
+				generate_relic_offer(player)
 		"attack_immunity":
 			# Passive marker read by _is_attack_protected; nothing resolves on play.
 			pass
