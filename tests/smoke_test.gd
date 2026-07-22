@@ -159,6 +159,7 @@ func _initialize() -> void:
 	_test_supply_piles()
 	_test_crownwealth_cards()
 	_test_turn_cooldown()
+	_test_turn_phases()
 	_test_turn_based_mode()
 	_test_multiplayer_only_timer_cards()
 	_test_relic_system()
@@ -400,14 +401,16 @@ func _test_supply_piles() -> void:
 	if game_state == null:
 		return
 	_check(
-		game_state.get_supply_count("briar_hex") == GameState.CURSE_SUPPLY_COUNT
-		and GameState.CURSE_SUPPLY_COUNT == 20
-		and game_state.get_supply_count("pebble_coin") == GameState.PEBBLE_SIDE_SUPPLY_COUNT
+		GameState.CURSE_SUPPLY_COUNT == 20
+		and game_state.get_supply_count("briar_hex")
+			== game_state.scale_supply_count(GameState.CURSE_SUPPLY_COUNT)
+		and game_state.get_supply_count("pebble_coin")
+			== game_state.scale_supply_count(GameState.PEBBLE_SIDE_SUPPLY_COUNT)
 		and game_state.get_supply_count(GameState.CROWNWEALTH_RESOURCE_ID)
-			== GameState.CROWNWEALTH_RESOURCE_SUPPLY_COUNT
+			== game_state.scale_supply_count(GameState.CROWNWEALTH_RESOURCE_SUPPLY_COUNT)
 		and game_state.get_supply_count(GameState.CROWNWEALTH_VICTORY_ID)
-			== GameState.CROWNWEALTH_VICTORY_SUPPLY_COUNT_2P,
-		"The Briar Hex pile should stay at 20 and Pebble Coin should have a finite side pile."
+			== game_state.scale_supply_count(GameState.CROWNWEALTH_VICTORY_SUPPLY_COUNT_2P),
+		"A solo game should halve every pile, including the finite side supplies."
 	)
 	var three_player := GameState.new()
 	_check(three_player.load_cards(CARD_DATA_PATH), "Three-player side-supply test should load card data.")
@@ -427,9 +430,9 @@ func _test_supply_piles() -> void:
 	game_state.set_kingdom_enabled(GameState.CROWNWEALTH_GROUP, true)
 	_check(
 		game_state.get_supply_count(GameState.CROWNWEALTH_RESOURCE_ID)
-			== GameState.CROWNWEALTH_RESOURCE_SUPPLY_COUNT
+			== game_state.scale_supply_count(GameState.CROWNWEALTH_RESOURCE_SUPPLY_COUNT)
 		and game_state.get_supply_count(GameState.CROWNWEALTH_VICTORY_ID)
-			== GameState.CROWNWEALTH_VICTORY_SUPPLY_COUNT_2P,
+			== game_state.scale_supply_count(GameState.CROWNWEALTH_VICTORY_SUPPLY_COUNT_2P),
 		"Re-enabling Crownwealth should restore only its two side supplies."
 	)
 	var pebble: CardDefinition = game_state.card_catalog["pebble_coin"]
@@ -783,6 +786,58 @@ func _test_multiplayer_only_timer_cards() -> void:
 	_check(
 		retreat_state.consume_end_turn_request(),
 		"Twilight Retreat should request that the turn ends."
+	)
+
+
+func _test_turn_phases() -> void:
+	# Each turn runs an action phase (only actions play) then a buy phase (only
+	# treasures play, purchases allowed). The action phase auto-advances the moment
+	# nothing playable remains, and can also be ended manually.
+	var game_state := _create_game_state()
+	if game_state == null:
+		return
+	var turn_manager := TurnManager.new()
+	turn_manager.configure(game_state)
+	turn_manager.start_first_turn()
+	# The starting deck holds no action cards, so the action phase auto-advances.
+	_check(
+		game_state.is_buy_phase(),
+		"A turn-start hand with no playable action should open in the buy phase."
+	)
+
+	var smithy: CardDefinition = game_state.card_catalog["forge_hall"]
+	var coin: CardDefinition = game_state.card_catalog["pebble_coin"]
+	game_state.player.hand.assign([smithy, coin])
+	game_state.player.actions = 1
+	game_state.begin_turn_phase()
+	_check(
+		game_state.is_action_phase(),
+		"A hand with a playable action should open in the action phase."
+	)
+	_check(
+		game_state.can_play_in_current_phase(smithy)
+		and not game_state.can_play_in_current_phase(coin),
+		"Only actions may be played during the action phase."
+	)
+	_check(game_state.end_action_phase(), "Ending the action phase should succeed once.")
+	_check(
+		game_state.is_buy_phase() and not game_state.end_action_phase(),
+		"The action phase ends exactly once, switching to the buy phase."
+	)
+	_check(
+		game_state.can_play_in_current_phase(coin)
+		and not game_state.can_play_in_current_phase(smithy),
+		"Only treasures may be played during the buy phase."
+	)
+
+	# With actions but no action cards left, the action phase auto-advances too.
+	game_state.player.turn_phase = GameState.TURN_PHASE_ACTION
+	game_state.player.hand.assign([coin])
+	game_state.player.actions = 1
+	game_state.evaluate_auto_phase()
+	_check(
+		game_state.is_buy_phase(),
+		"An action phase with no action cards in hand should auto-advance to buys."
 	)
 
 
@@ -1412,7 +1467,8 @@ func _test_attack_effects() -> void:
 		"Briar Witch should gain a Briar Hex through its attack."
 	)
 	_check(
-		game_state.get_supply_count("briar_hex") == GameState.CURSE_SUPPLY_COUNT - 1,
+		game_state.get_supply_count("briar_hex")
+			== game_state.scale_supply_count(GameState.CURSE_SUPPLY_COUNT) - 1,
 		"Briar Hex attacks should use a finite curse pile."
 	)
 

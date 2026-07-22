@@ -32,6 +32,11 @@ var end_turn_cooldown_reduction: float = 0.0
 # Persists for the whole conquest (game); not reset each turn.
 var game_cooldown_reduction: float = 0.0
 var turn_flags: Dictionary = {}
+# Each turn runs in two phases: "action" (only action cards may be played) and
+# "buy" (only treasures may be played and purchases are allowed). Play advances
+# to the buy phase automatically once no action can be played, or manually when
+# the player ends the action phase.
+var turn_phase: String = "action"
 var pending_choice: CardChoice
 var resolution_queue: Array[Dictionary] = []
 var cleanup_in_progress: bool = false
@@ -78,6 +83,7 @@ func reset_turn_resources() -> void:
 	coins = 0
 	actions = 1
 	buys = 1
+	turn_phase = "action"
 	end_turn_cooldown_reduction = 0.0
 	turn_flags.clear()
 	clear_play_display_records()

@@ -102,6 +102,7 @@ func _on_cleanup_completed() -> void:
 
 	game_state.player.turn_number += 1
 	game_state.draw_cards(game_state.get_turn_draw_count(game_state.player))
+	game_state.begin_turn_phase()
 	game_state.maybe_offer_turn_relic(game_state.player)
 	game_state.check_idle_relics()
 
@@ -113,6 +114,7 @@ func _on_cleanup_completed() -> void:
 		# This player's hand was drawn during their previous cleanup, so arm the
 		# reaction window immediately on taking control rather than drawing again.
 		game_state._arm_start_turn_reactions()
+		game_state.begin_turn_phase()
 		game_state.check_idle_relics()
 		turn_number = game_state.player.turn_number
 		print(

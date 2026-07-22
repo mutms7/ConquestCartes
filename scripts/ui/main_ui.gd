@@ -939,6 +939,8 @@ func _handle_online_relay_signal(sender_id: String, payload: Dictionary) -> void
 			)
 		"request_end_turn":
 			_handle_network_end_turn_request(_player_index_for_relay_client(sender_id))
+		"request_end_action_phase":
+			_handle_network_end_action_phase_request(_player_index_for_relay_client(sender_id))
 		"request_choice":
 			var raw_tokens = payload.get("tokens", [])
 			if typeof(raw_tokens) == TYPE_ARRAY:
@@ -1085,6 +1087,8 @@ func _send_network_client_request(method: String, payload: Dictionary = {}) -> v
 			rpc_id(1, "_rpc_request_buy_card", str(payload.get("card_id", "")))
 		"request_end_turn":
 			rpc_id(1, "_rpc_request_end_turn")
+		"request_end_action_phase":
+			rpc_id(1, "_rpc_request_end_action_phase")
 		"request_choice":
 			rpc_id(1, "_rpc_request_choice", payload.get("tokens", []))
 		"request_relic_choice":
@@ -1447,6 +1451,7 @@ func _create_network_snapshot(recipient_player_index: int = -1) -> Dictionary:
 			"coins": game_player.coins,
 			"actions": game_player.actions,
 			"buys": game_player.buys,
+			"turn_phase": game_player.turn_phase,
 			"vp_tokens": game_player.vp_tokens,
 			"cooldown_reduction": game_player.end_turn_cooldown_reduction,
 			"game_cooldown_reduction": game_player.game_cooldown_reduction,
@@ -1699,6 +1704,7 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		synced_player.coins = int(player_data.get("coins", 0))
 		synced_player.actions = int(player_data.get("actions", 1))
 		synced_player.buys = int(player_data.get("buys", 1))
+		synced_player.turn_phase = str(player_data.get("turn_phase", GameState.TURN_PHASE_ACTION))
 		synced_player.vp_tokens = int(player_data.get("vp_tokens", 0))
 		synced_player.end_turn_cooldown_reduction = float(
 			player_data.get("cooldown_reduction", 0.0)
@@ -1839,6 +1845,7 @@ func _handle_network_play_card_request(player_index: int, card_id: String) -> vo
 	_set_authoritative_player(player_index)
 	var card := _find_card_in_active_hand(card_id)
 	if card != null and game_state.play_card(card):
+		game_state.evaluate_auto_phase()
 		if game_state.consume_end_turn_request():
 			_start_network_player_cooldown(player_index)
 		_restore_local_network_view()
@@ -1880,6 +1887,24 @@ func _handle_network_end_turn_request(player_index: int) -> void:
 	_start_network_player_cooldown(player_index)
 	_sync_choice_overlay_from_network()
 	_broadcast_network_snapshot()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_end_action_phase() -> void:
+	_handle_network_end_action_phase_request(
+		_player_index_for_peer(multiplayer.get_remote_sender_id())
+	)
+
+
+func _handle_network_end_action_phase_request(player_index: int) -> void:
+	if not network_is_host or player_index < 0:
+		return
+	_set_authoritative_player(player_index)
+	if game_state.end_action_phase():
+		_restore_local_network_view()
+		_broadcast_network_snapshot()
+	else:
+		_restore_local_network_view()
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -5940,6 +5965,10 @@ func _apply_button_asset_styles(button: Button, texture: Texture2D) -> void:
 
 func _refresh_ui() -> void:
 	_hide_all_previews()
+	# Auto-advance into the buy phase once the action phase has nothing to do. The
+	# host owns this decision in networked games; guests take it from the snapshot.
+	if game_state != null and (not network_enabled or network_is_host):
+		game_state.evaluate_auto_phase()
 	var player := game_state.player
 	_refresh_player_vp_cache()
 	turn_label.text = (
@@ -6254,7 +6283,9 @@ func _refresh_end_turn_button() -> void:
 		)
 		end_turn_button.modulate = Color.WHITE
 		return
-	end_turn_button.text = "END TURN"
+	# During the action phase the button ends actions and opens the buy phase;
+	# during the buy phase it ends the turn.
+	end_turn_button.text = "END ACTIONS" if game_state.is_action_phase() else "END BUYS"
 	end_turn_button.disabled = game_state.has_pending_choice() or not _can_control_active_player()
 	end_turn_button.modulate = Color.WHITE
 
@@ -6533,10 +6564,10 @@ func _is_market_card_before(
 	first: CardDefinition,
 	second: CardDefinition
 ) -> bool:
-	var first_cost := game_state.get_effective_cost(first)
-	var second_cost := game_state.get_effective_cost(second)
-	if first_cost != second_cost:
-		return first_cost > second_cost
+	# Order by each pile's printed base cost so cost reducers (Quarry Mark and the
+	# like) change the price shown on the badge without shuffling the layout.
+	if first.cost != second.cost:
+		return first.cost > second.cost
 	return first.card_name.naturalnocasecmp_to(second.card_name) < 0
 
 
@@ -6686,6 +6717,10 @@ func _can_play_card(card: CardDefinition) -> bool:
 		return false
 	if card.card_type == "action" and game_state.player.actions <= 0:
 		return false
+	# Actions may only be played in the action phase, treasures only in the buy
+	# phase.
+	if not game_state.can_play_in_current_phase(card):
+		return false
 	return true
 
 
@@ -6695,6 +6730,8 @@ func _can_buy_card(card: CardDefinition) -> bool:
 		and _can_interact_with_local_player()
 		and not turn_manager.game_over
 		and not game_state.has_pending_choice()
+		# Purchases are locked until the player enters the buy phase.
+		and game_state.is_buy_phase()
 		and game_state.player.buys > 0
 		and game_state.player.coins >= game_state.get_effective_cost(card)
 		and game_state.get_supply_count(card.id) > 0
@@ -6887,7 +6924,7 @@ func _create_card_button(
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.clip_text = true
 	name_label.add_theme_color_override("font_color", type_palette.name_text)
-	name_label.add_theme_font_size_override("font_size", 11)
+	name_label.add_theme_font_size_override("font_size", 13)
 	if title_font != null:
 		name_label.add_theme_font_override("font", title_font)
 	layout.add_child(name_label)
@@ -6925,8 +6962,10 @@ func _create_card_button(
 	effect_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	effect_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	effect_label.add_theme_color_override("default_color", type_palette.description_text)
-	effect_label.add_theme_font_size_override("normal_font_size", 8)
-	effect_label.add_theme_font_size_override("bold_font_size", 8)
+	effect_label.add_theme_font_size_override("normal_font_size", 10)
+	effect_label.add_theme_font_size_override("bold_font_size", 10)
+	# A touch more line spacing keeps the larger rules text from feeling cramped.
+	effect_label.add_theme_constant_override("line_separation", 2)
 	if body_font != null:
 		effect_label.add_theme_font_override("normal_font", body_font)
 	if body_bold_font != null:
@@ -6952,7 +6991,7 @@ func _create_card_button(
 	type_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	type_label.text = card.card_type.to_upper()
 	type_label.add_theme_color_override("font_color", type_palette.footer_text)
-	type_label.add_theme_font_size_override("font_size", 6)
+	type_label.add_theme_font_size_override("font_size", 8)
 	if title_font != null:
 		type_label.add_theme_font_override("font", title_font)
 	meta_row.add_child(type_label)
@@ -9178,6 +9217,18 @@ func _on_end_turn_pressed() -> void:
 			_submit_choice(selected_choice_tokens.duplicate())
 		return
 	if game_state.has_pending_choice() or not _can_control_active_player():
+		return
+	# The action phase button only ends actions and opens the buy phase; it never
+	# ends the turn or starts an end-turn cooldown.
+	if game_state.is_action_phase():
+		if _is_network_client():
+			_send_network_client_request("request_end_action_phase")
+			return
+		if game_state.end_action_phase():
+			_play_ui_sound("button_click")
+			if network_enabled and network_is_host:
+				_broadcast_network_snapshot()
+			_refresh_ui()
 		return
 	_play_ui_sound("end_turn")
 	if _is_network_client():

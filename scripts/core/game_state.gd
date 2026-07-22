@@ -44,6 +44,9 @@ const REQUIRED_CARD_IDS := [
 	"briar_hex",
 ]
 
+const TURN_PHASE_ACTION := "action"
+const TURN_PHASE_BUY := "buy"
+
 const ACTION_SUPPLY_COUNT := 10
 const RESOURCE_SUPPLY_COUNT := 12
 const VICTORY_SUPPLY_COUNT := 8
@@ -200,6 +203,7 @@ func start_all_players() -> void:
 			draw_cards(get_turn_draw_count(game_player))
 		elif should_arm_reactions:
 			_arm_start_turn_reactions()
+		begin_turn_phase()
 	_set_active_player(starting_index, false)
 
 
@@ -530,15 +534,15 @@ func _initialize_supply_piles() -> void:
 	for card in market:
 		match card.card_type:
 			"victory":
-				supply_piles[card.id] = VICTORY_SUPPLY_COUNT
+				supply_piles[card.id] = scale_supply_count(VICTORY_SUPPLY_COUNT)
 			"resource":
-				supply_piles[card.id] = RESOURCE_SUPPLY_COUNT
+				supply_piles[card.id] = scale_supply_count(RESOURCE_SUPPLY_COUNT)
 			_:
-				supply_piles[card.id] = ACTION_SUPPLY_COUNT
+				supply_piles[card.id] = scale_supply_count(ACTION_SUPPLY_COUNT)
 	if card_catalog.has("pebble_coin"):
-		supply_piles["pebble_coin"] = PEBBLE_SIDE_SUPPLY_COUNT
+		supply_piles["pebble_coin"] = scale_supply_count(PEBBLE_SIDE_SUPPLY_COUNT)
 	if card_catalog.has(CURSE_CARD_ID):
-		supply_piles[CURSE_CARD_ID] = CURSE_SUPPLY_COUNT
+		supply_piles[CURSE_CARD_ID] = scale_supply_count(CURSE_SUPPLY_COUNT)
 	_set_crownwealth_side_supplies(is_kingdom_enabled(CROWNWEALTH_GROUP))
 
 
@@ -548,13 +552,13 @@ func _set_crownwealth_side_supplies(enabled: bool) -> void:
 		supply_piles.erase(CROWNWEALTH_VICTORY_ID)
 		return
 	if card_catalog.has(CROWNWEALTH_RESOURCE_ID):
-		supply_piles[CROWNWEALTH_RESOURCE_ID] = CROWNWEALTH_RESOURCE_SUPPLY_COUNT
+		supply_piles[CROWNWEALTH_RESOURCE_ID] = scale_supply_count(CROWNWEALTH_RESOURCE_SUPPLY_COUNT)
 	if card_catalog.has(CROWNWEALTH_VICTORY_ID):
-		supply_piles[CROWNWEALTH_VICTORY_ID] = (
-		CROWNWEALTH_VICTORY_SUPPLY_COUNT_2P
-		if players.size() <= 2
-		else CROWNWEALTH_VICTORY_SUPPLY_COUNT_3P
-	)
+		supply_piles[CROWNWEALTH_VICTORY_ID] = scale_supply_count(
+			CROWNWEALTH_VICTORY_SUPPLY_COUNT_2P
+			if players.size() <= 2
+			else CROWNWEALTH_VICTORY_SUPPLY_COUNT_3P
+		)
 
 
 func _get_gain_supply_cards() -> Array[CardDefinition]:
@@ -843,6 +847,64 @@ func _maybe_request_shuffle_predraw(remaining: int) -> bool:
 		{"remaining": remaining}
 	)
 	return has_pending_choice()
+
+
+func is_action_phase() -> bool:
+	return player.turn_phase == TURN_PHASE_ACTION
+
+
+func is_buy_phase() -> bool:
+	return player.turn_phase == TURN_PHASE_BUY
+
+
+func has_playable_action() -> bool:
+	# A hand holds a playable action only while the player still has actions to
+	# spend and at least one action card left to play.
+	if player.actions <= 0:
+		return false
+	for card in player.hand:
+		if card.card_type == "action":
+			return true
+	return false
+
+
+func can_play_in_current_phase(card: CardDefinition) -> bool:
+	# Phase gate for the interactive (hand-click) play path. Effect-driven plays
+	# such as Throne Room / Tiara go through _play_card_internal and bypass this.
+	if card == null:
+		return false
+	if card.card_type == "action":
+		return is_action_phase()
+	if card_has_type(card, "resource"):
+		return is_buy_phase()
+	return false
+
+
+func evaluate_auto_phase() -> void:
+	# Slip into the buy phase the moment the action phase has nothing left to do:
+	# no playable action remains. Never runs backwards, and never mid-choice.
+	if player.turn_phase != TURN_PHASE_ACTION:
+		return
+	if has_pending_choice() or cleanup_in_progress:
+		return
+	if not has_playable_action():
+		player.turn_phase = TURN_PHASE_BUY
+
+
+func begin_turn_phase() -> void:
+	# Called at the start of a turn once the hand is in place: open on the action
+	# phase, then auto-advance if there is nothing to do there.
+	player.turn_phase = TURN_PHASE_ACTION
+	evaluate_auto_phase()
+
+
+func end_action_phase() -> bool:
+	# Manual transition from the action phase to the buy phase.
+	if player.turn_phase != TURN_PHASE_ACTION:
+		return false
+	player.turn_phase = TURN_PHASE_BUY
+	print("[Game] %s ends the action phase" % player.player_name)
+	return true
 
 
 func play_card(card: CardDefinition) -> bool:
@@ -2702,24 +2764,39 @@ func _gain_card_by_id(card_id: String, destination: String) -> void:
 	_gain_from_supply(card, destination)
 
 
+func scale_supply_count(amount: int) -> int:
+	# Solo conquests use half-size piles (10 -> 5, 12 -> 6, ...) so a one-player
+	# sprint ends sooner. Any table with two or more seats keeps full piles.
+	if multiplayer_enabled:
+		return amount
+	return maxi(1, amount / 2)
+
+
 func _default_supply_count(card: CardDefinition) -> int:
+	var base_count := ACTION_SUPPLY_COUNT
 	if card != null and card.id == "pebble_coin":
-		return PEBBLE_SIDE_SUPPLY_COUNT
-	if card != null and card.id == CURSE_CARD_ID:
-		return CURSE_SUPPLY_COUNT
-	if card != null and card.id == CROWNWEALTH_RESOURCE_ID:
-		return CROWNWEALTH_RESOURCE_SUPPLY_COUNT
-	if card != null and card.id == CROWNWEALTH_VICTORY_ID:
-		return CROWNWEALTH_VICTORY_SUPPLY_COUNT_2P if players.size() <= 2 else CROWNWEALTH_VICTORY_SUPPLY_COUNT_3P
-	match card.card_type:
-		"victory":
-			return VICTORY_SUPPLY_COUNT
-		"resource":
-			return RESOURCE_SUPPLY_COUNT
-		"curse":
-			return CURSE_SUPPLY_COUNT
-		_:
-			return ACTION_SUPPLY_COUNT
+		base_count = PEBBLE_SIDE_SUPPLY_COUNT
+	elif card != null and card.id == CURSE_CARD_ID:
+		base_count = CURSE_SUPPLY_COUNT
+	elif card != null and card.id == CROWNWEALTH_RESOURCE_ID:
+		base_count = CROWNWEALTH_RESOURCE_SUPPLY_COUNT
+	elif card != null and card.id == CROWNWEALTH_VICTORY_ID:
+		base_count = (
+			CROWNWEALTH_VICTORY_SUPPLY_COUNT_2P
+			if players.size() <= 2
+			else CROWNWEALTH_VICTORY_SUPPLY_COUNT_3P
+		)
+	else:
+		match card.card_type:
+			"victory":
+				base_count = VICTORY_SUPPLY_COUNT
+			"resource":
+				base_count = RESOURCE_SUPPLY_COUNT
+			"curse":
+				base_count = CURSE_SUPPLY_COUNT
+			_:
+				base_count = ACTION_SUPPLY_COUNT
+	return scale_supply_count(base_count)
 
 
 func _hex_ward_intercepts(target: PlayerState, card: CardDefinition) -> bool:

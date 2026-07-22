@@ -637,8 +637,10 @@ func _initialize() -> void:
 	await process_frame
 	await process_frame
 	_check(
-		main_ui.game_state.get_supply_count("pebble_coin") == GameState.PEBBLE_SIDE_SUPPLY_COUNT
-		and main_ui.game_state.get_supply_count(GameState.CURSE_CARD_ID) == GameState.CURSE_SUPPLY_COUNT,
+		main_ui.game_state.get_supply_count("pebble_coin")
+			== main_ui.game_state.scale_supply_count(GameState.PEBBLE_SIDE_SUPPLY_COUNT)
+		and main_ui.game_state.get_supply_count(GameState.CURSE_CARD_ID)
+			== main_ui.game_state.scale_supply_count(GameState.CURSE_SUPPLY_COUNT),
 		"Side-supply cards should expose finite authoritative counts."
 	)
 	var side_player: PlayerState = main_ui.game_state.player
@@ -1292,7 +1294,7 @@ func _initialize() -> void:
 	await process_frame
 	_check(
 		not main_ui.turn_manager.is_cooling_down()
-		and _end_turn_button().text == "END TURN",
+		and _end_turn_button().text == "END BUYS",
 		"Singleplayer End Turn should not start a cooldown timer."
 	)
 	_check(
