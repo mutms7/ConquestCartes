@@ -203,7 +203,7 @@
   },
   {
     "id": "council_hearth",
-    "name": "Council",
+    "name": "Council Room",
     "type": "action",
     "art_id": "scholars_hall",
     "cost": 5,
@@ -413,7 +413,7 @@
   },
   {
     "id": "astral_spyglass",
-    "name": "Astral Vault",
+    "name": "Spyglass",
     "type": "action",
     "art_id": "astral_vault",
     "cost": 4,
@@ -446,7 +446,7 @@
   },
   {
     "id": "echoing_hall",
-    "name": "Throne",
+    "name": "Throne Room",
     "type": "action",
     "art_id": "echoing_hall",
     "cost": 4,
@@ -557,7 +557,7 @@
   },
   {
     "id": "firefly_gold",
-    "name": "Pyrite",
+    "name": "Fool's Gold",
     "type": "resource",
     "group": "Hinterlands",
     "art_id": "firefly_gold",
@@ -617,7 +617,7 @@
   },
   {
     "id": "bellfoundry_village",
-    "name": "Frontier",
+    "name": "Border Village",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "bellfoundry_village",
@@ -750,7 +750,7 @@
   },
   {
     "id": "village_handyman",
-    "name": "Jack",
+    "name": "Jack of All Trades",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "village_handyman",
@@ -823,7 +823,7 @@
   },
   {
     "id": "acorn_spicebroker",
-    "name": "Spicer",
+    "name": "Spice Merchant",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "acorn_spicebroker",
@@ -875,7 +875,7 @@
   {
     "id": "candlecap_kettle",
     "multiplayer_only": true,
-    "name": "Cap Kettle",
+    "name": "Kettle",
     "type": "resource",
     "group": "Hinterlands",
     "art_id": "candlecap_kettle",
@@ -897,7 +897,7 @@
   },
   {
     "id": "briar_hound",
-    "name": "Briar Hound",
+    "name": "Hound",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "briar_hound",
@@ -943,7 +943,7 @@
   },
   {
     "id": "moss_weaver",
-    "name": "Moss Weaver",
+    "name": "Weaver",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "moss_weaver",
@@ -952,7 +952,7 @@
     "special_effects": [
       {
         "kind": "choose_named_or_supply",
-        "prompt": "Choose what Moss Weaver should gain.",
+        "prompt": "Choose what Weaver should gain.",
         "modes": [
           {
             "id": "silvers",
@@ -980,7 +980,7 @@
   {
     "id": "stonewall_raider",
     "multiplayer_only": true,
-    "name": "Stone Raider",
+    "name": "Raider",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "stone_wall",
@@ -1008,7 +1008,7 @@
   {
     "id": "briar_hut",
     "multiplayer_only": true,
-    "name": "Briar Hut",
+    "name": "Hut",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "briar_hut",
@@ -1032,7 +1032,7 @@
   },
   {
     "id": "starlit_caravan",
-    "name": "Star Caravan",
+    "name": "Starfall",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "starlit_caravan",
@@ -1057,7 +1057,7 @@
   },
   {
     "id": "lantern_bazaar",
-    "name": "Lantern Bazaar",
+    "name": "Bazaar",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "lantern_bazaar",
@@ -1098,7 +1098,7 @@
   },
   {
     "id": "sunspire_bell",
-    "name": "Sunspire Bell",
+    "name": "Sunspire",
     "type": "action",
     "art_id": "sunspire_monument",
     "cost": 5,
@@ -1115,7 +1115,7 @@
   },
   {
     "id": "hourglass_reliquary",
-    "name": "Time Relic",
+    "name": "Hourglass",
     "type": "action",
     "art_id": "hourglass_reliquary",
     "cost": 6,
@@ -1135,7 +1135,7 @@
   },
   {
     "id": "twilight_retreat",
-    "name": "Dusk Retreat",
+    "name": "Dusk",
     "type": "action",
     "art_id": "twilight_retreat",
     "cost": 5,
@@ -1155,7 +1155,7 @@
   },
   {
     "id": "witchs_bargain",
-    "name": "Witch's Bargain",
+    "name": "Bargain",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "witchs_bargain",
@@ -1173,7 +1173,7 @@
   },
   {
     "id": "hex_eater",
-    "name": "Hex Eater",
+    "name": "Hexeater",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "hex_eater",
@@ -1242,7 +1242,7 @@
   },
   {
     "id": "bramble_idol",
-    "name": "Bramble Idol",
+    "name": "Idol",
     "type": "victory",
     "group": "Witching Hour",
     "art_id": "bramble_idol",
@@ -1254,7 +1254,7 @@
   },
   {
     "id": "cursed_ingot",
-    "name": "Cursed Ingot",
+    "name": "Ingot",
     "type": "resource",
     "group": "Witching Hour",
     "art_id": "cursed_ingot",
@@ -1273,7 +1273,7 @@
   },
   {
     "id": "hex_mill",
-    "name": "Hex Mill",
+    "name": "Hexmill",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "hex_mill",
@@ -1294,7 +1294,7 @@
   },
   {
     "id": "bone_cart",
-    "name": "Bone Cart",
+    "name": "Bonecart",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "bone_cart",
@@ -1312,7 +1312,7 @@
   },
   {
     "id": "bonepicker_crow",
-    "name": "Bonepicker Crow",
+    "name": "Bonepicker",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "bonepicker_crow",
@@ -1331,7 +1331,7 @@
   },
   {
     "id": "moth_shrine",
-    "name": "Moth Shrine",
+    "name": "Shrine",
     "type": "victory",
     "group": "Witching Hour",
     "art_id": "moth_shrine",
@@ -1342,7 +1342,7 @@
   },
   {
     "id": "reliquary_key",
-    "name": "Reliquary Key",
+    "name": "Keystone",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "reliquary_key",
@@ -1359,7 +1359,7 @@
   },
   {
     "id": "pilgrim_stone",
-    "name": "Pilgrim Stone",
+    "name": "Pilgrim",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "pilgrim_stone",
@@ -1379,7 +1379,7 @@
   },
   {
     "id": "stolen_minute",
-    "name": "Stolen Minute",
+    "name": "Minute",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "stolen_minute",
@@ -1399,7 +1399,7 @@
   },
   {
     "id": "lantern_vigil",
-    "name": "Lantern Vigil",
+    "name": "Vigil",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "lantern_vigil",
@@ -1418,7 +1418,7 @@
   },
   {
     "id": "moonlit_caravan",
-    "name": "Moonlit Caravan",
+    "name": "Caravan",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "moonlit_caravan",
@@ -1438,7 +1438,7 @@
   },
   {
     "id": "night_ferry",
-    "name": "Night Ferry",
+    "name": "Ferry",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "night_ferry",
@@ -1456,7 +1456,7 @@
   },
   {
     "id": "merchant_barge",
-    "name": "Galleon",
+    "name": "Merchant Ship",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "merchant_barge",
@@ -1498,7 +1498,7 @@
   },
   {
     "id": "dream_courier",
-    "name": "Dream Courier",
+    "name": "Courier",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "dream_courier",
@@ -1517,7 +1517,7 @@
   },
   {
     "id": "owl_post",
-    "name": "Owl Post",
+    "name": "Owl",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "moss_thread",
@@ -1560,7 +1560,7 @@
   },
   {
     "id": "long_causeway",
-    "name": "Long Causeway",
+    "name": "Causeway",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "long_causeway",
@@ -1660,12 +1660,12 @@
   },
   {
     "id": "royal_exchange",
-    "name": "Coffer",
+    "name": "War Chest",
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "silverleaf_broker",
     "cost": 5,
-    "description": "The player to your left names a card. Gain a card costing up to 5, except cards named for Coffers this turn.",
+    "description": "The player to your left names a card. Gain a card costing up to 5, except cards named for War Chests this turn.",
     "special_effects": [
       {
         "kind": "war_chest",
@@ -1676,7 +1676,7 @@
   },
   {
     "id": "grand_bazaar",
-    "name": "Bazaar",
+    "name": "Grand Market",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "lantern_bazaar",
@@ -1704,7 +1704,7 @@
   },
   {
     "id": "courtly_echo",
-    "name": "Court",
+    "name": "King's Court",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "echoing_hall",
@@ -1861,7 +1861,7 @@
   },
   {
     "id": "chance_engine",
-    "name": "Oracle",
+    "name": "Crystal Ball",
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "tinker_wren",
@@ -1877,7 +1877,7 @@
   },
   {
     "id": "twin_pillars",
-    "name": "Township",
+    "name": "Worker's Village",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "long_causeway",
@@ -1976,7 +1976,7 @@
   },
   {
     "id": "granary_riddle",
-    "name": "Granary Riddle",
+    "name": "Granary",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "wishing_stone",
