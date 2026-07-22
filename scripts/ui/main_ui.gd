@@ -6757,6 +6757,9 @@ func _create_card_button(
 	var border_color: Color = type_palette.accent
 	if is_disabled_face:
 		border_color = Color(0, 0, 0, 0.45)
+	# The drawn edge is a quieter version of the type accent; the accent itself is
+	# kept as the card's identity (meta, text, badges) and returns on hover.
+	var edge_color := border_color if is_disabled_face else _card_edge_color(type_palette.accent)
 	var button := Button.new()
 	# Every card on the table uses one fixed size and ratio so market, hand and
 	# in-play faces match exactly. Market cards centre inside their grid column
@@ -6786,7 +6789,7 @@ func _create_card_button(
 		button.gui_input.connect(_on_card_gui_input.bind(card, button, visual_state))
 	button.add_theme_stylebox_override(
 		"normal",
-		_make_card_style(card_surface, border_color, outline_width, is_affordable_face)
+		_make_card_style(card_surface, edge_color, outline_width, is_affordable_face)
 	)
 	button.add_theme_stylebox_override(
 		"hover",
@@ -6799,7 +6802,7 @@ func _create_card_button(
 	)
 	button.add_theme_stylebox_override(
 		"pressed",
-		_make_card_style(card_surface.darkened(0.06), type_palette.accent, outline_width, is_affordable_face)
+		_make_card_style(card_surface.darkened(0.06), edge_color, outline_width, is_affordable_face)
 	)
 	button.add_theme_stylebox_override(
 		"focus",
@@ -6900,7 +6903,7 @@ func _create_card_button(
 	var accent_line := ColorRect.new()
 	accent_line.name = "AccentLine"
 	accent_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	accent_line.color = type_palette.accent
+	accent_line.color = edge_color
 	accent_line.custom_minimum_size = Vector2(0, 2)
 	art_frame.add_child(accent_line)
 	accent_line.anchor_left = 0.0
@@ -7058,8 +7061,14 @@ func _card_frame_border_color(button: Control) -> Color:
 		palette.hover_border
 		if bool(button.get_meta("card_frame_hovered", false))
 		or bool(button.get_meta("card_frame_focused", false))
-		else palette.accent
+		else _card_edge_color(palette.accent)
 	)
+
+
+func _card_edge_color(accent: Color) -> Color:
+	# Card borders and the divider line sit quieter than the full type accent so
+	# the table reads calmer. Hover still lifts them back to the bright accent.
+	return accent.darkened(0.42)
 
 
 func _make_card_frame_style(border_color: Color) -> StyleBoxFlat:

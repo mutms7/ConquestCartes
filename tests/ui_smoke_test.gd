@@ -905,8 +905,9 @@ func _initialize() -> void:
 			and frame_style.corner_radius_top_right == main_ui.CARD_FRAME_BORDER_WIDTH
 			and frame_style.corner_radius_bottom_right == main_ui.CARD_FRAME_BORDER_WIDTH
 			and frame_style.corner_radius_bottom_left == main_ui.CARD_FRAME_BORDER_WIDTH
-			and frame_style.border_color == main_ui._get_card_type_accent("resource"),
-			"The outer frame should use a 2px type-colored border with matching subtle corners."
+			and frame_style.border_color
+				== main_ui._card_edge_color(main_ui._get_card_type_accent("resource")),
+			"The outer frame should use a 2px quieted type-colored border with matching subtle corners."
 		)
 		_check(
 			normal_style != null
