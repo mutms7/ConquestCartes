@@ -571,6 +571,7 @@ func _start_lobby_game(player_count: int = 2) -> void:
 	_apply_local_player_name(false)
 	_start_respite()
 	_refresh_ui()
+	_hide_home_modals()
 	call_deferred("_animate_draw_cards", game_state.player.hand.size())
 
 
@@ -1317,7 +1318,9 @@ func _start_network_player_cooldown(player_index: int) -> void:
 		"[Game] End turn %d for %s in %.1f seconds"
 		% [game_player.turn_number, game_player.player_name, game_player.cooldown_duration]
 	)
-	_finish_network_player_turn(player_index)
+	# The countdown locks only End Turn. Keep the player's hand and market
+	# interactions live until it expires; cleanup and the next draw happen then.
+	game_player.ending_turn = false
 	_restore_local_network_view()
 
 
@@ -1329,7 +1332,7 @@ func _tick_network_cooldowns(delta: float) -> void:
 	# countdown for the button, so a per-frame snapshot would rebuild their whole
 	# board 60 times a second and swallow card/market clicks mid-cooldown. The
 	# cooldown must lock the End Turn button only, never the rest of the screen.
-	var expired := false
+	var expired_players: Array[int] = []
 	for player_index in range(game_state.players.size()):
 		var game_player := game_state.players[player_index]
 		if game_player.cooldown_remaining <= 0.0:
@@ -1339,8 +1342,11 @@ func _tick_network_cooldowns(delta: float) -> void:
 			continue
 		game_player.ending_turn = false
 		game_player.cooldown_duration = 0.0
-		expired = true
-	if expired:
+		expired_players.append(player_index)
+	if not expired_players.is_empty():
+		for player_index in expired_players:
+			game_state.players[player_index].ending_turn = true
+			_finish_network_player_turn(player_index)
 		_restore_local_network_view()
 		_broadcast_network_snapshot()
 
@@ -4763,6 +4769,10 @@ func _show_home_screen(_from_game: bool) -> void:
 
 func _hide_home_screen() -> void:
 	_stop_home_motion()
+	# Modal home panels can remain visible after starting a lobby even though
+	# their parent overlay is hidden. Close them so they cannot intercept game UI
+	# input (for example, the End Turn button).
+	_hide_home_modals()
 	if home_overlay != null:
 		home_overlay.hide()
 	# A relic offer may have been waiting behind the menu.
@@ -6170,13 +6180,13 @@ func _create_player_status_row(index: int) -> PanelContainer:
 
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 5)
-	margin.add_theme_constant_override("margin_top", 5)
+	margin.add_theme_constant_override("margin_top", 2)
 	margin.add_theme_constant_override("margin_right", 5)
-	margin.add_theme_constant_override("margin_bottom", 5)
+	margin.add_theme_constant_override("margin_bottom", 2)
 	row_panel.add_child(margin)
 
 	var stack := VBoxContainer.new()
-	stack.add_theme_constant_override("separation", 1)
+	stack.add_theme_constant_override("separation", 0)
 	margin.add_child(stack)
 
 	var top := HBoxContainer.new()
@@ -6250,6 +6260,7 @@ func _create_player_status_row(index: int) -> PanelContainer:
 	status_label.name = "Status"
 	status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	status_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	status_label.custom_minimum_size = Vector2(0, 9)
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	status_label.add_theme_color_override("font_color", COLOR_BRASS)

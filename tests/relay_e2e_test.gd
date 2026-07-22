@@ -136,8 +136,10 @@ func _initialize() -> void:
 			"Guest should see its played card in its own play area after the snapshot."
 		)
 
-	# Host plays a card too; only seat 0 changes.
-	var guest_view_seat0_before: int = guest_ui.game_state.players[0].hand.size()
+	# Host plays a card too; only seat 0's public play area changes.  The
+	# snapshot intentionally redacts opponents' hand identities, so the guest
+	# cannot observe a hand-size decrement there; play-area cards are public.
+	var guest_view_seat0_play_before: int = guest_ui.game_state.players[0].play_area.size()
 	var host_pebble: CardDefinition = null
 	for card in host_ui.game_state.player.hand:
 		if card.id == "pebble_coin":
@@ -148,11 +150,11 @@ func _initialize() -> void:
 		var host_seat1_hand: int = host_ui.game_state.players[1].hand.size()
 		host_ui._on_hand_card_pressed(host_pebble)
 		await _wait_until(
-			func(): return guest_ui.game_state.players[0].hand.size() == guest_view_seat0_before - 1,
+			func(): return guest_ui.game_state.players[0].play_area.size() == guest_view_seat0_play_before + 1,
 			10.0
 		)
 		_check(
-			guest_ui.game_state.players[0].hand.size() == guest_view_seat0_before - 1,
+			guest_ui.game_state.players[0].play_area.size() == guest_view_seat0_play_before + 1,
 			"Guest should see the host's play reflected on seat 0."
 		)
 		_check(
