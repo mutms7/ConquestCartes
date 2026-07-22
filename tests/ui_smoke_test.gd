@@ -1054,6 +1054,17 @@ func _initialize() -> void:
 		_right_click_control(resource_button)
 		await process_frame
 		_check(_card_preview().visible, "Right-clicking a hand card should show its preview.")
+		var preview_dismiss_click := InputEventMouseButton.new()
+		preview_dismiss_click.pressed = true
+		preview_dismiss_click.button_index = MOUSE_BUTTON_LEFT
+		main_ui._input(preview_dismiss_click)
+		_check(
+			not _card_preview().visible and main_ui.active_preview_kind.is_empty(),
+			"A left click should dismiss a card preview before the clicked action is dispatched."
+		)
+		_right_click_control(resource_button)
+		await process_frame
+		_check(_card_preview().visible, "Card preview should be reopenable after a left-click dismissal.")
 		_check(
 			_card_preview().custom_minimum_size.x > main_ui.CARD_FACE_SIZE.x
 			and _card_preview().custom_minimum_size.x <= 280.0

@@ -1161,7 +1161,8 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 					1,
 					"bishop_trash",
 					"TRASH",
-					"SKIP"
+					"SKIP",
+					_hand_trash_choice_context()
 				)
 		"city_empty_bonus":
 			var empty_piles := get_empty_supply_pile_count()
@@ -3172,6 +3173,11 @@ func _vault_other_players() -> void:
 
 
 func _bishop_other_players() -> void:
+	# Bishop's optional trash is explicitly for other players. In solo there
+	# are no eligible opponents, so do not loop back to the owner for a second
+	# optional choice after resolving the required self-trash.
+	if players.size() <= 1:
+		return
 	var targets: Array[int] = []
 	var return_index := active_player_index
 	for target in _get_attack_targets():

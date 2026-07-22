@@ -17,6 +17,10 @@ const HAND_FAN_PIVOT_DROP := 360.0
 # How much each card actually tilts, as a fraction of its arc angle. Lower keeps
 # the same fan spread but stands the card faces flatter / more upright.
 const HAND_FAN_TILT := 0.42
+# Keep the hand readable and compact; the cards still fan, but occupy less
+# horizontal arc so the paging controls are only needed for genuinely large
+# hands.
+const HAND_FAN_ANGLE_SPREAD := 56.0
 const HOVER_ANIMATION_SECONDS := 0.08
 const CARD_MOVE_SECONDS := 0.18
 const CARD_DRAW_SECONDS := 0.16
@@ -318,6 +322,9 @@ var relic_preview_meta_label: Label
 var relic_preview_description_label: Label
 var active_preview_kind := ""
 var active_preview_id := ""
+var hand_scroll_left_button: Button
+var hand_scroll_right_button: Button
+var pending_draw_card_ids: Array[String] = []
 var last_play_area_ids: Array[String] = []
 var last_play_area_owner: int = 0
 var home_noise_overlay: TextureRect
@@ -378,6 +385,9 @@ var lobby_name_input: LineEdit
 	$Margin/Layout/HandPanel/HandMargin/HandScroll/HandContainer
 )
 @onready var hand_scroll: ScrollContainer = $Margin/Layout/HandPanel/HandMargin/HandScroll
+@onready var hand_scroll_overlay: Control = $Margin/Layout/HandPanel/HandMargin/HandOverlay
+@onready var hand_scroll_left: Button = $Margin/Layout/HandPanel/HandMargin/HandOverlay/LeftButton
+@onready var hand_scroll_right: Button = $Margin/Layout/HandPanel/HandMargin/HandOverlay/RightButton
 @onready var animation_layer: Control = $AnimationLayer
 @onready var choice_overlay: Control = $ChoiceOverlay
 @onready var choice_panel: PanelContainer = $ChoiceOverlay/Center/Panel
@@ -429,6 +439,7 @@ var card_desaturate_material: ShaderMaterial
 func _ready() -> void:
 	_load_optional_assets()
 	_build_bottom_docks()
+	_configure_hand_scroll_overlay()
 	_build_top_bar()
 	_build_market_board()
 	_build_home_screen()
@@ -2170,6 +2181,107 @@ func _build_bottom_docks() -> void:
 	hud_row.move_child(right_ledger, 2)
 	main_layout.move_child(hud_panel, main_layout.get_child_count() - 1)
 	_lock_play_area_height()
+
+
+func _configure_hand_scroll_overlay() -> void:
+	# Keep the hand viewport's scrollbar hidden while retaining its range for
+	# keyboard/mouse-free one-card paging. The overlay buttons sit above the
+	# viewport and only become visible when the hand actually overflows.
+	if hand_scroll == null:
+		return
+	hand_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	hand_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	hand_scroll_left_button = hand_scroll_left
+	hand_scroll_right_button = hand_scroll_right
+	for arrow_button in [hand_scroll_left_button, hand_scroll_right_button]:
+		if arrow_button == null:
+			continue
+		arrow_button.focus_mode = Control.FOCUS_NONE
+		arrow_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		arrow_button.modulate = Color(1, 1, 1, 0.52)
+		arrow_button.add_theme_color_override("font_color", Color(0.95, 0.88, 0.7, 0.72))
+		arrow_button.add_theme_color_override("font_hover_color", Color(1, 0.95, 0.8, 0.9))
+		arrow_button.add_theme_color_override("font_pressed_color", Color(1, 1, 1, 0.95))
+		arrow_button.add_theme_font_size_override("font_size", 32)
+		arrow_button.add_theme_stylebox_override("normal", _make_hand_arrow_style(Color(0, 0, 0, 0)))
+		arrow_button.add_theme_stylebox_override("hover", _make_hand_arrow_style(Color(0.92, 0.78, 0.48, 0.12)))
+		arrow_button.add_theme_stylebox_override("pressed", _make_hand_arrow_style(Color(0.92, 0.78, 0.48, 0.2)))
+	if hand_scroll_left_button != null and not hand_scroll_left_button.pressed.is_connected(_on_hand_scroll_left_pressed):
+		hand_scroll_left_button.pressed.connect(_on_hand_scroll_left_pressed)
+	if hand_scroll_right_button != null and not hand_scroll_right_button.pressed.is_connected(_on_hand_scroll_right_pressed):
+		hand_scroll_right_button.pressed.connect(_on_hand_scroll_right_pressed)
+	_update_hand_scroll_controls()
+
+
+func _make_hand_arrow_style(fill: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = fill
+	style.border_width_left = 0
+	style.border_width_top = 0
+	style.border_width_right = 0
+	style.border_width_bottom = 0
+	style.content_margin_left = 5
+	style.content_margin_right = 5
+	return style
+
+
+func _on_hand_scroll_left_pressed() -> void:
+	_scroll_hand_by_card(-1)
+
+
+func _on_hand_scroll_right_pressed() -> void:
+	_scroll_hand_by_card(1)
+
+
+func _hand_scroll_step() -> float:
+	var step := CARD_FACE_SIZE.x - 22.0
+	if hand_container != null and hand_container.get_child_count() > 0:
+		var first_card := hand_container.get_child(0) as Control
+		if first_card != null and first_card.size.x > 0.0:
+			step = first_card.size.x + float(hand_container.get_theme_constant("separation"))
+	return maxf(1.0, step)
+
+
+func _scroll_hand_by_card(direction: int) -> void:
+	if hand_scroll == null:
+		return
+	var bar := hand_scroll.get_h_scroll_bar()
+	if bar == null or bar.max_value <= 0.0:
+		return
+	var target := clampf(
+		hand_scroll.scroll_horizontal + _hand_scroll_step() * float(direction),
+		0.0,
+		bar.max_value
+	)
+	if motion_enabled:
+		var tween := create_tween()
+		tween.bind_node(hand_scroll)
+		tween.set_trans(Tween.TRANS_QUAD)
+		tween.set_ease(Tween.EASE_OUT)
+		tween.tween_property(hand_scroll, "scroll_horizontal", target, 0.16)
+		tween.finished.connect(_update_hand_scroll_controls)
+	else:
+		hand_scroll.scroll_horizontal = target
+	_update_hand_scroll_controls()
+
+
+func _update_hand_scroll_controls() -> void:
+	if hand_scroll == null:
+		return
+	var bar := hand_scroll.get_h_scroll_bar()
+	if bar == null:
+		return
+	var has_overflow := bar.max_value > 0.5
+	if hand_scroll_overlay != null:
+		hand_scroll_overlay.visible = has_overflow
+	if hand_scroll_left_button != null:
+		hand_scroll_left_button.visible = has_overflow
+	if hand_scroll_right_button != null:
+		hand_scroll_right_button.visible = has_overflow
+	if hand_scroll_left_button != null:
+		hand_scroll_left_button.disabled = not has_overflow or hand_scroll.scroll_horizontal <= 0.5
+	if hand_scroll_right_button != null:
+		hand_scroll_right_button.disabled = not has_overflow or hand_scroll.scroll_horizontal >= bar.max_value - 0.5
 
 
 func _lock_play_area_height() -> void:
@@ -6064,11 +6176,12 @@ func _create_player_status_row(index: int) -> PanelContainer:
 	row_panel.add_child(margin)
 
 	var stack := VBoxContainer.new()
-	stack.add_theme_constant_override("separation", 3)
+	stack.add_theme_constant_override("separation", 1)
 	margin.add_child(stack)
 
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 3)
+	top.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	stack.add_child(top)
 
 	var dot := PanelContainer.new()
@@ -6080,9 +6193,12 @@ func _create_player_status_row(index: int) -> PanelContainer:
 	var name_label := Label.new()
 	name_label.name = "Name"
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	name_label.clip_text = true
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_label.add_theme_color_override("font_color", COLOR_PARCHMENT_LIGHT)
-	name_label.add_theme_font_size_override("font_size", 10)
+	name_label.add_theme_font_size_override("font_size", 12)
 	if title_font != null:
 		name_label.add_theme_font_override("font", title_font)
 	top.add_child(name_label)
@@ -6094,7 +6210,6 @@ func _create_player_status_row(index: int) -> PanelContainer:
 		"panel",
 		_make_pill_style(Color(0, 0, 0, 0.08), Color(0.835, 0.667, 0.314, 0.44), 5)
 	)
-	top.add_child(turn_badge)
 	var turn_text := Label.new()
 	turn_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	turn_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -6104,27 +6219,41 @@ func _create_player_status_row(index: int) -> PanelContainer:
 		turn_text.add_theme_font_override("font", title_font)
 	turn_badge.add_child(turn_text)
 
+	var metrics := VBoxContainer.new()
+	metrics.name = "TurnVPMetrics"
+	metrics.custom_minimum_size = Vector2(46, 0)
+	metrics.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	metrics.alignment = BoxContainer.ALIGNMENT_CENTER
+	metrics.add_theme_constant_override("separation", 1)
+	top.add_child(metrics)
+	turn_badge.custom_minimum_size = Vector2(46, 14)
+	metrics.add_child(turn_badge)
+
 	var vp_badge := PanelContainer.new()
 	vp_badge.name = "VPBadge"
-	vp_badge.custom_minimum_size = Vector2(44, 18)
+	vp_badge.custom_minimum_size = Vector2(46, 14)
 	vp_badge.add_theme_stylebox_override(
 		"panel",
 		_make_pill_style(Color(0, 0, 0, 0.08), Color(0.878, 0.541, 0.635, 0.52), 5)
 	)
-	top.add_child(vp_badge)
 	var vp_text := Label.new()
 	vp_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vp_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	vp_text.add_theme_color_override("font_color", COLOR_VICTORY_ACCENT)
-	vp_text.add_theme_font_size_override("font_size", 8)
+	vp_text.add_theme_font_size_override("font_size", 9)
 	if title_font != null:
 		vp_text.add_theme_font_override("font", title_font)
 	vp_badge.add_child(vp_text)
+	metrics.add_child(vp_badge)
 
 	var status_label := Label.new()
 	status_label.name = "Status"
+	status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	status_label.add_theme_color_override("font_color", COLOR_BRASS)
-	status_label.add_theme_font_size_override("font_size", 9)
+	status_label.add_theme_font_size_override("font_size", 11)
 	if body_font != null:
 		status_label.add_theme_font_override("font", body_font)
 	stack.add_child(status_label)
@@ -6292,11 +6421,22 @@ func _refresh_end_turn_button() -> void:
 
 func _refresh_hand() -> void:
 	var previous_layout := _capture_hand_layout()
+	var previous_ids: Array[String] = []
+	for child in hand_container.get_children():
+		if child.has_meta("card_id"):
+			previous_ids.append(str(child.get_meta("card_id")))
+	pending_draw_card_ids = _multiset_difference(
+		_card_ids_from_zone(game_state.player.hand),
+		previous_ids
+	)
 	_clear_container(hand_container)
-	var hand_size := game_state.player.hand.size()
+	var hand_entries: Array[Dictionary] = []
+	for index in range(game_state.player.hand.size()):
+		hand_entries.append({"card": game_state.player.hand[index], "index": index})
+	hand_entries.sort_custom(_is_hand_entry_before)
 	var choice_occurrences: Dictionary = {}
-	for index in range(hand_size):
-		var card: CardDefinition = game_state.player.hand[index]
+	for entry in hand_entries:
+		var card: CardDefinition = entry["card"]
 		var occurrence := int(choice_occurrences.get(card.id, 0))
 		choice_occurrences[card.id] = occurrence + 1
 		var direct_token := _direct_hand_token_for(card.id, occurrence)
@@ -6318,6 +6458,30 @@ func _refresh_hand() -> void:
 		hand_container.add_child(button)
 	_assign_hand_flip_origins(previous_layout)
 	_apply_hand_fan_offsets()
+	call_deferred("_update_hand_scroll_controls")
+
+
+func _hand_card_group(card: CardDefinition) -> int:
+	if card == null:
+		return 1
+	match card.card_type:
+		"action":
+			return 0
+		"resource":
+			return 1
+		"victory", "curse":
+			return 2
+	return 1
+
+
+func _is_hand_entry_before(first: Dictionary, second: Dictionary) -> bool:
+	var first_card := first["card"] as CardDefinition
+	var second_card := second["card"] as CardDefinition
+	var first_group := _hand_card_group(first_card)
+	var second_group := _hand_card_group(second_card)
+	if first_group != second_group:
+		return first_group < second_group
+	return int(first["index"]) < int(second["index"])
 
 
 func _direct_hand_token_for(card_id: String, occurrence: int) -> String:
@@ -6389,7 +6553,7 @@ func _hand_fan_angle_step(total: int) -> float:
 	# tightens the step so the fan never wraps too far.
 	if total <= 1:
 		return 0.0
-	return clampf(70.0 / float(total), 6.0, 12.0)
+	return clampf(HAND_FAN_ANGLE_SPREAD / float(total), 5.5, 11.0)
 
 
 func _apply_hand_fan_offsets() -> void:
@@ -6927,7 +7091,7 @@ func _create_card_button(
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.clip_text = true
 	name_label.add_theme_color_override("font_color", type_palette.name_text)
-	name_label.add_theme_font_size_override("font_size", 13)
+	name_label.add_theme_font_size_override("font_size", 11)
 	if title_font != null:
 		name_label.add_theme_font_override("font", title_font)
 	layout.add_child(name_label)
@@ -6957,7 +7121,7 @@ func _create_card_button(
 	effect_label.name = "EffectLabel"
 	effect_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	effect_label.bbcode_enabled = true
-	var rules_text := _get_card_rules_text(card.description)
+	var rules_text := "[center]%s[/center]" % _get_card_rules_text(card.description)
 	effect_label.fit_content = false
 	effect_label.scroll_active = false
 	effect_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -7313,6 +7477,7 @@ func _reveal_hand_card(card: Control) -> void:
 	var tween := create_tween()
 	tween.bind_node(hand_scroll)
 	tween.tween_property(hand_scroll, "scroll_horizontal", desired, 0.22)
+	call_deferred("_update_hand_scroll_controls")
 
 
 func _on_card_mouse_exited(button: Button) -> void:
@@ -7465,7 +7630,7 @@ func _show_card_preview(
 	var effect_font_size := _get_preview_effect_font_size(card.description)
 	preview_effect_label.add_theme_font_size_override("normal_font_size", effect_font_size)
 	preview_effect_label.add_theme_font_size_override("bold_font_size", effect_font_size)
-	preview_effect_label.text = _get_card_rules_text(card.description)
+	preview_effect_label.text = "[center]%s[/center]" % _get_card_rules_text(card.description)
 	preview_effect_label.add_theme_color_override("default_color", type_palette.description_text)
 	card_preview.add_theme_stylebox_override(
 		"panel",
@@ -8358,9 +8523,28 @@ func _animate_draw_cards(card_count: int) -> void:
 	last_animation_event = "draw"
 	_play_ui_sound("draw")
 	var source := _get_hud_target_center("DeckStat")
-	var first_index := maxi(0, hand_container.get_child_count() - card_count)
-	for index in range(first_index, hand_container.get_child_count()):
-		var target_button := hand_container.get_child(index) as Control
+	var animation_ids := pending_draw_card_ids.duplicate()
+	pending_draw_card_ids.clear()
+	var targets: Array[Control] = []
+	if animation_ids.is_empty():
+		var first_index := maxi(0, hand_container.get_child_count() - card_count)
+		for index in range(first_index, hand_container.get_child_count()):
+			var fallback_button := hand_container.get_child(index) as Control
+			if fallback_button != null:
+				targets.append(fallback_button)
+	else:
+		var consumed: Dictionary = {}
+		for card_id in animation_ids:
+			for child in hand_container.get_children():
+				var target_button := child as Control
+				if target_button == null or not target_button.has_meta("card_id"):
+					continue
+				if bool(consumed.get(target_button, false)) or str(target_button.get_meta("card_id")) != str(card_id):
+					continue
+				consumed[target_button] = true
+				targets.append(target_button)
+				break
+	for target_button in targets:
 		if target_button == null or not target_button.has_meta("card_id"):
 			continue
 		var card_id := str(target_button.get_meta("card_id"))
@@ -9415,6 +9599,11 @@ func _set_menu_overlay_active(active: bool) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# A preview is a transient inspection layer. Dismiss it on the next left
+	# click before GUI dispatch so the click still reaches its intended target
+	# (playing, buying, opening a menu, or paging the hand).
+	if _is_left_click_pressed(event) and not active_preview_kind.is_empty():
+		_hide_all_previews()
 	if _is_audio_unlock_event(event):
 		_request_background_music_playback()
 
@@ -9423,6 +9612,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel") and _home_modal_is_visible():
 		_hide_home_modals()
 		get_viewport().set_input_as_handled()
+
+
+func _is_left_click_pressed(event: InputEvent) -> bool:
+	if event is InputEventMouseButton:
+		var mouse_event := event as InputEventMouseButton
+		return mouse_event.pressed and mouse_event.button_index == MOUSE_BUTTON_LEFT
+	return false
 
 
 func _home_modal_is_visible() -> bool:

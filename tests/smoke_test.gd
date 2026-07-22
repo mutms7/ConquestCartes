@@ -1024,6 +1024,29 @@ func _test_crownwealth_multiplayer_choices() -> void:
 		"Bishop opponent should not gain VP for trashing a card."
 	)
 
+	var bishop_solo := _empty_game()
+	var solo_appraiser: CardDefinition = bishop_solo.card_catalog["cairn_appraiser"]
+	var solo_target: CardDefinition = bishop_solo.card_catalog["silver_leaf"]
+	bishop_solo.player.hand = [solo_appraiser, solo_target]
+	_check(bishop_solo.play_card(solo_appraiser), "Solo Bishop should play.")
+	_check(
+		bishop_solo.has_pending_choice()
+		and str(bishop_solo.pending_choice.context.get("ui_choice_kind", "")) == "trash_from_hand"
+		and str(bishop_solo.pending_choice.context.get("ui_source_zone", "")) == "hand",
+		"Solo Bishop's required trash should use the direct-hand choice context."
+	)
+	_resolve_choice_by_ids(bishop_solo, ["silver_leaf"])
+	_check(
+		not bishop_solo.has_pending_choice(),
+		"Solo Bishop should not offer an optional second self-trash."
+	)
+	_check(bishop_solo.player.trash_pile.has(solo_target), "Solo Bishop should trash the required card.")
+	_check(
+		bishop_solo.player.vp_tokens == 1 + floori(float(solo_target.cost) / 2.0),
+		"Solo Bishop should award VP for the required trash (got %d, expected %d)."
+		% [bishop_solo.player.vp_tokens, 1 + floori(float(solo_target.cost) / 2.0)]
+	)
+
 	var treaty := _empty_multiplayer_game()
 	var treaty_card: CardDefinition = treaty.card_catalog["sealed_treaty"]
 	treaty.players[0].hand = [treaty_card]
