@@ -1,7 +1,7 @@
 [
   {
     "id": "pebble_coin",
-    "name": "Pebble Coin",
+    "name": "Copper",
     "type": "resource",
     "art_id": "pebble_coin",
     "cost": 0,
@@ -10,7 +10,7 @@
   },
   {
     "id": "silver_leaf",
-    "name": "Silver Leaf",
+    "name": "Silver",
     "type": "resource",
     "art_id": "silver_leaf",
     "cost": 3,
@@ -19,7 +19,7 @@
   },
   {
     "id": "amber_circlet",
-    "name": "Amber Circlet",
+    "name": "Gold",
     "type": "resource",
     "art_id": "amber_circlet",
     "cost": 6,
@@ -28,7 +28,7 @@
   },
   {
     "id": "homestead",
-    "name": "Homestead",
+    "name": "Estate",
     "type": "victory",
     "art_id": "homestead",
     "cost": 2,
@@ -37,7 +37,7 @@
   },
   {
     "id": "briar_gate",
-    "name": "Briar Gate",
+    "name": "Duchy",
     "type": "victory",
     "art_id": "briar_gate",
     "cost": 5,
@@ -46,7 +46,7 @@
   },
   {
     "id": "royal_charter",
-    "name": "Royal Charter",
+    "name": "Province",
     "type": "victory",
     "art_id": "royal_charter",
     "cost": 8,
@@ -55,7 +55,7 @@
   },
   {
     "id": "briar_hex",
-    "name": "Briar Hex",
+    "name": "Curse",
     "type": "curse",
     "art_id": "briar_hex",
     "cost": 0,
@@ -65,7 +65,7 @@
   },
   {
     "id": "wishing_garden",
-    "name": "Wishing Stone",
+    "name": "Gardens",
     "type": "victory",
     "art_id": "wishing_stone",
     "cost": 4,
@@ -74,7 +74,7 @@
   },
   {
     "id": "starpath_seeker",
-    "name": "Starlit Wagon",
+    "name": "Adventurer",
     "type": "action",
     "art_id": "starlit_wagon",
     "cost": 6,
@@ -90,7 +90,7 @@
   },
   {
     "id": "master_weaver",
-    "name": "Weaver's Loom",
+    "name": "Artisan",
     "type": "action",
     "art_id": "weavers_loom",
     "cost": 6,
@@ -112,17 +112,17 @@
   {
     "id": "roadside_reaver",
     "multiplayer_only": true,
-    "name": "Trail Cache",
+    "name": "Bandit",
     "type": "action",
     "art_id": "roadside_reaver",
     "cost": 5,
-    "description": "Gain an Amber Circlet. Attack: reveal the top 2 cards of your deck. Trash one revealed resource other than Pebble Coin, then discard the rest.",
+    "description": "Gain a Gold. Attack: reveal the top 2 cards of your deck. Trash one revealed resource other than Copper, then discard the rest.",
     "special_effects": [
       {
         "kind": "gain_card",
         "card_id": "amber_circlet",
         "destination": "discard",
-        "label": "Gain Amber Circlet"
+        "label": "Gain Gold"
       },
       {
         "kind": "attack",
@@ -136,17 +136,17 @@
   {
     "id": "royal_clerk",
     "multiplayer_only": true,
-    "name": "Royal Decree",
+    "name": "Bureaucrat",
     "type": "action",
     "art_id": "royal_clerk",
     "cost": 4,
-    "description": "Gain a Silver Leaf on top of your deck. Attack: put a victory card from your hand on top of your deck.",
+    "description": "Gain a Silver on top of your deck. Attack: put a victory card from your hand on top of your deck.",
     "special_effects": [
       {
         "kind": "gain_card",
         "card_id": "silver_leaf",
         "destination": "deck",
-        "label": "Silver Leaf to Deck"
+        "label": "Silver to Deck"
       },
       {
         "kind": "attack",
@@ -157,7 +157,7 @@
   },
   {
     "id": "root_cellar",
-    "name": "Root Cellar",
+    "name": "Cellar",
     "type": "action",
     "art_id": "root_cellar",
     "cost": 2,
@@ -172,7 +172,7 @@
   },
   {
     "id": "river_ward",
-    "name": "River Detour",
+    "name": "Chancellor",
     "type": "action",
     "art_id": "river_ward",
     "cost": 3,
@@ -188,7 +188,7 @@
   },
   {
     "id": "quiet_chapel",
-    "name": "Archive Purge",
+    "name": "Chapel",
     "type": "action",
     "art_id": "quiet_chapel",
     "cost": 2,
@@ -203,7 +203,7 @@
   },
   {
     "id": "council_hearth",
-    "name": "Scholar's Hall",
+    "name": "Council Room",
     "type": "action",
     "art_id": "scholars_hall",
     "cost": 5,
@@ -221,7 +221,7 @@
   },
   {
     "id": "harvest_feast",
-    "name": "Firefly Supper",
+    "name": "Feast",
     "type": "action",
     "art_id": "firefly_supper",
     "cost": 4,
@@ -242,7 +242,7 @@
   },
   {
     "id": "lantern_festival",
-    "name": "Lantern Parade",
+    "name": "Festival",
     "type": "action",
     "art_id": "lantern_parade",
     "cost": 5,
@@ -253,7 +253,7 @@
   },
   {
     "id": "dawn_herald",
-    "name": "Dawn Whistle",
+    "name": "Harbinger",
     "type": "action",
     "art_id": "dawn_whistle",
     "cost": 3,
@@ -269,7 +269,7 @@
   },
   {
     "id": "candlecap_laboratory",
-    "name": "Candlecap",
+    "name": "Laboratory",
     "type": "action",
     "art_id": "candlecap",
     "cost": 5,
@@ -279,7 +279,7 @@
   },
   {
     "id": "grand_archive",
-    "name": "Quiet Archive",
+    "name": "Library",
     "type": "action",
     "art_id": "quiet_archive",
     "cost": 5,
@@ -294,7 +294,7 @@
   },
   {
     "id": "crossroads_market",
-    "name": "Orchard Map",
+    "name": "Market",
     "type": "action",
     "art_id": "orchard_map",
     "cost": 5,
@@ -306,11 +306,11 @@
   },
   {
     "id": "silver_merchant",
-    "name": "Silver Merchant",
+    "name": "Merchant",
     "type": "action",
     "art_id": "silver_merchant",
     "cost": 3,
-    "description": "Draw 1 card. Gain 1 action. When you play your first Silver Leaf this turn, gain 1 extra coin.",
+    "description": "Draw 1 card. Gain 1 action. When you play your first Silver this turn, gain 1 extra coin.",
     "draw_cards": 1,
     "gain_actions": 1,
     "special_effects": [
@@ -324,7 +324,7 @@
   },
   {
     "id": "moonlit_mine",
-    "name": "Moonwell Token",
+    "name": "Mine",
     "type": "action",
     "art_id": "moonwell_token",
     "cost": 5,
@@ -339,23 +339,23 @@
   },
   {
     "id": "coin_broker",
-    "name": "Acorn Purse",
+    "name": "Moneylender",
     "type": "action",
     "art_id": "acorn_purse",
     "cost": 4,
-    "description": "You may trash a Pebble Coin from your hand. If you do, gain 3 coins.",
+    "description": "You may trash a Copper from your hand. If you do, gain 3 coins.",
     "special_effects": [
       {
         "kind": "trash_named_for_coins",
         "card_id": "pebble_coin",
         "amount": 3,
-        "label": "Trash Pebble for +3"
+        "label": "Trash Copper for +3"
       }
     ]
   },
   {
     "id": "supply_scout",
-    "name": "Trail Biscuit",
+    "name": "Poacher",
     "type": "action",
     "art_id": "trail_biscuit",
     "cost": 4,
@@ -372,7 +372,7 @@
   },
   {
     "id": "manor_rebuilder",
-    "name": "Orchard Estate",
+    "name": "Remodel",
     "type": "action",
     "art_id": "orchard_estate",
     "cost": 4,
@@ -387,7 +387,7 @@
   },
   {
     "id": "clockwork_sentry",
-    "name": "Tinker Wren",
+    "name": "Sentry",
     "type": "action",
     "art_id": "tinker_wren",
     "cost": 5,
@@ -404,7 +404,7 @@
   },
   {
     "id": "forge_hall",
-    "name": "Hearthsong",
+    "name": "Smithy",
     "type": "action",
     "art_id": "hearthsong",
     "cost": 4,
@@ -446,7 +446,7 @@
   },
   {
     "id": "echoing_hall",
-    "name": "Hearth Refrain",
+    "name": "Throne Room",
     "type": "action",
     "art_id": "echoing_hall",
     "cost": 4,
@@ -460,7 +460,7 @@
   },
   {
     "id": "banner_vassal",
-    "name": "River Courier",
+    "name": "Vassal",
     "type": "action",
     "art_id": "river_courier",
     "cost": 3,
@@ -475,7 +475,7 @@
   },
   {
     "id": "village_bell",
-    "name": "Village Bell",
+    "name": "Village",
     "type": "action",
     "art_id": "village_bell",
     "cost": 3,
@@ -486,24 +486,24 @@
   {
     "id": "briar_witch",
     "multiplayer_only": true,
-    "name": "Briar Witch",
+    "name": "Witch",
     "type": "action",
     "art_id": "briar_witch",
     "cost": 5,
-    "description": "Draw 2 cards. Attack: gain a Briar Hex.",
+    "description": "Draw 2 cards. Attack: gain a Curse.",
     "draw_cards": 2,
     "special_effects": [
       {
         "kind": "attack",
         "mode": "gain_curse",
         "card_id": "briar_hex",
-        "label": "Attack: Gain Hex"
+        "label": "Attack: Gain Curse"
       }
     ]
   },
   {
     "id": "guild_workshop",
-    "name": "Loom Workshop",
+    "name": "Workshop",
     "type": "action",
     "art_id": "guild_workshop",
     "cost": 3,
@@ -519,12 +519,12 @@
   },
   {
     "id": "briar_passage",
-    "name": "Briar Passage",
+    "name": "Tunnel",
     "type": "victory",
     "group": "Hinterlands",
     "art_id": "briar_passage",
     "cost": 3,
-    "description": "Worth 2 VP. When you discard this outside cleanup, you may gain an Amber Circlet.",
+    "description": "Worth 2 VP. When you discard this outside cleanup, you may gain a Gold.",
     "victory_points": 2,
     "special_effects": [
       {
@@ -532,14 +532,14 @@
         "trigger": "discard",
         "card_id": "amber_circlet",
         "destination": "discard",
-        "prompt": "Reveal Briar Passage to gain an Amber Circlet?",
-        "label": "Discard: Gain Amber"
+        "prompt": "Reveal Tunnel to gain a Gold?",
+        "label": "Discard: Gain Gold"
       }
     ]
   },
   {
     "id": "orchard_acre",
-    "name": "Orchard Acre",
+    "name": "Farmland",
     "type": "victory",
     "group": "Hinterlands",
     "art_id": "orchard_acre",
@@ -557,7 +557,7 @@
   },
   {
     "id": "firefly_gold",
-    "name": "Firefly Gold",
+    "name": "Fool's Gold",
     "type": "resource",
     "group": "Hinterlands",
     "art_id": "firefly_gold",
@@ -574,12 +574,12 @@
   },
   {
     "id": "silverleaf_broker",
-    "name": "Leaf Broker",
+    "name": "Trader",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "silverleaf_broker",
     "cost": 4,
-    "description": "Trash a card from your hand. Gain one Silver Leaf for each coin it costs. When you gain a card while this is in your hand, you may exchange that card for a Silver Leaf.",
+    "description": "Trash a card from your hand. Gain one Silver for each coin it costs. When you gain a card while this is in your hand, you may exchange that card for a Silver.",
     "special_effects": [
       {
         "kind": "trash_for_copies",
@@ -590,7 +590,7 @@
         "kind": "replace_gain",
         "trigger": "gain_reaction",
         "card_id": "silver_leaf",
-        "prompt": "Reveal Leaf Broker to exchange the gained card for a Silver Leaf?",
+        "prompt": "Reveal Trader to exchange the gained card for a Silver?",
         "label": "React: Take Silver"
       }
     ]
@@ -598,7 +598,7 @@
   {
     "id": "river_magistrate",
     "multiplayer_only": true,
-    "name": "Magistrate",
+    "name": "Margrave",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "river_magistrate",
@@ -617,7 +617,7 @@
   },
   {
     "id": "bellfoundry_village",
-    "name": "Bellfoundry",
+    "name": "Border Village",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "bellfoundry_village",
@@ -636,7 +636,7 @@
   },
   {
     "id": "orchard_surveyor",
-    "name": "Orchard Survey",
+    "name": "Cartographer",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "orchard_surveyor",
@@ -654,7 +654,7 @@
   },
   {
     "id": "wishing_crossroads",
-    "name": "Wish Crossroads",
+    "name": "Crossroads",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "wishing_crossroads",
@@ -676,7 +676,7 @@
   },
   {
     "id": "tinkers_development",
-    "name": "Tinker Dev",
+    "name": "Develop",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "tinkers_development",
@@ -691,7 +691,7 @@
   },
   {
     "id": "lantern_bargainer",
-    "name": "Lantern Trade",
+    "name": "Haggler",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "lantern_bargainer",
@@ -707,7 +707,7 @@
   },
   {
     "id": "starlit_causeway",
-    "name": "Star Causeway",
+    "name": "Highway",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "starlit_causeway",
@@ -725,7 +725,7 @@
   },
   {
     "id": "hearthside_lodge",
-    "name": "Hearth Lodge",
+    "name": "Inn",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "hearthside_lodge",
@@ -750,18 +750,18 @@
   },
   {
     "id": "village_handyman",
-    "name": "Handyman",
+    "name": "Jack of All Trades",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "village_handyman",
     "cost": 4,
-    "description": "Gain a Silver Leaf. Look at the top card of your deck and choose whether to discard it. Draw until you have 5 cards in hand. You may trash a non-resource card from your hand.",
+    "description": "Gain a Silver. Look at the top card of your deck and choose whether to discard it. Draw until you have 5 cards in hand. You may trash a non-resource card from your hand.",
     "special_effects": [
       {
         "kind": "gain_card",
         "card_id": "silver_leaf",
         "destination": "discard",
-        "label": "Gain Silver Leaf"
+        "label": "Gain Silver"
       },
       {
         "kind": "inspect_top_one",
@@ -784,7 +784,7 @@
   },
   {
     "id": "moonwell_rest",
-    "name": "Moonwell Rest",
+    "name": "Oasis",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "moonwell_rest",
@@ -805,7 +805,7 @@
   },
   {
     "id": "quiet_stratagem",
-    "name": "Quiet Stratagem",
+    "name": "Scheme",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "quiet_stratagem",
@@ -823,7 +823,7 @@
   },
   {
     "id": "acorn_spicebroker",
-    "name": "Spicebroker",
+    "name": "Spice Merchant",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "acorn_spicebroker",
@@ -857,7 +857,7 @@
   },
   {
     "id": "mosswood_stable",
-    "name": "Mosswood Stable",
+    "name": "Stables",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "mosswood_stable",
@@ -880,7 +880,7 @@
     "group": "Hinterlands",
     "art_id": "candlecap_kettle",
     "cost": 5,
-    "description": "Gain 2 coins and 1 buy. This turn, whenever you gain an action card, attack: gain a Briar Hex.",
+    "description": "Gain 2 coins and 1 buy. This turn, whenever you gain an action card, attack: gain a Curse.",
     "coin_value": 2,
     "gain_buys": 1,
     "special_effects": [
@@ -915,7 +915,7 @@
   },
   {
     "id": "river_trail",
-    "name": "River Trail",
+    "name": "Trail",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "river_trail",
@@ -948,7 +948,7 @@
     "group": "Hinterlands",
     "art_id": "moss_weaver",
     "cost": 4,
-    "description": "Choose either to gain 2 Silver Leaves or to gain a card costing up to 4. When you discard this outside cleanup, you may play it.",
+    "description": "Choose either to gain 2 Silvers or to gain a card costing up to 4. When you discard this outside cleanup, you may play it.",
     "special_effects": [
       {
         "kind": "choose_named_or_supply",
@@ -956,7 +956,7 @@
         "modes": [
           {
             "id": "silvers",
-            "label": "GAIN 2 SILVER LEAVES",
+            "label": "GAIN 2 SILVERS",
             "card_id": "silver_leaf",
             "amount": 2,
             "destination": "discard"
@@ -985,7 +985,7 @@
     "group": "Hinterlands",
     "art_id": "stone_wall",
     "cost": 5,
-    "description": "Gain a cheaper card. Attack: gain a Briar Hex. When you gain this while another action card is in play, play this immediately.",
+    "description": "Gain a cheaper card. Attack: gain a Curse. When you gain this while another action card is in play, play this immediately.",
     "special_effects": [
       {
         "kind": "gain_cheaper",
@@ -996,7 +996,7 @@
         "kind": "attack",
         "mode": "gain_curse",
         "card_id": "briar_hex",
-        "label": "Attack: Gain Hex"
+        "label": "Attack: Gain Curse"
       },
       {
         "kind": "play_self_if_action_in_play",
@@ -1013,7 +1013,7 @@
     "group": "Hinterlands",
     "art_id": "briar_hut",
     "cost": 5,
-    "description": "Draw 4 cards. Discard 2 cards. If you discarded an action card this way, attack: gain a Briar Hex.",
+    "description": "Draw 4 cards. Discard 2 cards. If you discarded an action card this way, attack: gain a Curse.",
     "draw_cards": 4,
     "special_effects": [
       {
@@ -1081,7 +1081,7 @@
   },
   {
     "id": "tinker_wheelwright",
-    "name": "Cartwright",
+    "name": "Wheelwright",
     "type": "action",
     "group": "Hinterlands",
     "art_id": "tinker_wheelwright",
@@ -1160,14 +1160,14 @@
     "group": "Witching Hour",
     "art_id": "witchs_bargain",
     "cost": 2,
-    "description": "Gain 3 coins. Gain a Briar Hex to your hand.",
+    "description": "Gain 3 coins. Gain a Curse to your hand.",
     "gain_coins": 3,
     "special_effects": [
       {
         "kind": "gain_card",
         "card_id": "briar_hex",
         "destination": "hand",
-        "label": "Gain Hex to Hand"
+        "label": "Gain Curse to Hand"
       }
     ]
   },
@@ -1178,7 +1178,7 @@
     "group": "Witching Hour",
     "art_id": "hex_eater",
     "cost": 3,
-    "description": "Draw 1 card. Gain 1 action. You may trash up to 2 Briar Hexes from your hand. Draw 1 card and gain 1 coin for each one trashed this way.",
+    "description": "Draw 1 card. Gain 1 action. You may trash up to 2 Curses from your hand. Draw 1 card and gain 1 coin for each one trashed this way.",
     "draw_cards": 1,
     "gain_actions": 1,
     "special_effects": [
@@ -1188,8 +1188,8 @@
         "amount": 2,
         "per_draw_cards": 1,
         "per_gain_coins": 1,
-        "prompt": "You may trash up to 2 Briar Hexes from your hand.",
-        "label": "Trash Hexes for Bonus"
+        "prompt": "You may trash up to 2 Curses from your hand.",
+        "label": "Trash Curses for Bonus"
       }
     ]
   },
@@ -1221,7 +1221,7 @@
     "group": "Witching Hour",
     "art_id": "thornbinder",
     "cost": 4,
-    "description": "Gain 2 coins. You may trash a Briar Hex from your hand. If you do, gain 2 coins. Attack: gain a Briar Hex.",
+    "description": "Gain 2 coins. You may trash a Curse from your hand. If you do, gain 2 coins. Attack: gain a Curse.",
     "gain_coins": 2,
     "special_effects": [
       {
@@ -1229,14 +1229,14 @@
         "card_type": "curse",
         "amount": 1,
         "per_gain_coins": 2,
-        "prompt": "You may trash a Briar Hex from your hand.",
-        "label": "Trash Hex for +2"
+        "prompt": "You may trash a Curse from your hand.",
+        "label": "Trash Curse for +2"
       },
       {
         "kind": "attack",
         "mode": "gain_curse",
         "card_id": "briar_hex",
-        "label": "Attack: Gain Hex"
+        "label": "Attack: Gain Curse"
       }
     ]
   },
@@ -1247,7 +1247,7 @@
     "group": "Witching Hour",
     "art_id": "bramble_idol",
     "cost": 4,
-    "description": "Worth 1 VP. Worth 1 more VP for each Briar Hex you own.",
+    "description": "Worth 1 VP. Worth 1 more VP for each Curse you own.",
     "victory_points": 1,
     "score_card_id": "briar_hex",
     "score_card_points": 1
@@ -1259,7 +1259,7 @@
     "group": "Witching Hour",
     "art_id": "cursed_ingot",
     "cost": 4,
-    "description": "Gain 3 coins. When you gain this, gain a Briar Hex.",
+    "description": "Gain 3 coins. When you gain this, gain a Curse.",
     "coin_value": 3,
     "special_effects": [
       {
@@ -1267,7 +1267,7 @@
         "trigger": "gain",
         "card_id": "briar_hex",
         "destination": "discard",
-        "label": "Gain: Take Hex"
+        "label": "Gain: Take Curse"
       }
     ]
   },
@@ -1278,7 +1278,7 @@
     "group": "Witching Hour",
     "art_id": "hex_mill",
     "cost": 2,
-    "description": "Draw 1 card. Gain 1 action. You may discard a Briar Hex. If you do, gain 2 coins.",
+    "description": "Draw 1 card. Gain 1 action. You may discard a Curse. If you do, gain 2 coins.",
     "draw_cards": 1,
     "gain_actions": 1,
     "special_effects": [
@@ -1287,8 +1287,8 @@
         "card_type": "curse",
         "amount": 1,
         "per_gain_coins": 2,
-        "prompt": "You may discard a Briar Hex.",
-        "label": "Discard Hex for +2"
+        "prompt": "You may discard a Curse.",
+        "label": "Discard Curse for +2"
       }
     ]
   },
@@ -1456,7 +1456,7 @@
   },
   {
     "id": "merchant_barge",
-    "name": "Merchant Barge",
+    "name": "Merchant Ship",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "merchant_barge",
@@ -1474,7 +1474,7 @@
   },
   {
     "id": "fen_lighthouse",
-    "name": "Fen Lighthouse",
+    "name": "Lighthouse",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "fen_lighthouse",
@@ -1536,7 +1536,7 @@
   },
   {
     "id": "sowing_moon",
-    "name": "Sowing Moon",
+    "name": "Haven",
     "type": "action",
     "group": "Witching Hour",
     "art_id": "sowing_moon",
@@ -1579,7 +1579,7 @@
   },
   {
     "id": "gilded_ledger",
-    "name": "Gilded Ledger",
+    "name": "Vault",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "quiet_archive",
@@ -1595,7 +1595,7 @@
   },
   {
     "id": "cairn_appraiser",
-    "name": "Cairn Appraiser",
+    "name": "Bishop",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "reliquary_key",
@@ -1616,7 +1616,7 @@
   },
   {
     "id": "skyline_foundry",
-    "name": "Skyline Foundry",
+    "name": "City",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "bellfoundry_village",
@@ -1631,7 +1631,7 @@
   {
     "id": "sealed_treaty",
     "multiplayer_only": true,
-    "name": "Sealed Treaty",
+    "name": "Clerk",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "royal_clerk",
@@ -1645,7 +1645,7 @@
   },
   {
     "id": "ember_forge",
-    "name": "Ember Forge",
+    "name": "Forge",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "hearthsong",
@@ -1660,7 +1660,7 @@
   },
   {
     "id": "royal_exchange",
-    "name": "Royal Exchange",
+    "name": "War Chest",
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "silverleaf_broker",
@@ -1676,23 +1676,23 @@
   },
   {
     "id": "grand_bazaar",
-    "name": "Grand Bazaar",
+    "name": "Grand Market",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "lantern_bazaar",
     "cost": 6,
-    "description": "Draw 1 card. Gain 1 action, 1 buy, and 2 coins. You cannot buy this while a Pebble Coin is in play.",
+    "description": "Draw 1 card. Gain 1 action, 1 buy, and 2 coins. You cannot buy this while a Copper is in play.",
     "draw_cards": 1,
     "gain_actions": 1,
     "gain_buys": 1,
     "gain_coins": 2,
     "special_effects": [
-      {"kind": "buy_restriction", "requirement_card_id": "pebble_coin", "label": "No Pebble in Play"}
+      {"kind": "buy_restriction", "requirement_card_id": "pebble_coin", "label": "No Copper in Play"}
     ]
   },
   {
     "id": "copper_harbor",
-    "name": "Copper Harbor",
+    "name": "Investment",
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "amber_circlet",
@@ -1704,7 +1704,7 @@
   },
   {
     "id": "courtly_echo",
-    "name": "Courtly Echo",
+    "name": "King's Court",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "echoing_hall",
@@ -1721,32 +1721,32 @@
   {
     "id": "sable_loan",
     "multiplayer_only": true,
-    "name": "Sable Loan",
+    "name": "Charlatan",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "river_ward",
     "cost": 5,
-    "description": "Gain 3 coins. Each other player gains a Briar Hex. Briar Hexes are resources worth 1 coin when played.",
+    "description": "Gain 3 coins. Each other player gains a Curse. Curses are resources worth 1 coin when played.",
     "gain_coins": 3,
     "special_effects": [
       {
         "kind": "attack",
         "mode": "gain_curse",
         "card_id": "briar_hex",
-        "label": "Attack: Give a Hex"
+        "label": "Attack: Give a Curse"
       },
       {
         "kind": "global_card_rule",
         "target_card_id": "briar_hex",
         "add_type": "resource",
         "coin_value": 1,
-        "label": "Briar Hexes Give 1 Coin"
+        "label": "Curses Give 1 Coin"
       }
     ]
   },
   {
     "id": "minted_seal",
-    "name": "Minted Seal",
+    "name": "Mint",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "quiet_chapel",
@@ -1766,7 +1766,7 @@
   },
   {
     "id": "stone_monument",
-    "name": "Stone Monument",
+    "name": "Monument",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "sunspire_monument",
@@ -1779,7 +1779,7 @@
   },
   {
     "id": "veil_broker",
-    "name": "Veil Broker",
+    "name": "Bank",
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "moonwell_token",
@@ -1795,7 +1795,7 @@
   },
   {
     "id": "quarry_mark",
-    "name": "Quarry Mark",
+    "name": "Quarry",
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "starlit_causeway",
@@ -1814,7 +1814,7 @@
   {
     "id": "raucous_bell",
     "multiplayer_only": true,
-    "name": "Raucous Bell",
+    "name": "Rabble",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "village_bell",
@@ -1827,20 +1827,20 @@
   },
   {
     "id": "crown_vessel",
-    "name": "Crown Vessel",
+    "name": "Hoard",
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "firefly_gold",
     "cost": 6,
-    "description": "Gain 2 coins. This turn, when you gain a victory card that you bought, gain an Amber Circlet.",
+    "description": "Gain 2 coins. This turn, when you gain a victory card that you bought, gain a Gold.",
     "coin_value": 2
     ,"special_effects": [
-      {"kind": "hoard_buy", "trigger": "buy", "trigger_scope": "in_play", "label": "Bought Victory: Gain Amber"}
+      {"kind": "hoard_buy", "trigger": "buy", "trigger_scope": "in_play", "label": "Bought Victory: Gain Gold"}
     ]
   },
   {
     "id": "watchtower_chart",
-    "name": "Watchtower Map",
+    "name": "Watchtower",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "astral_vault",
@@ -1861,7 +1861,7 @@
   },
   {
     "id": "chance_engine",
-    "name": "Chance Engine",
+    "name": "Crystal Ball",
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "tinker_wren",
@@ -1877,7 +1877,7 @@
   },
   {
     "id": "twin_pillars",
-    "name": "Twin Pillars",
+    "name": "Worker's Village",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "long_causeway",
@@ -1889,7 +1889,7 @@
   },
   {
     "id": "venture_compass",
-    "name": "Venture Compass",
+    "name": "Tiara",
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "orchard_surveyor",
@@ -1911,7 +1911,7 @@
   },
   {
     "id": "artisan_vault",
-    "name": "Artisan Vault",
+    "name": "Anvil",
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "weavers_loom",
@@ -1927,7 +1927,7 @@
   },
   {
     "id": "merchant_guild",
-    "name": "Merchant Guild",
+    "name": "Peddler",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "lantern_bargainer",
@@ -1946,7 +1946,7 @@
   },
   {
     "id": "route_toll",
-    "name": "Route Toll",
+    "name": "Collection",
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "river_trail",
@@ -1960,7 +1960,7 @@
   },
   {
     "id": "capital_mirror",
-    "name": "Capital Mirror",
+    "name": "Expand",
     "type": "action",
     "group": "Crownwealth",
     "art_id": "wishing_crossroads",
@@ -1993,7 +1993,7 @@
   },
   {
     "id": "auric_reserve",
-    "name": "Auric Reserve",
+    "name": "Platinum",
     "type": "resource",
     "group": "Crownwealth",
     "art_id": "silver_leaf",
@@ -2004,7 +2004,7 @@
   },
   {
     "id": "crownland_expanse",
-    "name": "Crownland Reach",
+    "name": "Colony",
     "type": "victory",
     "group": "Crownwealth",
     "art_id": "royal_charter",

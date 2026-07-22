@@ -1070,7 +1070,7 @@ func _initialize() -> void:
 			"Card hover should not play a UI sound."
 		)
 		_check(
-			_preview_name_label().text == "Pebble Coin",
+			_preview_name_label().text == "Copper",
 			"Hand preview should show the hovered card name."
 		)
 		_check(
