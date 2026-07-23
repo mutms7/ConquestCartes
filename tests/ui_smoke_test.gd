@@ -444,6 +444,14 @@ func _initialize() -> void:
 		and _kingdom_detail_host().get_child_count() > 0,
 		"Kingdoms should open a tabbed card browser with a detail pane."
 	)
+	for kingdom in GameState.KINGDOM_ORDER:
+		if str(kingdom).to_lower().contains("trail"):
+			_check(
+				_kingdom_tab(str(kingdom)) != null
+				and _kingdom_toggle(str(kingdom)) != null,
+				"Trailblazers should expose the same kingdom filter controls as other packs."
+			)
+			break
 	var kingdom_rect := _home_kingdoms_panel().get_global_rect()
 	var root_rect := root.get_visible_rect()
 	_check(
@@ -556,6 +564,59 @@ func _initialize() -> void:
 		_players_turn_panel().find_child("PlayerRow1", true, false) != null,
 		"The players + turns panel should render the local player row in solo."
 	)
+	_check(
+		main_ui.expansion_panel != null
+		and main_ui.expansion_panel.name == "ExpansionPanel"
+		and main_ui.expansion_reserve_container.name == "ReserveMat"
+		and main_ui.expansion_event_container.name == "EventRow",
+		"The expansion surface should expose reserve/mat and event rows."
+	)
+	# Exercise the generic expansion surface with the core's data-driven APIs:
+	# no card id is special-cased by the UI.
+	var reserve_card: CardDefinition = null
+	for candidate in main_ui.game_state.card_catalog.values():
+		var candidate_card := candidate as CardDefinition
+		if candidate_card != null and candidate_card.has_method("is_reserve_card") and candidate_card.is_reserve_card():
+			reserve_card = candidate_card
+			break
+	if reserve_card != null:
+		main_ui.game_state.player.store_reserve(reserve_card)
+	main_ui.game_state.player.set_journey("smoke_journey", true)
+	main_ui.game_state.player.add_player_token("smoke_token", 2)
+	var token_card := main_ui.game_state.market[0] as CardDefinition
+	main_ui.game_state.place_supply_token(token_card.id, "smoke_marker", 2)
+	main_ui._refresh_ui()
+	_check(
+		main_ui.expansion_journey_label.text.contains("JOURNEY")
+		and main_ui.expansion_player_tokens_label.text.contains("2")
+		and main_ui.expansion_supply_tokens_label.text.contains("2"),
+		"Journey and player/supply token indicators should mirror generic state."
+	)
+	if reserve_card != null:
+		_check(
+			main_ui.expansion_reserve_container.get_child_count() > 0
+			and main_ui.expansion_reserve_container.get_child(0).get_meta("expansion_action", "") == "reserve",
+			"Reserved cards should render with a call button."
+		)
+		(main_ui.expansion_reserve_container.get_child(0) as Button).pressed.emit()
+		_check(
+			main_ui.game_state.player.get_reserve_cards().is_empty()
+			and main_ui.last_animation_event == "reserve_call",
+			"Calling a reserve card should route through PlayerState.call_reserve."
+		)
+	var event_candidates: Array[CardDefinition] = main_ui.game_state.get_event_candidates()
+	if not event_candidates.is_empty():
+		var event_card: CardDefinition = event_candidates[0]
+		main_ui.game_state.player.coins = main_ui.game_state.get_event_cost(event_card)
+		main_ui.game_state.player.buys = 1
+		main_ui._refresh_ui()
+		_check(
+			main_ui.expansion_event_container.get_child_count() > 0
+			and main_ui.expansion_event_container.get_child(0).get_meta("expansion_action", "") == "event",
+			"Available events should render as buy buttons."
+		)
+		(main_ui.expansion_event_container.get_child(0) as Button).pressed.emit()
+		_check(main_ui.last_animation_event == "event_buy", "Buying an event should use the generic event API.")
 
 	_check(_hand_container().get_child_count() == 5, "Initial hand should render five cards.")
 	_check(

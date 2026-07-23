@@ -20,6 +20,20 @@ var gain_buys: int = 0
 var gain_coins: int = 0
 var market_enabled: bool = true
 var multiplayer_only: bool = false
+# Events, Reserve cards, Traveller cards, and Journey cards are deliberately
+# represented as data flags rather than hard-coded card ids.  Older card files
+# simply leave these at their defaults.
+var event_enabled: bool = false
+var event_cost: int = -1
+var event_group: String = ""
+var reserve: bool = false
+var traveller: bool = false
+var traveller_upgrade_id: String = ""
+var journey: bool = false
+var tags: Array[String] = []
+# Preserve extension fields so clients/tests can inspect an unfamiliar card
+# definition without requiring a rules-code change for every cosmetic field.
+var metadata: Dictionary = {}
 var special_effects: Array[Dictionary] = []
 
 
@@ -44,7 +58,21 @@ static func from_dict(data: Dictionary) -> CardDefinition:
 	card.gain_coins = int(data.get("gain_coins", 0))
 	card.market_enabled = bool(data.get("market_enabled", true))
 	card.multiplayer_only = bool(data.get("multiplayer_only", false))
-	var effects_data = data.get("special_effects", [])
+	card.event_enabled = bool(data.get("event_enabled", data.get("is_event", false)))
+	card.event_cost = int(data.get("event_cost", -1))
+	card.event_group = str(data.get("event_group", ""))
+	card.reserve = bool(data.get("reserve", data.get("is_reserve", false)))
+	card.traveller = bool(data.get("traveller", data.get("is_traveller", false)))
+	card.traveller_upgrade_id = str(data.get("traveller_upgrade_id", data.get("upgrade_to", "")))
+	card.journey = bool(data.get("journey", data.get("is_journey", false)))
+	var tags_data = data.get("tags", [])
+	if typeof(tags_data) == TYPE_ARRAY:
+		for tag in tags_data:
+			card.tags.append(str(tag))
+	# Keep all source fields available to generic expansion tooling.  Deep-copy
+	# avoids retaining references into a parsed JSON value.
+	card.metadata = data.duplicate(true)
+	var effects_data = data.get("special_effects", data.get("effects", data.get("event_effects", [])))
 	if typeof(effects_data) == TYPE_ARRAY:
 		for effect in effects_data:
 			if typeof(effect) == TYPE_DICTIONARY:
@@ -54,3 +82,19 @@ static func from_dict(data: Dictionary) -> CardDefinition:
 
 func is_playable() -> bool:
 	return card_type == "resource" or card_type == "action"
+
+
+func is_event_card() -> bool:
+	return event_enabled or card_type == "event"
+
+
+func is_reserve_card() -> bool:
+	return reserve or tags.has("reserve")
+
+
+func has_tag(tag: String) -> bool:
+	return tags.has(tag)
+
+
+func get_event_cost() -> int:
+	return event_cost if event_cost >= 0 else cost

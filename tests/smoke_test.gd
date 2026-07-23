@@ -2,7 +2,7 @@ extends SceneTree
 
 const CARD_DATA_PATH := "res://data/cards/starter_cards.json"
 const MAIN_UI_SCRIPT := preload("res://scripts/ui/main_ui.gd")
-const EXPECTED_CARD_COUNT := 114
+const EXPECTED_CARD_COUNT := 173
 const WORDING_GUIDE_PATH := "res://docs/card_wording_conventions.md"
 const INACTIVE_CARD_IDS := [
 	"starpath_seeker",
@@ -146,12 +146,78 @@ const CROWNWEALTH_CARD_IDS := [
 	"capital_mirror",
 	"granary_riddle",
 ]
+const TRAILBLAZERS_MARKET_CARD_IDS := [
+	"trail_wayfinder_charm",
+	"trail_rune_smith",
+	"trail_span_warden",
+	"trail_road_sentinel",
+	"trail_pocket_token",
+	"trail_far_horizons",
+	"trail_two_key_cell",
+	"trail_echo_seal",
+	"trail_pack_latch",
+	"trail_stormstepper",
+	"trail_trail_guide",
+	"trail_whisper_grove",
+	"trail_camp_companion",
+	"trail_ruined_beacon",
+	"trail_bright_pin",
+	"trail_swift_courier",
+	"trail_tide_hoard",
+	"trail_pathfinder_page",
+	"trail_field_recruit",
+	"trail_harbor_depot",
+	"trail_moonpath_ranger",
+	"trail_camp_scrubber",
+	"trail_scorch_mark",
+	"trail_sunken_relic",
+	"trail_coach_echoes",
+	"trail_tale_spinner",
+	"trail_bog_hexer",
+	"trail_shape_shifter",
+	"trail_roaming_fair",
+	"trail_cellar_steward",
+]
+const TRAILBLAZERS_SUPPORT_CARD_IDS := [
+	"trail_sunken_chest",
+	"trail_page_treasure",
+	"trail_page_warrior",
+	"trail_page_hero",
+	"trail_page_champion",
+	"trail_peasant_scout",
+	"trail_peasant_guard",
+	"trail_peasant_teacher",
+	"trail_peasant_captain",
+]
+const TRAILBLAZERS_EVENT_IDS := [
+	"trail_event_scout_route",
+	"trail_event_forage",
+	"trail_event_campfire",
+	"trail_event_river_passage",
+	"trail_event_chart_course",
+	"trail_event_barter",
+	"trail_event_call_helpers",
+	"trail_event_hidden_cache",
+	"trail_event_dare_wild",
+	"trail_event_unearth_cache",
+	"trail_event_rescue",
+	"trail_event_old_rites",
+	"trail_event_night_watch",
+	"trail_event_wayfarer_fair",
+	"trail_event_trade_pact",
+	"trail_event_move_camp",
+	"trail_event_field_training",
+	"trail_event_tell_tale",
+	"trail_event_read_omens",
+	"trail_event_homeward",
+]
 
 var failure_count := 0
 
 
 func _initialize() -> void:
 	_test_card_catalog()
+	_test_trailblazers_expansion()
 	_test_wording_conventions()
 	_test_full_game_loop()
 	_test_draw_across_shuffle_boundary()
@@ -271,7 +337,6 @@ func _test_wording_conventions() -> void:
 		guide_text.contains("Card creation checklist"),
 		"Card wording guide should include the creation checklist."
 	)
-
 	var game_state := _create_game_state()
 	if game_state == null:
 		return
@@ -313,6 +378,64 @@ func _test_wording_conventions() -> void:
 		game_state.card_catalog["guild_workshop"].description
 		== "Gain a card costing up to 4.",
 		"Gain wording should describe the player's supply choice."
+	)
+
+
+func _test_trailblazers_expansion() -> void:
+	var game_state := _create_game_state()
+	if game_state == null:
+		return
+	var trail_cards: Array[CardDefinition] = []
+	for card_id in TRAILBLAZERS_MARKET_CARD_IDS:
+		_check(game_state.card_catalog.has(card_id), "Trailblazers market card %s should resolve." % card_id)
+		if not game_state.card_catalog.has(card_id):
+			continue
+		var card: CardDefinition = game_state.card_catalog[card_id]
+		trail_cards.append(card)
+		_check(card.card_group == "Trailblazers", "%s should belong to Trailblazers." % card_id)
+		_check(card.market_enabled and not card.is_event_card(), "%s should be a market card." % card_id)
+		_check(not card.description.is_empty(), "%s should have original rules text." % card_id)
+	_check(trail_cards.size() == 30, "Trailblazers should expose exactly 30 market piles.")
+	_check(
+		trail_cards.filter(func(card: CardDefinition) -> bool: return card.is_reserve_card()).size() >= 7,
+		"Trailblazers should include the reserve/waypoint roles."
+	)
+	_check(
+		trail_cards.filter(func(card: CardDefinition) -> bool: return card.journey).size() == 2,
+		"Trailblazers should include two journey cards."
+	)
+	var support_cards: Array[CardDefinition] = []
+	for card_id in TRAILBLAZERS_SUPPORT_CARD_IDS:
+		_check(game_state.card_catalog.has(card_id), "Trailblazers support card %s should resolve." % card_id)
+		if not game_state.card_catalog.has(card_id):
+			continue
+		var support: CardDefinition = game_state.card_catalog[card_id]
+		support_cards.append(support)
+		_check(not support.market_enabled, "%s should stay out of the random market." % card_id)
+		_check(bool(support.metadata.get("support_pile", false)), "%s should be marked as a support pile." % card_id)
+	_check(support_cards.size() == 9, "Trailblazers should include the chest and eight training cards.")
+	for card_id in TRAILBLAZERS_EVENT_IDS:
+		_check(game_state.card_catalog.has(card_id), "Trailblazers event %s should resolve." % card_id)
+		if not game_state.card_catalog.has(card_id):
+			continue
+		var event_card: CardDefinition = game_state.card_catalog[card_id]
+		_check(event_card.is_event_card(), "%s should be an event card." % card_id)
+		_check(event_card.event_enabled, "%s should opt into the event offer." % card_id)
+		_check(event_card.event_group == "Trailblazers", "%s should use the Trailblazers event group." % card_id)
+		_check(event_card.event_cost >= 0, "%s should declare an event cost." % card_id)
+	_check(game_state.event_catalog.size() >= TRAILBLAZERS_EVENT_IDS.size(), "All Trailblazers events should enter the event catalog.")
+	_check(
+		game_state.card_catalog["trail_pathfinder_page"].traveller_upgrade_id == "trail_page_treasure"
+		and game_state.card_catalog["trail_field_recruit"].traveller_upgrade_id == "trail_peasant_scout",
+		"The two traveller paths should point to their first training cards."
+	)
+	_check(
+		game_state.card_catalog["trail_tide_hoard"].special_effects.any(func(effect: Dictionary) -> bool: return str(effect.get("kind", "")) == "miser_tokens"),
+		"The coin-mat role should use a token effect."
+	)
+	_check(
+		game_state.card_catalog["trail_far_horizons"].special_effects.any(func(effect: Dictionary) -> bool: return str(effect.get("kind", "")) == "distant_lands_score"),
+		"The distant-scoring role should use a scoring effect."
 	)
 
 
@@ -1909,6 +2032,8 @@ func _test_random_market_setup() -> void:
 			- INACTIVE_CARD_IDS.size()
 			- MULTIPLAYER_ONLY_CARD_IDS.size()
 			- MULTIPLAYER_ONLY_INTERACTION_CARD_IDS.size()
+			- TRAILBLAZERS_SUPPORT_CARD_IDS.size()
+			- TRAILBLAZERS_EVENT_IDS.size()
 		),
 		"Solo markets should exclude starter, inactive, and multiplayer-only cards."
 	)
@@ -1950,6 +2075,7 @@ func _test_random_market_setup() -> void:
 	game_state.set_kingdom_enabled(GameState.HINTERLANDS_GROUP, false)
 	game_state.set_kingdom_enabled(GameState.WITCHING_HOUR_GROUP, false)
 	game_state.set_kingdom_enabled(GameState.CROWNWEALTH_GROUP, false)
+	game_state.set_kingdom_enabled("Trailblazers", false)
 	_check(
 		not game_state.has_enough_market_candidates(),
 		"Market setup should know when kingdom filters cannot fill the central row."
@@ -1958,6 +2084,7 @@ func _test_random_market_setup() -> void:
 	game_state.set_kingdom_enabled(GameState.HINTERLANDS_GROUP, true)
 	game_state.set_kingdom_enabled(GameState.WITCHING_HOUR_GROUP, true)
 	game_state.set_kingdom_enabled(GameState.CROWNWEALTH_GROUP, true)
+	game_state.set_kingdom_enabled("Trailblazers", true)
 
 	_check(game_state.setup_starting_game(), "A second game should set up even when a repeat is allowed.")
 	_check(

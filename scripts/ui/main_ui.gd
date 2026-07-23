@@ -254,6 +254,12 @@ var home_join_online_button: Button
 var home_lobby_address_input: LineEdit
 var home_lobby_status_label: Label
 var player_status_label: Label
+var expansion_panel: PanelContainer
+var expansion_reserve_container: HBoxContainer
+var expansion_journey_label: Label
+var expansion_player_tokens_label: Label
+var expansion_supply_tokens_label: Label
+var expansion_event_container: HBoxContainer
 var home_settings_panel: PanelContainer
 var home_multiplayer_panel: PanelContainer
 var home_lobby_panel: PanelContainer
@@ -1453,7 +1459,7 @@ func _create_network_snapshot(recipient_player_index: int = -1) -> Dictionary:
 	for index in range(game_state.players.size()):
 		var game_player: PlayerState = game_state.players[index]
 		var is_recipient := snapshot_recipient < 0 or index == snapshot_recipient
-		player_snapshots.append({
+		var player_snapshot: Dictionary = {
 			"name": game_player.player_name,
 			"turn_number": game_player.turn_number,
 			# Hidden zones are only sent as identities to their owner (or to the
@@ -1489,7 +1495,16 @@ func _create_network_snapshot(recipient_player_index: int = -1) -> Dictionary:
 			"cooldown_remaining": game_player.cooldown_remaining,
 			"cooldown_duration": game_player.cooldown_duration,
 			"times_attacked": game_player.times_attacked,
-		})
+		}
+		# Expansion token fields are optional so older peers keep working while a
+		# Trailblazers-enabled table can still show each player's tally.
+		for token_key in ["tokens", "journey_tokens", "trail_tokens", "supply_tokens", "player_tokens", "journey_state", "traveller_progress", "coin_mat", "reserve_mat"]:
+			var token_value: Variant = _generic_state_value(game_player, token_key, null)
+			if token_value != null:
+				if token_key == "reserve_mat" and token_value is Array:
+					token_value = _card_ids_from_zone(token_value)
+				player_snapshot[token_key] = token_value
+		player_snapshots.append(player_snapshot)
 	return {
 		"players": player_snapshots,
 		"started": network_table_open,
@@ -1502,6 +1517,10 @@ func _create_network_snapshot(recipient_player_index: int = -1) -> Dictionary:
 		"attack_cards_enabled": game_state.attack_cards_enabled,
 		"market": _card_ids_from_zone(game_state.market),
 		"supply": game_state.supply_piles.duplicate(true),
+		"reserve_mat": _expansion_snapshot_card_ids(_expansion_records("reserve_mat", ["get_reserve_mat", "get_reserve_cards"])),
+		"journey_face_up": _expansion_value("journey_face_up", ["get_journey_face_up", "get_journey_state"]),
+		"supply_tokens": _expansion_value("supply_tokens", ["get_supply_tokens"]),
+		"events": _expansion_snapshot_card_ids(_expansion_records("events", ["get_event_row", "get_events", "get_event_candidates"])),
 		"turn": {
 			"turn_number": turn_manager.turn_number,
 			"game_over": turn_manager.game_over,
@@ -1748,6 +1767,12 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		synced_player.ending_turn = bool(player_data.get("ending_turn", false))
 		synced_player.cooldown_remaining = float(player_data.get("cooldown_remaining", 0.0))
 		synced_player.cooldown_duration = float(player_data.get("cooldown_duration", 0.0))
+		for token_key in ["tokens", "journey_tokens", "trail_tokens", "supply_tokens", "player_tokens", "journey_state", "traveller_progress", "coin_mat", "reserve_mat"]:
+			if player_data.has(token_key) and _object_has_property(synced_player, token_key):
+				var token_value: Variant = player_data[token_key]
+				if token_key == "reserve_mat" and token_value is Array:
+					token_value = _cards_from_ids(token_value)
+				synced_player.set(token_key, token_value)
 		game_state.players.append(synced_player)
 	if game_state.players.is_empty():
 		return
@@ -1787,6 +1812,9 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 	)
 	game_state.market = _cards_from_ids(snapshot.get("market", []))
 	game_state.supply_piles = snapshot.get("supply", {}).duplicate(true)
+	for expansion_key in ["reserve_mat", "journey_face_up", "supply_tokens", "events"]:
+		if snapshot.has(expansion_key) and _object_has_property(game_state, expansion_key):
+			game_state.set(expansion_key, snapshot[expansion_key])
 	game_state.pending_choice = game_state.player.pending_choice
 	game_state.player.pending_choice = game_state.pending_choice
 
@@ -2184,6 +2212,8 @@ func _build_bottom_docks() -> void:
 	player_status_label.visible = false
 	right_stats.add_child(player_status_label)
 	right_stats.add_child(_create_players_turn_panel())
+	expansion_panel = _create_expansion_panel()
+	right_stats.add_child(expansion_panel)
 	end_turn_button.reparent(right_stats)
 	brand.queue_free()
 
@@ -2529,6 +2559,102 @@ func _create_players_turn_panel() -> PanelContainer:
 	player_status_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	player_status_list.add_theme_constant_override("separation", 4)
 	layout.add_child(player_status_list)
+	return panel
+
+
+func _create_expansion_panel() -> PanelContainer:
+	# The expansion surface intentionally lives in the existing right dock so it
+	# remains visible without changing the fixed market geometry.  All values are
+	# read through the generic accessors below; the base game simply shows empty
+	# placeholders until an expansion is enabled.
+	var panel := PanelContainer.new()
+	panel.name = "ExpansionPanel"
+	panel.custom_minimum_size = Vector2(0, 72)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	panel.add_theme_stylebox_override(
+		"panel",
+		_make_panel_style(Color(0.07, 0.045, 0.025, 0.9), Color(0.835, 0.667, 0.314, 0.38), 1)
+	)
+
+	var margin := MarginContainer.new()
+	margin.name = "Margin"
+	for side in ["left", "top", "right", "bottom"]:
+		margin.add_theme_constant_override("margin_%s" % side, 3)
+	panel.add_child(margin)
+	var layout := VBoxContainer.new()
+	layout.name = "Layout"
+	layout.add_theme_constant_override("separation", 2)
+	margin.add_child(layout)
+
+	var title := Label.new()
+	title.name = "Title"
+	title.text = "TRAILBLAZERS"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", COLOR_BRASS)
+	title.add_theme_font_size_override("font_size", 9)
+	if title_font != null:
+		title.add_theme_font_override("font", title_font)
+	layout.add_child(title)
+
+	var reserve_title := Label.new()
+	reserve_title.name = "ReserveTitle"
+	reserve_title.text = "RESERVE / MAT"
+	reserve_title.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
+	reserve_title.add_theme_font_size_override("font_size", 8)
+	layout.add_child(reserve_title)
+	expansion_reserve_container = HBoxContainer.new()
+	expansion_reserve_container.name = "ReserveMat"
+	expansion_reserve_container.add_theme_constant_override("separation", 3)
+	expansion_reserve_container.custom_minimum_size = Vector2(0, 18)
+	layout.add_child(expansion_reserve_container)
+
+	var journey_row := HBoxContainer.new()
+	journey_row.name = "JourneyIndicator"
+	journey_row.add_theme_constant_override("separation", 4)
+	layout.add_child(journey_row)
+	expansion_journey_label = Label.new()
+	expansion_journey_label.name = "Value"
+	expansion_journey_label.text = "JOURNEY  —"
+	expansion_journey_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	expansion_journey_label.clip_text = true
+	expansion_journey_label.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	expansion_journey_label.add_theme_font_size_override("font_size", 8)
+	journey_row.add_child(expansion_journey_label)
+
+	var token_row := HBoxContainer.new()
+	token_row.name = "TokenIndicators"
+	token_row.add_theme_constant_override("separation", 3)
+	layout.add_child(token_row)
+	expansion_player_tokens_label = Label.new()
+	expansion_player_tokens_label.name = "PlayerTokens"
+	expansion_player_tokens_label.text = "YOU 0"
+	expansion_player_tokens_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	expansion_player_tokens_label.clip_text = true
+	expansion_player_tokens_label.add_theme_color_override("font_color", COLOR_VICTORY_ACCENT)
+	expansion_player_tokens_label.add_theme_font_size_override("font_size", 8)
+	token_row.add_child(expansion_player_tokens_label)
+	expansion_supply_tokens_label = Label.new()
+	expansion_supply_tokens_label.name = "SupplyTokens"
+	expansion_supply_tokens_label.text = "SUPPLY 0"
+	expansion_supply_tokens_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	expansion_supply_tokens_label.clip_text = true
+	expansion_supply_tokens_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	expansion_supply_tokens_label.add_theme_color_override("font_color", COLOR_RESOURCE_ACCENT)
+	expansion_supply_tokens_label.add_theme_font_size_override("font_size", 8)
+	token_row.add_child(expansion_supply_tokens_label)
+
+	var event_title := Label.new()
+	event_title.name = "EventTitle"
+	event_title.text = "EVENTS"
+	event_title.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
+	event_title.add_theme_font_size_override("font_size", 8)
+	layout.add_child(event_title)
+	expansion_event_container = HBoxContainer.new()
+	expansion_event_container.name = "EventRow"
+	expansion_event_container.add_theme_constant_override("separation", 3)
+	expansion_event_container.custom_minimum_size = Vector2(0, 18)
+	layout.add_child(expansion_event_container)
 	return panel
 
 
@@ -6165,6 +6291,7 @@ func _refresh_ui() -> void:
 	_refresh_hand()
 	_refresh_market()
 	_refresh_play_area()
+	_refresh_expansion_ui()
 	_refresh_relics_rail()
 	_refresh_relic_overlay()
 
@@ -6910,6 +7037,308 @@ func _refresh_play_area() -> void:
 		play_area_container.add_child(chip)
 		if index >= pop_from:
 			_pop_in_control(chip)
+
+
+func _object_has_property(target: Object, property_name: String) -> bool:
+	if target == null:
+		return false
+	for entry in target.get_property_list():
+		if str(entry.get("name", "")) == property_name:
+			return true
+	return false
+
+
+func _generic_state_value(target: Object, property_name: String, fallback: Variant = null) -> Variant:
+	if target != null and _object_has_property(target, property_name):
+		return target.get(property_name)
+	# Metadata keeps the surface testable even when an older core is loaded and is
+	# harmless for production state objects.
+	if target != null and target.has_meta(property_name):
+		return target.get_meta(property_name)
+	return fallback
+
+
+func _generic_state_call(target: Object, method_names: Array[String], argument: Variant = null) -> Variant:
+	if target == null:
+		return null
+	for method_name in method_names:
+		if not target.has_method(method_name):
+			continue
+		if argument == null:
+			return target.call(method_name)
+		return target.call(method_name, argument)
+	return null
+
+
+func _expansion_value(property_name: String, method_names: Array[String] = []) -> Variant:
+	var value: Variant = _generic_state_value(game_state, property_name, null)
+	if value != null:
+		return value
+	if not method_names.is_empty():
+		return _generic_state_call(game_state, method_names)
+	return null
+
+
+func _expansion_records(property_name: String, method_names: Array[String] = []) -> Array:
+	var value: Variant = _expansion_value(property_name, method_names)
+	if value is Array:
+		return value
+	if value is Dictionary:
+		# Event rows are sometimes exposed as a keyed dictionary; preserving values
+		# makes the renderer independent of the core's storage shape.
+		return (value as Dictionary).values()
+	return []
+
+
+func _expansion_target_value(target: Object, property_name: String, method_names: Array[String] = []) -> Variant:
+	var value: Variant = _generic_state_value(target, property_name, null)
+	if value != null:
+		return value
+	if not method_names.is_empty():
+		return _generic_state_call(target, method_names)
+	return null
+
+
+func _expansion_target_records(target: Object, property_name: String, method_names: Array[String] = []) -> Array:
+	var value: Variant = _expansion_target_value(target, property_name, method_names)
+	if value is Array:
+		return value
+	if value is Dictionary:
+		return (value as Dictionary).values()
+	return []
+
+
+func _expansion_card(record: Variant) -> CardDefinition:
+	if record is CardDefinition:
+		return record as CardDefinition
+	if record is Dictionary:
+		var data: Dictionary = record
+		var nested: Variant = data.get("card", null)
+		if nested is CardDefinition:
+			return nested as CardDefinition
+		var card_id := str(data.get("card_id", data.get("id", "")))
+		if not card_id.is_empty() and game_state.card_catalog.has(card_id):
+			return game_state.card_catalog[card_id] as CardDefinition
+	if record is String and game_state.card_catalog.has(str(record)):
+		return game_state.card_catalog[str(record)] as CardDefinition
+	return null
+
+
+func _expansion_record_label(record: Variant, fallback: String = "—") -> String:
+	var card := _expansion_card(record)
+	if card != null:
+		return card.card_name
+	if record is Dictionary:
+		var data: Dictionary = record
+		for key in ["label", "name", "title", "event_name", "card_id", "id"]:
+			var value := str(data.get(key, "")).strip_edges()
+			if not value.is_empty():
+				return value.replace("_", " ").capitalize()
+	if record is String and not str(record).is_empty():
+		return str(record).replace("_", " ").capitalize()
+	return fallback
+
+
+func _expansion_record_token(record: Variant, index: int) -> String:
+	if record is Dictionary:
+		var data: Dictionary = record
+		for key in ["token", "reserve_token", "event_token", "card_id", "id"]:
+			var value := str(data.get(key, ""))
+			if not value.is_empty():
+				return value
+	var card := _expansion_card(record)
+	return card.id if card != null else str(index)
+
+
+func _expansion_snapshot_card_ids(records: Array) -> Array[String]:
+	var ids: Array[String] = []
+	for record in records:
+		var card := _expansion_card(record)
+		if card != null:
+			ids.append(card.id)
+		elif record is String:
+			ids.append(str(record))
+	return ids
+
+
+func _expansion_record_available(record: Variant, index: int) -> bool:
+	if record is Dictionary:
+		var data: Dictionary = record
+		if data.has("available"):
+			return bool(data["available"])
+		if data.has("called"):
+			return not bool(data["called"])
+	var token := _expansion_record_token(record, index)
+	var availability: Variant = _generic_state_call(
+		game_state,
+		["is_reserve_available", "is_mat_card_available", "can_call_reserve"],
+		token
+	)
+	return bool(availability) if availability != null else true
+
+
+func _create_expansion_action_button(text: String, action_kind: String, record: Variant, index: int) -> Button:
+	var button := Button.new()
+	button.name = "%s_%d" % [action_kind.capitalize(), index + 1]
+	button.text = text
+	button.tooltip_text = "Call from reserve / mat" if action_kind == "reserve" else "Buy event"
+	button.custom_minimum_size = Vector2(0, 18)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.clip_text = true
+	button.focus_mode = Control.FOCUS_ALL
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.add_theme_font_size_override("font_size", 8)
+	button.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	button.add_theme_color_override("font_hover_color", Color.WHITE)
+	button.add_theme_stylebox_override("normal", _make_pill_style(Color(0.12, 0.08, 0.04, 0.9), COLOR_MENU_BORDER, 4))
+	button.add_theme_stylebox_override("hover", _make_pill_style(Color(0.2, 0.13, 0.06, 0.95), COLOR_BRASS, 4))
+	button.add_theme_stylebox_override("disabled", _make_pill_style(Color(0.08, 0.06, 0.04, 0.65), Color(0.4, 0.32, 0.18, 0.3), 4))
+	button.set_meta("expansion_action", action_kind)
+	button.set_meta("expansion_token", _expansion_record_token(record, index))
+	button.disabled = not _expansion_record_available(record, index)
+	if action_kind == "reserve":
+		button.pressed.connect(_on_expansion_reserve_pressed.bind(record, index))
+	else:
+		button.pressed.connect(_on_expansion_event_pressed.bind(record, index))
+	return button
+
+
+func _refresh_expansion_ui() -> void:
+	if expansion_panel == null:
+		return
+	# Four-player tables already use the full-height turn tracker. Keep the
+	# expansion surface available for solo/duet tables where it can remain fully
+	# visible without pushing the hand band below the viewport.
+	if game_state.players.size() > 2:
+		expansion_panel.hide()
+		return
+	expansion_panel.show()
+	var reserve_records := _expansion_target_records(
+		game_state.player,
+		"reserve_mat",
+		["get_reserve_mat", "get_reserve_cards"]
+	)
+	_clear_container(expansion_reserve_container)
+	if reserve_records.is_empty():
+		var empty_reserve := Label.new()
+		var coin_mat: Variant = _expansion_target_value(game_state.player, "coin_mat", [])
+		empty_reserve.text = "COIN MAT %s" % str(coin_mat) if int(coin_mat) > 0 else "—"
+		empty_reserve.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
+		empty_reserve.add_theme_font_size_override("font_size", 9)
+		expansion_reserve_container.add_child(empty_reserve)
+	else:
+		for index in range(reserve_records.size()):
+			expansion_reserve_container.add_child(
+				_create_expansion_action_button(
+					_expansion_record_label(reserve_records[index]), "reserve", reserve_records[index], index
+				)
+			)
+
+	var journey: Variant = _expansion_value("journey_face_up", ["get_journey_face_up", "get_journey_state"])
+	if journey == null:
+		journey = _expansion_target_value(game_state.player, "journey_state", [])
+	if journey is Array:
+		expansion_journey_label.text = "JOURNEY  %d face-up" % (journey as Array).size()
+	elif journey is Dictionary:
+		var journey_data: Dictionary = journey
+		var progress: Variant = journey_data.get("progress", journey_data.get("step", ""))
+		var total: Variant = journey_data.get("total", journey_data.get("steps", ""))
+		if progress == "" and total == "":
+			var active_count := 0
+			for active in journey_data.values():
+				if bool(active):
+					active_count += 1
+			expansion_journey_label.text = "JOURNEY  %d active" % active_count
+		else:
+			expansion_journey_label.text = "JOURNEY  %s%s" % [str(progress), ("/%s" % str(total)) if not str(total).is_empty() else ""]
+	elif journey == null:
+		expansion_journey_label.text = "JOURNEY  —"
+	else:
+		expansion_journey_label.text = "JOURNEY  %s" % _expansion_record_label(journey)
+	expansion_journey_label.set_meta("journey_face_up", journey)
+
+	var player_tokens: Variant = _expansion_target_value(game_state.player, "player_tokens", [])
+	if player_tokens == null:
+		player_tokens = _expansion_target_value(game_state.player, "tokens", ["get_player_tokens"])
+	var supply_tokens: Variant = _expansion_value("supply_tokens", ["get_supply_tokens"])
+	expansion_player_tokens_label.text = "YOU  %s" % _format_token_count(player_tokens)
+	expansion_supply_tokens_label.text = "SUPPLY  %s" % _format_token_count(supply_tokens)
+	expansion_player_tokens_label.set_meta("tokens", player_tokens)
+	expansion_supply_tokens_label.set_meta("tokens", supply_tokens)
+
+	var event_records := _expansion_records("events", ["get_event_row", "get_events", "get_event_candidates"])
+	if event_records.is_empty():
+		event_records = _expansion_records("event_row")
+	_clear_container(expansion_event_container)
+	if event_records.is_empty():
+		var empty_events := Label.new()
+		empty_events.text = "—"
+		empty_events.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
+		empty_events.add_theme_font_size_override("font_size", 9)
+		expansion_event_container.add_child(empty_events)
+	else:
+		for index in range(event_records.size()):
+			expansion_event_container.add_child(
+				_create_expansion_action_button(
+					_expansion_record_label(event_records[index]), "event", event_records[index], index
+				)
+			)
+
+
+func _format_token_count(value: Variant) -> String:
+	if value == null:
+		return "0"
+	if value is Dictionary:
+		var total := 0
+		for amount in (value as Dictionary).values():
+			if amount is Dictionary or amount is Array:
+				total += int(_format_token_count(amount))
+			elif amount is int or amount is float:
+				total += int(amount)
+		return str(total)
+	if value is Array:
+		return str((value as Array).size())
+	return str(value)
+
+
+func _on_expansion_reserve_pressed(record: Variant, index: int) -> void:
+	var token: String = _expansion_record_token(record, index)
+	var result: Variant = null
+	var card := _expansion_card(record)
+	if card != null and game_state.player.has_method("call_reserve"):
+		result = game_state.player.call("call_reserve", card)
+	else:
+		result = _generic_state_call(
+			game_state,
+			["call_reserve_card", "call_reserve", "call_mat_card", "call_from_reserve"],
+			token
+		)
+	if result != false:
+		last_animation_event = "reserve_call"
+		_play_ui_sound("button_click")
+		_refresh_ui()
+		if network_enabled and network_is_host:
+			_broadcast_network_snapshot()
+
+
+func _on_expansion_event_pressed(record: Variant, index: int) -> void:
+	var token: String = _expansion_record_token(record, index)
+	var result: Variant = null
+	var card := _expansion_card(record)
+	if card != null and game_state.has_method("buy_event"):
+		result = game_state.call("buy_event", card)
+	else:
+		result = _generic_state_call(
+			game_state,
+			["buy_event", "purchase_event", "buy_expansion_event"],
+			token
+		)
+	if result != false:
+		last_animation_event = "event_buy"
+		_play_ui_sound("buy_card")
+		_refresh_ui()
+		if network_enabled and network_is_host:
+			_broadcast_network_snapshot()
 
 
 func _pop_in_control(control: Control) -> void:

@@ -12,6 +12,35 @@ var discard_pile: Array[CardDefinition] = []
 var trash_pile: Array[CardDefinition] = []
 # Cards set aside until the start of the owner's next turn (e.g. Sowing Moon).
 var set_aside_pile: Array[CardDefinition] = []
+# Reserve cards live on a persistent mat instead of in play/discard.  The mat
+# is intentionally a normal card array so it can be copied to a network view
+# using the same card-id zone serializer as the other zones.
+var reserve_mat: Array[CardDefinition] = []
+# Expansion state is data-shaped and therefore safe to include in snapshots.
+# player_tokens is for tokens owned by this player; supply_tokens belongs to the
+# shared GameState and is not duplicated here.
+var player_tokens: Dictionary = {}
+var journey_state: Dictionary = {}
+var traveller_progress: Dictionary = {}
+var coin_mat: int = 0
+# Compatibility aliases used by older snapshot/UI adapters.  They are true
+# accessors (not duplicated dictionaries), so setting an alias from a network
+# payload updates the canonical expansion state.
+var tokens: Dictionary:
+	get:
+		return player_tokens
+	set(value):
+		player_tokens = value.duplicate(true) if typeof(value) == TYPE_DICTIONARY else {}
+var journey_tokens: Dictionary:
+	get:
+		return journey_state
+	set(value):
+		journey_state = value.duplicate(true) if typeof(value) == TYPE_DICTIONARY else {}
+var trail_tokens: Dictionary:
+	get:
+		return traveller_progress
+	set(value):
+		traveller_progress = value.duplicate(true) if typeof(value) == TYPE_DICTIONARY else {}
 # Duration bookkeeping: cards that stay in play through the next cleanup, and
 # the "next turn" effect payloads waiting to resolve at the next turn start.
 var duration_hold: Array[CardDefinition] = []
@@ -64,6 +93,11 @@ func clear_all() -> void:
 	discard_pile.clear()
 	trash_pile.clear()
 	set_aside_pile.clear()
+	reserve_mat.clear()
+	player_tokens.clear()
+	journey_state.clear()
+	traveller_progress.clear()
+	coin_mat = 0
 	duration_hold.clear()
 	pending_duration_effects.clear()
 	turn_number = 1
@@ -121,4 +155,63 @@ func get_all_cards() -> Array[CardDefinition]:
 	cards.append_array(play_area)
 	cards.append_array(discard_pile)
 	cards.append_array(set_aside_pile)
+	cards.append_array(reserve_mat)
 	return cards
+
+
+func get_player_token(token_id: String) -> int:
+	return int(player_tokens.get(token_id, 0))
+
+
+func add_player_token(token_id: String, amount: int = 1) -> int:
+	if token_id.is_empty() or amount == 0:
+		return get_player_token(token_id)
+	var next_value := maxi(0, get_player_token(token_id) + amount)
+	if next_value == 0:
+		player_tokens.erase(token_id)
+	else:
+		player_tokens[token_id] = next_value
+	return next_value
+
+
+func remove_player_token(token_id: String, amount: int = 1) -> int:
+	return add_player_token(token_id, -maxi(0, amount))
+
+
+func set_journey(journey_id: String, active: bool = true) -> void:
+	if journey_id.is_empty():
+		return
+	journey_state[journey_id] = active
+
+
+func is_journey_active(journey_id: String) -> bool:
+	return bool(journey_state.get(journey_id, false))
+
+
+func store_reserve(card: CardDefinition) -> bool:
+	if card == null or reserve_mat.has(card):
+		return false
+	reserve_mat.append(card)
+	return true
+
+
+func call_reserve(card: CardDefinition) -> bool:
+	if card == null:
+		return false
+	var index := reserve_mat.find(card)
+	if index < 0:
+		return false
+	reserve_mat.remove_at(index)
+	return true
+
+
+func get_reserve_cards() -> Array[CardDefinition]:
+	return reserve_mat.duplicate()
+
+
+func get_reserve_mat() -> Array[CardDefinition]:
+	return get_reserve_cards()
+
+
+func get_journey_state() -> Dictionary:
+	return journey_state.duplicate(true)
