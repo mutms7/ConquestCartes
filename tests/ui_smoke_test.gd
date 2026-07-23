@@ -532,6 +532,9 @@ func _initialize() -> void:
 	_kingdom_toggle(GameState.WITCHING_HOUR_GROUP).toggled.emit(false)
 	_kingdom_toggle(GameState.CROWNWEALTH_GROUP).set_pressed_no_signal(false)
 	_kingdom_toggle(GameState.CROWNWEALTH_GROUP).toggled.emit(false)
+	if GameState.KINGDOM_ORDER.has(GameState.TRAILBLAZERS_GROUP):
+		_kingdom_toggle(GameState.TRAILBLAZERS_GROUP).set_pressed_no_signal(false)
+		_kingdom_toggle(GameState.TRAILBLAZERS_GROUP).toggled.emit(false)
 	_check(_home_new_game_button().disabled, "New Game should lock when filters cannot fill a market.")
 	_kingdom_toggle(GameState.BEGINNER_KINGDOM).set_pressed_no_signal(true)
 	_kingdom_toggle(GameState.BEGINNER_KINGDOM).toggled.emit(true)
@@ -541,6 +544,9 @@ func _initialize() -> void:
 	_kingdom_toggle(GameState.WITCHING_HOUR_GROUP).toggled.emit(true)
 	_kingdom_toggle(GameState.CROWNWEALTH_GROUP).set_pressed_no_signal(true)
 	_kingdom_toggle(GameState.CROWNWEALTH_GROUP).toggled.emit(true)
+	if GameState.KINGDOM_ORDER.has(GameState.TRAILBLAZERS_GROUP):
+		_kingdom_toggle(GameState.TRAILBLAZERS_GROUP).set_pressed_no_signal(true)
+		_kingdom_toggle(GameState.TRAILBLAZERS_GROUP).toggled.emit(true)
 	_home_new_game_button().pressed.emit()
 	await process_frame
 	await process_frame
@@ -564,81 +570,7 @@ func _initialize() -> void:
 		_players_turn_panel().find_child("PlayerRow1", true, false) != null,
 		"The players + turns panel should render the local player row in solo."
 	)
-	_check(
-		main_ui.expansion_panel != null
-		and main_ui.expansion_panel.name == "ExpansionPanel"
-		and main_ui.expansion_reserve_container.name == "ReserveMat"
-		and main_ui.expansion_event_container.name == "EventRow",
-		"The expansion surface should expose reserve/mat and event rows."
-	)
-	# Exercise the generic expansion surface with the core's data-driven APIs:
-	# no card id is special-cased by the UI.
-	var reserve_card: CardDefinition = null
-	for candidate in main_ui.game_state.card_catalog.values():
-		var candidate_card := candidate as CardDefinition
-		if candidate_card != null and candidate_card.has_method("is_reserve_card") and candidate_card.is_reserve_card():
-			reserve_card = candidate_card
-			break
-	if reserve_card != null:
-		main_ui.game_state.player.store_reserve(reserve_card)
-	main_ui.game_state.player.set_journey("smoke_journey", true)
-	main_ui.game_state.player.add_player_token("smoke_token", 2)
-	main_ui.game_state.player.traveller_progress["smoke_traveller"] = 2
-	main_ui.game_state.player.coin_mat = 3
-	var token_card := main_ui.game_state.market[0] as CardDefinition
-	main_ui.game_state.place_supply_token(token_card.id, "smoke_marker", 2)
-	main_ui._refresh_ui()
-	_check(
-		main_ui.expansion_journey_label.text.contains("JOURNEY")
-		and main_ui.expansion_journey_label.text.contains("PATH 2")
-		and main_ui.expansion_player_tokens_label.text.contains("2")
-		and main_ui.expansion_supply_tokens_label.text.contains("2")
-		and main_ui.expansion_coin_mat_label.text.contains("MAT 3"),
-		"Journey, traveller, coin-mat, and player/supply token indicators should mirror generic state."
-	)
-	if reserve_card != null:
-		var reserve_button := main_ui.expansion_reserve_container.find_child(
-			"*", "Button", false, false
-		) as Button
-		_check(
-			reserve_button != null
-			and reserve_button.get_meta("expansion_action", "") == "reserve",
-			"Reserved cards should render with a call button."
-		)
-		if reserve_button != null:
-			reserve_button.pressed.emit()
-		_check(
-			main_ui.game_state.player.get_reserve_cards().is_empty()
-			and main_ui.game_state.player.play_area.has(reserve_card)
-			and main_ui.last_animation_event == "reserve_call",
-			"Calling a reserve card should use the authoritative GameState path and enter play."
-		)
-	var saved_disabled_kingdoms: Dictionary = main_ui.game_state.disabled_kingdoms.duplicate(true)
-	var saved_disabled_cards: Dictionary = main_ui.game_state.disabled_market_card_ids.duplicate(true)
-	main_ui.game_state.disabled_kingdoms["Trailblazers"] = true
-	main_ui.game_state.disabled_market_card_ids[token_card.id] = true
-	var expansion_snapshot: Dictionary = main_ui._create_network_snapshot()
-	_check(
-		expansion_snapshot.get("disabled_kingdoms", {}).get("Trailblazers", false)
-		and expansion_snapshot.get("disabled_market_card_ids", {}).get(token_card.id, false)
-		and expansion_snapshot.has("events"),
-		"Network snapshots should carry kingdom/card filters used to derive the event row."
-	)
-	main_ui.game_state.disabled_kingdoms = saved_disabled_kingdoms
-	main_ui.game_state.disabled_market_card_ids = saved_disabled_cards
-	var event_candidates: Array[CardDefinition] = main_ui.game_state.get_event_candidates()
-	if not event_candidates.is_empty():
-		var event_card: CardDefinition = event_candidates[0]
-		main_ui.game_state.player.coins = main_ui.game_state.get_event_cost(event_card)
-		main_ui.game_state.player.buys = 1
-		main_ui._refresh_ui()
-		_check(
-			main_ui.expansion_event_container.get_child_count() > 0
-			and main_ui.expansion_event_container.get_child(0).get_meta("expansion_action", "") == "event",
-			"Available events should render as buy buttons."
-		)
-		(main_ui.expansion_event_container.get_child(0) as Button).pressed.emit()
-		_check(main_ui.last_animation_event == "event_buy", "Buying an event should use the generic event API.")
+	await _run_expansion_ui_regression()
 
 	_check(_hand_container().get_child_count() == 5, "Initial hand should render five cards.")
 	_check(
@@ -1873,6 +1805,109 @@ func _initialize() -> void:
 	await process_frame
 	await create_timer(0.1).timeout
 	quit(0)
+
+
+func _run_expansion_ui_regression() -> void:
+	# Expansion controls can resolve choices, move cards between zones, and spend
+	# turn resources.  Exercise them in a disposable scene so the long-running
+	# baseline smoke fixture remains untouched for its later interaction checks.
+	var expansion_ui := MAIN_SCENE.instantiate()
+	root.add_child(expansion_ui)
+	await process_frame
+	expansion_ui._start_new_game(false)
+	await process_frame
+	await process_frame
+
+	_check(
+		expansion_ui.expansion_panel != null
+		and expansion_ui.expansion_panel.name == "ExpansionPanel"
+		and expansion_ui.expansion_reserve_container.name == "ReserveMat"
+		and expansion_ui.expansion_event_container.name == "EventRow",
+		"The expansion surface should expose reserve/mat and event rows."
+	)
+
+	var reserve_card: CardDefinition = null
+	for candidate in expansion_ui.game_state.card_catalog.values():
+		var candidate_card := candidate as CardDefinition
+		if candidate_card != null and candidate_card.is_reserve_card():
+			reserve_card = candidate_card
+			break
+	if reserve_card != null:
+		expansion_ui.game_state.player.store_reserve(reserve_card)
+	expansion_ui.game_state.player.set_journey("smoke_journey", true)
+	expansion_ui.game_state.player.add_player_token("smoke_token", 2)
+	expansion_ui.game_state.player.traveller_progress["smoke_traveller"] = 2
+	expansion_ui.game_state.player.coin_mat = 3
+	var token_card := expansion_ui.game_state.market[0] as CardDefinition
+	expansion_ui.game_state.place_supply_token(token_card.id, "smoke_marker", 2)
+	expansion_ui._refresh_ui()
+	_check(
+		expansion_ui.expansion_journey_label.text.contains("JOURNEY")
+		and expansion_ui.expansion_journey_label.text.contains("PATH 2")
+		and expansion_ui.expansion_player_tokens_label.text.contains("2")
+		and expansion_ui.expansion_supply_tokens_label.text.contains("2")
+		and expansion_ui.expansion_coin_mat_label.text.contains("MAT 3"),
+		"Journey, traveller, coin-mat, and player/supply token indicators should mirror generic state."
+	)
+	if reserve_card != null:
+		var reserve_button: Button = null
+		for child in expansion_ui.expansion_reserve_container.get_children():
+			if child is Button:
+				reserve_button = child as Button
+				break
+		_check(
+			reserve_button != null
+			and reserve_button.get_meta("expansion_action", "") == "reserve",
+			"Reserved cards should render with a call button."
+		)
+		if reserve_button != null:
+			reserve_button.pressed.emit()
+		_check(
+			expansion_ui.game_state.player.get_reserve_cards().is_empty()
+			and expansion_ui.game_state.player.play_area.has(reserve_card)
+			and expansion_ui.last_animation_event == "reserve_call",
+			"Calling a reserve card should use the authoritative GameState path and enter play."
+		)
+
+	var saved_disabled_kingdoms: Dictionary = expansion_ui.game_state.disabled_kingdoms.duplicate(true)
+	var saved_disabled_cards: Dictionary = expansion_ui.game_state.disabled_market_card_ids.duplicate(true)
+	expansion_ui.game_state.disabled_kingdoms["Trailblazers"] = true
+	expansion_ui.game_state.disabled_market_card_ids[token_card.id] = true
+	var expansion_snapshot: Dictionary = expansion_ui._create_network_snapshot()
+	_check(
+		expansion_snapshot.get("disabled_kingdoms", {}).get("Trailblazers", false)
+		and expansion_snapshot.get("disabled_market_card_ids", {}).get(token_card.id, false)
+		and expansion_snapshot.has("events"),
+		"Network snapshots should carry kingdom/card filters used to derive the event row."
+	)
+	expansion_ui.game_state.disabled_kingdoms = saved_disabled_kingdoms
+	expansion_ui.game_state.disabled_market_card_ids = saved_disabled_cards
+
+	var event_candidates: Array[CardDefinition] = expansion_ui.game_state.get_event_candidates()
+	if not event_candidates.is_empty():
+		var event_card: CardDefinition = event_candidates[0]
+		expansion_ui.game_state.player.coins = expansion_ui.game_state.get_event_cost(event_card)
+		expansion_ui.game_state.player.buys = 1
+		expansion_ui._refresh_ui()
+		var event_button := expansion_ui.expansion_event_container.get_child(0) as Button
+		_check(
+			event_button != null
+			and event_button.get_meta("expansion_action", "") == "event",
+			"Available events should render as buy buttons."
+		)
+		if event_button != null:
+			event_button.pressed.emit()
+		_check(
+			expansion_ui.last_animation_event == "event_buy",
+			"Buying an event should use the generic event API."
+		)
+
+	for player in expansion_ui.ui_sound_players.values():
+		(player as AudioStreamPlayer).stop()
+	if expansion_ui.background_music_player != null:
+		expansion_ui.background_music_player.stop()
+	expansion_ui.queue_free()
+	await process_frame
 
 
 func _hand_container() -> HBoxContainer:
