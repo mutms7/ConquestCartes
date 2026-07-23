@@ -259,6 +259,7 @@ var expansion_reserve_container: HBoxContainer
 var expansion_journey_label: Label
 var expansion_player_tokens_label: Label
 var expansion_supply_tokens_label: Label
+var expansion_coin_mat_label: Label
 var expansion_event_container: HBoxContainer
 var home_settings_panel: PanelContainer
 var home_multiplayer_panel: PanelContainer
@@ -960,6 +961,16 @@ func _handle_online_relay_signal(sender_id: String, payload: Dictionary) -> void
 				_player_index_for_relay_client(sender_id),
 				str(payload.get("card_id", ""))
 			)
+		"request_call_reserve":
+			_handle_network_call_reserve_request(
+				_player_index_for_relay_client(sender_id),
+				str(payload.get("card_id", ""))
+			)
+		"request_buy_event":
+			_handle_network_buy_event_request(
+				_player_index_for_relay_client(sender_id),
+				str(payload.get("card_id", ""))
+			)
 		"request_end_turn":
 			_handle_network_end_turn_request(_player_index_for_relay_client(sender_id))
 		"request_end_action_phase":
@@ -1108,6 +1119,10 @@ func _send_network_client_request(method: String, payload: Dictionary = {}) -> v
 			rpc_id(1, "_rpc_request_play_card", str(payload.get("card_id", "")))
 		"request_buy_card":
 			rpc_id(1, "_rpc_request_buy_card", str(payload.get("card_id", "")))
+		"request_call_reserve":
+			rpc_id(1, "_rpc_request_call_reserve", str(payload.get("card_id", "")))
+		"request_buy_event":
+			rpc_id(1, "_rpc_request_buy_event", str(payload.get("card_id", "")))
 		"request_end_turn":
 			rpc_id(1, "_rpc_request_end_turn")
 		"request_end_action_phase":
@@ -1515,8 +1530,11 @@ func _create_network_snapshot(recipient_player_index: int = -1) -> Dictionary:
 		"turn_based_enabled": game_state.turn_based_enabled,
 		"end_turn_cooldown_seconds": game_state.end_turn_cooldown_seconds,
 		"attack_cards_enabled": game_state.attack_cards_enabled,
+		"disabled_kingdoms": game_state.disabled_kingdoms.duplicate(true),
+		"disabled_market_card_ids": game_state.disabled_market_card_ids.duplicate(true),
 		"market": _card_ids_from_zone(game_state.market),
 		"supply": game_state.supply_piles.duplicate(true),
+		"event_purchases": game_state.event_purchases.duplicate(true),
 		"reserve_mat": _expansion_snapshot_card_ids(_expansion_records("reserve_mat", ["get_reserve_mat", "get_reserve_cards"])),
 		"journey_face_up": _expansion_value("journey_face_up", ["get_journey_face_up", "get_journey_state"]),
 		"supply_tokens": _expansion_value("supply_tokens", ["get_supply_tokens"]),
@@ -1810,8 +1828,17 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 	game_state.attack_cards_enabled = bool(
 		snapshot.get("attack_cards_enabled", game_state.attack_cards_enabled)
 	)
+	if typeof(snapshot.get("disabled_kingdoms", {})) == TYPE_DICTIONARY:
+		game_state.disabled_kingdoms = snapshot["disabled_kingdoms"].duplicate(true)
+	if typeof(snapshot.get("disabled_market_card_ids", {})) == TYPE_DICTIONARY:
+		game_state.disabled_market_card_ids = snapshot["disabled_market_card_ids"].duplicate(true)
 	game_state.market = _cards_from_ids(snapshot.get("market", []))
 	game_state.supply_piles = snapshot.get("supply", {}).duplicate(true)
+	if (
+		typeof(snapshot.get("event_purchases", {})) == TYPE_DICTIONARY
+		and _object_has_property(game_state, "event_purchases")
+	):
+		game_state.event_purchases = snapshot["event_purchases"].duplicate(true)
 	for expansion_key in ["reserve_mat", "journey_face_up", "supply_tokens", "events"]:
 		if snapshot.has(expansion_key) and _object_has_property(game_state, expansion_key):
 			game_state.set(expansion_key, snapshot[expansion_key])
@@ -1924,6 +1951,50 @@ func _handle_network_buy_card_request(player_index: int, card_id: String) -> voi
 	_set_authoritative_player(player_index)
 	var card: CardDefinition = game_state.card_catalog.get(card_id) as CardDefinition
 	if card != null and game_state.buy_card(card):
+		_restore_local_network_view()
+		_sync_choice_overlay_from_network()
+		_broadcast_network_snapshot()
+	else:
+		_restore_local_network_view()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_call_reserve(card_id: String) -> void:
+	_handle_network_call_reserve_request(
+		_player_index_for_peer(multiplayer.get_remote_sender_id()),
+		card_id
+	)
+
+
+func _handle_network_call_reserve_request(player_index: int, card_id: String) -> void:
+	if not network_is_host or player_index < 0:
+		return
+	_set_authoritative_player(player_index)
+	var card := game_state.card_catalog.get(card_id) as CardDefinition
+	if card != null and _call_authoritative_reserve(card):
+		game_state.evaluate_auto_phase()
+		_restore_local_network_view()
+		_sync_choice_overlay_from_network()
+		_broadcast_network_snapshot()
+	else:
+		_restore_local_network_view()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_buy_event(card_id: String) -> void:
+	_handle_network_buy_event_request(
+		_player_index_for_peer(multiplayer.get_remote_sender_id()),
+		card_id
+	)
+
+
+func _handle_network_buy_event_request(player_index: int, card_id: String) -> void:
+	if not network_is_host or player_index < 0:
+		return
+	_set_authoritative_player(player_index)
+	var card := game_state.card_catalog.get(card_id) as CardDefinition
+	if card != null and game_state.buy_event(card):
+		game_state.evaluate_auto_phase()
 		_restore_local_network_view()
 		_sync_choice_overlay_from_network()
 		_broadcast_network_snapshot()
@@ -2608,6 +2679,12 @@ func _create_expansion_panel() -> PanelContainer:
 	expansion_reserve_container.add_theme_constant_override("separation", 3)
 	expansion_reserve_container.custom_minimum_size = Vector2(0, 18)
 	layout.add_child(expansion_reserve_container)
+	expansion_coin_mat_label = Label.new()
+	expansion_coin_mat_label.name = "CoinMat"
+	expansion_coin_mat_label.text = "MAT 0"
+	expansion_coin_mat_label.add_theme_color_override("font_color", COLOR_RESOURCE_ACCENT)
+	expansion_coin_mat_label.add_theme_font_size_override("font_size", 8)
+	expansion_reserve_container.add_child(expansion_coin_mat_label)
 
 	var journey_row := HBoxContainer.new()
 	journey_row.name = "JourneyIndicator"
@@ -7219,10 +7296,16 @@ func _refresh_expansion_ui() -> void:
 		["get_reserve_mat", "get_reserve_cards"]
 	)
 	_clear_container(expansion_reserve_container)
+	var coin_mat: Variant = _expansion_target_value(game_state.player, "coin_mat", [])
+	expansion_coin_mat_label = Label.new()
+	expansion_coin_mat_label.name = "CoinMat"
+	expansion_coin_mat_label.text = "MAT %s" % str(coin_mat)
+	expansion_coin_mat_label.add_theme_color_override("font_color", COLOR_RESOURCE_ACCENT)
+	expansion_coin_mat_label.add_theme_font_size_override("font_size", 8)
+	expansion_reserve_container.add_child(expansion_coin_mat_label)
 	if reserve_records.is_empty():
 		var empty_reserve := Label.new()
-		var coin_mat: Variant = _expansion_target_value(game_state.player, "coin_mat", [])
-		empty_reserve.text = "COIN MAT %s" % str(coin_mat) if int(coin_mat) > 0 else "—"
+		empty_reserve.text = "—"
 		empty_reserve.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
 		empty_reserve.add_theme_font_size_override("font_size", 9)
 		expansion_reserve_container.add_child(empty_reserve)
@@ -7237,8 +7320,16 @@ func _refresh_expansion_ui() -> void:
 	var journey: Variant = _expansion_value("journey_face_up", ["get_journey_face_up", "get_journey_state"])
 	if journey == null:
 		journey = _expansion_target_value(game_state.player, "journey_state", [])
+	var traveller_progress: Variant = _expansion_target_value(
+		game_state.player,
+		"traveller_progress",
+		["get_traveller_progress"]
+	)
+	var traveller_suffix := ""
+	if traveller_progress != null and _format_token_count(traveller_progress) != "0":
+		traveller_suffix = " · PATH %s" % _format_token_count(traveller_progress)
 	if journey is Array:
-		expansion_journey_label.text = "JOURNEY  %d face-up" % (journey as Array).size()
+		expansion_journey_label.text = "JOURNEY  %d face-up%s" % [(journey as Array).size(), traveller_suffix]
 	elif journey is Dictionary:
 		var journey_data: Dictionary = journey
 		var progress: Variant = journey_data.get("progress", journey_data.get("step", ""))
@@ -7248,13 +7339,13 @@ func _refresh_expansion_ui() -> void:
 			for active in journey_data.values():
 				if bool(active):
 					active_count += 1
-			expansion_journey_label.text = "JOURNEY  %d active" % active_count
+			expansion_journey_label.text = "JOURNEY  %d active%s" % [active_count, traveller_suffix]
 		else:
-			expansion_journey_label.text = "JOURNEY  %s%s" % [str(progress), ("/%s" % str(total)) if not str(total).is_empty() else ""]
+			expansion_journey_label.text = "JOURNEY  %s%s%s" % [str(progress), ("/%s" % str(total)) if not str(total).is_empty() else "", traveller_suffix]
 	elif journey == null:
-		expansion_journey_label.text = "JOURNEY  —"
+		expansion_journey_label.text = "JOURNEY  —%s" % traveller_suffix
 	else:
-		expansion_journey_label.text = "JOURNEY  %s" % _expansion_record_label(journey)
+		expansion_journey_label.text = "JOURNEY  %s%s" % [_expansion_record_label(journey), traveller_suffix]
 	expansion_journey_label.set_meta("journey_face_up", journey)
 
 	var player_tokens: Variant = _expansion_target_value(game_state.player, "player_tokens", [])
@@ -7301,19 +7392,24 @@ func _format_token_count(value: Variant) -> String:
 	return str(value)
 
 
+func _call_authoritative_reserve(card: CardDefinition) -> bool:
+	# PlayerState.call_reserve only removes a card from the mat.  The GameState
+	# entry point is the authoritative route because it also puts the called card
+	# into play and queues/resolves its call effects.
+	return card != null and game_state.call_reserve_card(card)
+
+
 func _on_expansion_reserve_pressed(record: Variant, index: int) -> void:
-	var token: String = _expansion_record_token(record, index)
-	var result: Variant = null
+	_restore_local_network_view()
+	if _respite_active() or not _can_interact_with_local_player():
+		return
 	var card := _expansion_card(record)
-	if card != null and game_state.player.has_method("call_reserve"):
-		result = game_state.player.call("call_reserve", card)
-	else:
-		result = _generic_state_call(
-			game_state,
-			["call_reserve_card", "call_reserve", "call_mat_card", "call_from_reserve"],
-			token
-		)
-	if result != false:
+	if card == null:
+		return
+	if _is_network_client():
+		_send_network_client_request("request_call_reserve", {"card_id": card.id})
+		return
+	if _call_authoritative_reserve(card):
 		last_animation_event = "reserve_call"
 		_play_ui_sound("button_click")
 		_refresh_ui()
@@ -7322,18 +7418,16 @@ func _on_expansion_reserve_pressed(record: Variant, index: int) -> void:
 
 
 func _on_expansion_event_pressed(record: Variant, index: int) -> void:
-	var token: String = _expansion_record_token(record, index)
-	var result: Variant = null
+	_restore_local_network_view()
+	if _respite_active() or not _can_interact_with_local_player():
+		return
 	var card := _expansion_card(record)
-	if card != null and game_state.has_method("buy_event"):
-		result = game_state.call("buy_event", card)
-	else:
-		result = _generic_state_call(
-			game_state,
-			["buy_event", "purchase_event", "buy_expansion_event"],
-			token
-		)
-	if result != false:
+	if card == null:
+		return
+	if _is_network_client():
+		_send_network_client_request("request_buy_event", {"card_id": card.id})
+		return
+	if game_state.buy_event(card):
 		last_animation_event = "event_buy"
 		_play_ui_sound("buy_card")
 		_refresh_ui()

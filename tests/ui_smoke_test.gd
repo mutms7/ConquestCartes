@@ -583,27 +583,49 @@ func _initialize() -> void:
 		main_ui.game_state.player.store_reserve(reserve_card)
 	main_ui.game_state.player.set_journey("smoke_journey", true)
 	main_ui.game_state.player.add_player_token("smoke_token", 2)
+	main_ui.game_state.player.traveller_progress["smoke_traveller"] = 2
+	main_ui.game_state.player.coin_mat = 3
 	var token_card := main_ui.game_state.market[0] as CardDefinition
 	main_ui.game_state.place_supply_token(token_card.id, "smoke_marker", 2)
 	main_ui._refresh_ui()
 	_check(
 		main_ui.expansion_journey_label.text.contains("JOURNEY")
+		and main_ui.expansion_journey_label.text.contains("PATH 2")
 		and main_ui.expansion_player_tokens_label.text.contains("2")
-		and main_ui.expansion_supply_tokens_label.text.contains("2"),
-		"Journey and player/supply token indicators should mirror generic state."
+		and main_ui.expansion_supply_tokens_label.text.contains("2")
+		and main_ui.expansion_coin_mat_label.text.contains("MAT 3"),
+		"Journey, traveller, coin-mat, and player/supply token indicators should mirror generic state."
 	)
 	if reserve_card != null:
+		var reserve_button := main_ui.expansion_reserve_container.find_child(
+			"*", "Button", false, false
+		) as Button
 		_check(
-			main_ui.expansion_reserve_container.get_child_count() > 0
-			and main_ui.expansion_reserve_container.get_child(0).get_meta("expansion_action", "") == "reserve",
+			reserve_button != null
+			and reserve_button.get_meta("expansion_action", "") == "reserve",
 			"Reserved cards should render with a call button."
 		)
-		(main_ui.expansion_reserve_container.get_child(0) as Button).pressed.emit()
+		if reserve_button != null:
+			reserve_button.pressed.emit()
 		_check(
 			main_ui.game_state.player.get_reserve_cards().is_empty()
+			and main_ui.game_state.player.play_area.has(reserve_card)
 			and main_ui.last_animation_event == "reserve_call",
-			"Calling a reserve card should route through PlayerState.call_reserve."
+			"Calling a reserve card should use the authoritative GameState path and enter play."
 		)
+	var saved_disabled_kingdoms: Dictionary = main_ui.game_state.disabled_kingdoms.duplicate(true)
+	var saved_disabled_cards: Dictionary = main_ui.game_state.disabled_market_card_ids.duplicate(true)
+	main_ui.game_state.disabled_kingdoms["Trailblazers"] = true
+	main_ui.game_state.disabled_market_card_ids[token_card.id] = true
+	var expansion_snapshot: Dictionary = main_ui._create_network_snapshot()
+	_check(
+		expansion_snapshot.get("disabled_kingdoms", {}).get("Trailblazers", false)
+		and expansion_snapshot.get("disabled_market_card_ids", {}).get(token_card.id, false)
+		and expansion_snapshot.has("events"),
+		"Network snapshots should carry kingdom/card filters used to derive the event row."
+	)
+	main_ui.game_state.disabled_kingdoms = saved_disabled_kingdoms
+	main_ui.game_state.disabled_market_card_ids = saved_disabled_cards
 	var event_candidates: Array[CardDefinition] = main_ui.game_state.get_event_candidates()
 	if not event_candidates.is_empty():
 		var event_card: CardDefinition = event_candidates[0]

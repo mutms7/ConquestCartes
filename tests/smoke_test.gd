@@ -218,6 +218,7 @@ var failure_count := 0
 func _initialize() -> void:
 	_test_card_catalog()
 	_test_trailblazers_expansion()
+	_test_trailblazers_core_regressions()
 	_test_wording_conventions()
 	_test_full_game_loop()
 	_test_draw_across_shuffle_boundary()
@@ -439,6 +440,183 @@ func _test_trailblazers_expansion() -> void:
 	)
 
 
+func _test_trailblazers_core_regressions() -> void:
+	# Far Horizons is permanently set aside when gained, then scores card types
+	# at game end rather than granting an in-turn token.
+	var far_horizons_gain := _empty_game()
+	far_horizons_gain._gain_card_by_id("trail_far_horizons", "discard")
+	_check(far_horizons_gain.player.set_aside_pile.has(far_horizons_gain.card_catalog["trail_far_horizons"]), "Far Horizons should set itself aside when gained.")
+	var scoring := _empty_game()
+	scoring.player.draw_pile.assign([
+		scoring.card_catalog["trail_far_horizons"],
+		scoring.card_catalog["pebble_coin"],
+		scoring.card_catalog["village_bell"],
+	])
+	_check(scoring.calculate_score() == 6, "Far Horizons should score 2 points per owned card type.")
+	_check(scoring.player.vp_tokens == 0, "Far Horizons scoring must not add VP tokens.")
+
+	# Trade Pact's explicit amount is a buy-time coin bonus, preserving the
+	# amount-less legacy cheaper-gain behavior of register_buy_bonus.
+	var pact := _empty_game()
+	var pact_event: CardDefinition = pact.card_catalog["trail_event_trade_pact"]
+	pact.player.coins = pact.get_event_cost(pact_event)
+	pact.player.buys = 1
+	_check(pact.buy_event(pact_event), "Trade Pact should be purchasable as an event.")
+	_set_test_market(pact, ["silver_leaf"])
+	pact.player.coins = 3
+	pact.player.buys = 1
+	_check(pact.buy_card(pact.card_catalog["silver_leaf"]), "A card should be buyable under Trade Pact.")
+	_check(pact.player.coins == 1, "Trade Pact should grant one coin after each buy.")
+
+	# Immunity begins immediately and expires at the start of its owner's next turn.
+	var watch := _empty_game()
+	var night_watch: CardDefinition = watch.card_catalog["trail_event_night_watch"]
+	watch.player.coins = watch.get_event_cost(night_watch)
+	watch.player.buys = 1
+	_check(watch.buy_event(night_watch), "Night Watch should buy.")
+	_check(watch._is_attack_protected(watch.player), "Night Watch should protect immediately after purchase.")
+	watch.reset_turn_resources()
+	_check(not watch._is_attack_protected(watch.player), "Night Watch protection should expire at the next turn start.")
+	var sentinel := _empty_game()
+	var sentinel_card: CardDefinition = sentinel.card_catalog["trail_road_sentinel"]
+	sentinel.player.hand.append(sentinel_card)
+	_check(sentinel.play_card(sentinel_card), "Road Sentinel should play.")
+	_check(sentinel._is_attack_protected(sentinel.player), "Road Sentinel should protect immediately when played.")
+	sentinel.begin_cleanup()
+	sentinel.reset_turn_resources()
+	_check(sentinel.player.play_area.has(sentinel_card) and not sentinel._is_attack_protected(sentinel.player), "Road Sentinel should stay in play but its protection should expire next turn.")
+
+	var companion := _empty_game()
+	var companion_card: CardDefinition = companion.card_catalog["trail_camp_companion"]
+	companion.player.play_area.append(companion_card)
+	for _index in range(6):
+		companion.player.draw_pile.append(companion.card_catalog["pebble_coin"])
+	companion.player.pending_duration_effects = [
+		{"card": companion_card, "effect": companion_card.special_effects[0].duplicate(true)},
+		{"card": companion_card, "effect": companion_card.special_effects[1].duplicate(true)},
+	]
+	companion.reset_turn_resources()
+	_check(
+		companion.player.pending_duration_effects.size() == 2
+		and companion.player.duration_hold.has(companion_card)
+		and companion.get_turn_draw_count(companion.player) == GameState.BASE_TURN_DRAW_COUNT,
+		"Camp Companion should repeat while accounting for its early duration draw."
+	)
+	companion.draw_cards(companion.get_turn_draw_count(companion.player))
+	_check(companion.player.hand.size() == GameState.BASE_TURN_DRAW_COUNT + 1, "Camp Companion should produce exactly a six-card hand.")
+	companion.player.hand.clear()
+	for _index in range(6):
+		companion.player.draw_pile.append(companion.card_catalog["pebble_coin"])
+	companion.reset_turn_resources()
+	companion.draw_cards(companion.get_turn_draw_count(companion.player))
+	_check(companion.player.pending_duration_effects.size() == 2 and companion.player.hand.size() == GameState.BASE_TURN_DRAW_COUNT + 1, "Camp Companion should retain its six-card hand target on later repeated turns.")
+
+	# Reserve redraws are exact-size, and direct reserve calls use GameState.
+	var guide := _empty_game()
+	var guide_card: CardDefinition = guide.card_catalog["trail_trail_guide"]
+	guide.player.reserve_mat.append(guide_card)
+	guide.player.hand.assign([guide.card_catalog["pebble_coin"], guide.card_catalog["homestead"]])
+	for _index in range(5):
+		guide.player.draw_pile.append(guide.card_catalog["pebble_coin"])
+	_check(guide.call_reserve_card(guide_card), "GameState should authoritatively call a reserve card.")
+	_resolve_choice_by_ids(guide, ["pebble_coin", "homestead"])
+	_check(guide.player.hand.size() == 5, "Trail Guide should discard its whole hand and draw exactly five.")
+
+	# Moonpath Ranger keeps one resource and discards all other reveals.
+	var ranger := _empty_game()
+	var ranger_card: CardDefinition = ranger.card_catalog["trail_moonpath_ranger"]
+	var ranger_resource: CardDefinition = ranger.card_catalog["silver_leaf"]
+	var ranger_other: CardDefinition = ranger.card_catalog["homestead"]
+	ranger.player.hand.append(ranger_card)
+	ranger.player.draw_pile.assign([ranger_other, ranger_resource, ranger_other, ranger_other, ranger_other])
+	_check(ranger.play_card(ranger_card), "Moonpath Ranger should play.")
+	_resolve_choice_by_ids(ranger, ["silver_leaf"])
+	_check(ranger.player.hand.has(ranger_resource) and ranger.player.discard_pile.count(ranger_other) == 4, "Moonpath Ranger should keep one resource and discard the other reveals.")
+
+	# Hidden Cache returns its cards automatically; mandatory events do not permit
+	# skipping an available legal target.
+	var cache := _empty_game()
+	var cache_event: CardDefinition = cache.card_catalog["trail_event_hidden_cache"]
+	var cached: CardDefinition = cache.card_catalog["briar_gate"]
+	cache.player.hand.append(cached)
+	cache.player.coins = cache.get_event_cost(cache_event)
+	cache.player.buys = 1
+	_check(cache.buy_event(cache_event), "Hidden Cache should buy.")
+	_resolve_choice_by_ids(cache, ["briar_gate"])
+	cache.reset_turn_resources()
+	_check(cache.player.hand.has(cached) and cache.player.set_aside_pile.is_empty(), "Hidden Cache should return set-aside cards next turn.")
+	var chart := _empty_game()
+	var chart_event: CardDefinition = chart.card_catalog["trail_event_chart_course"]
+	chart.player.discard_pile.append(chart.card_catalog["homestead"])
+	chart.player.coins = chart.get_event_cost(chart_event)
+	chart.player.buys = 1
+	_check(chart.buy_event(chart_event) and chart.pending_choice.minimum == 1, "Chart Course must require its available topdeck choice.")
+	var rescue := _empty_game()
+	var rescue_event: CardDefinition = rescue.card_catalog["trail_event_rescue"]
+	rescue.player.trash_pile.append(rescue.card_catalog["homestead"])
+	rescue.player.coins = rescue.get_event_cost(rescue_event)
+	rescue.player.buys = 1
+	_check(rescue.buy_event(rescue_event) and rescue.pending_choice.minimum == 1, "Rescue must require reclaiming an available card.")
+	var training := _empty_game()
+	var training_event: CardDefinition = training.card_catalog["trail_event_field_training"]
+	training.player.hand.append(training.card_catalog["pebble_coin"])
+	training.player.coins = training.get_event_cost(training_event)
+	training.player.buys = 1
+	_check(training.buy_event(training_event) and training.pending_choice.minimum == 1, "Field Training must require its available resource choice.")
+	var rites := _empty_game()
+	var rites_event: CardDefinition = rites.card_catalog["trail_event_old_rites"]
+	rites.player.hand.append(rites.card_catalog["briar_hex"])
+	rites.player.draw_pile.assign([rites.card_catalog["pebble_coin"], rites.card_catalog["homestead"]])
+	rites.player.coins = rites.get_event_cost(rites_event)
+	rites.player.buys = 1
+	_check(rites.buy_event(rites_event) and rites.pending_choice != null, "Old Rites must choose a Curse before drawing.")
+	_resolve_choice_by_ids(rites, ["briar_hex"])
+	_check(rites.player.trash_pile.has(rites.card_catalog["briar_hex"]) and rites.player.hand.size() == 2, "Old Rites should trash first, then draw two cards.")
+
+	# Traveller retirement is optional, and Sunken Chest is an enabled side pile.
+	var traveller := _empty_game()
+	var page: CardDefinition = traveller.card_catalog["trail_pathfinder_page"]
+	traveller.player.hand.append(page)
+	_check(traveller.play_card(page), "Pathfinder Page should play.")
+	_check(traveller.has_pending_choice(), "Pathfinder Page should offer optional retirement.")
+	_check(traveller.resolve_choice([]), "Traveller retirement should be skippable.")
+	_check(traveller.player.play_area.has(page) and not traveller.player.trash_pile.has(page), "Skipping retirement should leave the Traveller in play.")
+	var retiring_traveller := _empty_game()
+	var retiring_page: CardDefinition = retiring_traveller.card_catalog["trail_pathfinder_page"]
+	retiring_traveller.player.hand.append(retiring_page)
+	_check(retiring_traveller.play_card(retiring_page), "A second Pathfinder Page should play.")
+	_check(retiring_traveller.resolve_choice([str(retiring_traveller.pending_choice.candidates[0]["token"])]), "Traveller retirement should be selectable.")
+	_check(retiring_traveller.player.trash_pile.has(retiring_page) and retiring_traveller.player.discard_pile.has(retiring_traveller.card_catalog["trail_page_treasure"]), "Traveller upgrades should retire the old stage and gain the successor when accepted.")
+	_check(traveller.is_side_supply_card("trail_sunken_chest") and traveller.get_supply_count("trail_sunken_chest") > 0, "Sunken Chest should be reachable from its side supply.")
+	_check(traveller.get_card_kingdom(traveller.card_catalog["trail_event_scout_route"]) == GameState.TRAILBLAZERS_GROUP, "Trailblazers events should route through their event group.")
+
+	# Echo Seal remains stored unless its controller chooses to call it.
+	var echo := _empty_game()
+	var echo_seal: CardDefinition = echo.card_catalog["trail_echo_seal"]
+	echo.player.hand.append(echo_seal)
+	_check(echo.play_card(echo_seal) and echo.player.reserve_mat.has(echo_seal), "Echo Seal should enter the reserve mat.")
+	echo.reset_turn_resources()
+	_set_test_market(echo, ["silver_leaf"])
+	echo._gain_card_by_id("silver_leaf", "discard")
+	echo._process_resolution_queue()
+	_check(echo.has_pending_choice() and echo.player.reserve_mat.has(echo_seal), "Echo Seal should ask before consuming its gain watcher.")
+	_check(echo.resolve_choice([]) and echo.player.reserve_mat.has(echo_seal), "Echo Seal should stay stored when its copy is declined.")
+	echo._gain_card_by_id("silver_leaf", "discard")
+	echo._process_resolution_queue()
+	_check(echo.resolve_choice([str(echo.pending_choice.candidates[0]["token"])]), "Echo Seal should be callable to copy the gain.")
+	_check(not echo.player.reserve_mat.has(echo_seal) and echo.player.discard_pile.count(echo.card_catalog["silver_leaf"]) == 3, "Echo Seal should duplicate a qualifying gain only when called.")
+	var paired_echo := _empty_game()
+	var paired_seal: CardDefinition = paired_echo.card_catalog["trail_echo_seal"]
+	paired_echo.player.reserve_mat.append_array([paired_seal, paired_seal])
+	_set_test_market(paired_echo, ["silver_leaf"])
+	paired_echo._gain_card_by_id("silver_leaf", "discard")
+	paired_echo._process_resolution_queue()
+	_check(paired_echo.resolve_choice([str(paired_echo.pending_choice.candidates[0]["token"])]), "The first of two Echo Seals should be callable.")
+	_check(paired_echo.has_pending_choice(), "The remaining Echo Seal should receive its own valid gain prompt.")
+	_check(paired_echo.resolve_choice([str(paired_echo.pending_choice.candidates[0]["token"])]), "The second Echo Seal should be callable.")
+	_check(paired_echo.player.reserve_mat.is_empty() and not paired_echo.has_pending_choice() and paired_echo.player.discard_pile.count(paired_echo.card_catalog["silver_leaf"]) == 3, "Consumed Echo Seals should not leave stale duplicate prompts behind.")
+
+
 func _test_full_game_loop() -> void:
 	seed(7)
 	var game_state := _create_game_state()
@@ -545,7 +723,8 @@ func _test_supply_piles() -> void:
 	)
 	game_state.set_kingdom_enabled(GameState.CROWNWEALTH_GROUP, false)
 	_check(
-		game_state.get_side_supply_card_ids() == GameState.SIDE_SUPPLY_CARD_IDS
+		not game_state.get_side_supply_card_ids().has(GameState.CROWNWEALTH_RESOURCE_ID)
+		and not game_state.get_side_supply_card_ids().has(GameState.CROWNWEALTH_VICTORY_ID)
 		and game_state.get_supply_count(GameState.CROWNWEALTH_RESOURCE_ID) == 0
 		and game_state.get_supply_count(GameState.CROWNWEALTH_VICTORY_ID) == 0,
 		"Disabling Crownwealth should remove its side-supply entries."
