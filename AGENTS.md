@@ -20,5 +20,10 @@
 - Keep changes small, readable, and reviewable.
 - Do not delete asset license files.
 - Every feature must run in Godot without parse errors.
+- Before every push to any branch, run both headless smoke suites from the
+  repository root and require them to pass:
+  `godot --headless --path . --script res://tests/smoke_test.gd` and
+  `godot --headless --path . --script res://tests/ui_smoke_test.gd`.
+  Do not push if either suite fails.
 - After completing and testing requested changes, commit and push all intended
   repository changes to the active branch unless the user explicitly asks not to.
