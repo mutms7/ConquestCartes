@@ -1826,6 +1826,8 @@ func _run_expansion_ui_regression() -> void:
 
 	_check(
 		expansion_ui.expansion_panel != null
+		and expansion_ui.expansion_overlay != null
+		and expansion_ui.expansion_panel.get_parent() == expansion_ui.expansion_overlay
 		and expansion_ui.expansion_panel.name == "ExpansionPanel"
 		and expansion_ui.expansion_reserve_container.name == "ReserveMat"
 		and expansion_ui.expansion_tavern_container == expansion_ui.expansion_reserve_container
@@ -1834,6 +1836,16 @@ func _run_expansion_ui_regression() -> void:
 		and (expansion_ui.expansion_panel.find_child("Title", true, false) as Label).text == "ADVENTURES"
 		and (expansion_ui.expansion_panel.find_child("ReserveTitle", true, false) as Label).text == "TAVERN MAT",
 		"The Adventures surface should expose Tavern, Traveller, and event rows."
+	)
+	var expansion_mat_rect: Rect2 = expansion_ui.play_area_panel.get_global_rect()
+	var expansion_overlay_rect: Rect2 = expansion_ui.expansion_panel.get_global_rect()
+	_check(
+		expansion_ui.expansion_overlay.mouse_filter == Control.MOUSE_FILTER_PASS
+		and expansion_ui.expansion_overlay.z_index > expansion_ui.play_area_panel.z_index
+		and expansion_ui.expansion_panel.z_index > expansion_ui.play_area_panel.z_index
+		and expansion_overlay_rect.intersects(expansion_mat_rect)
+		and expansion_overlay_rect.position.x > expansion_mat_rect.position.x,
+		"Adventures should be a layered, right-anchored overlay with its own compact input region."
 	)
 
 	var reserve_card: CardDefinition = null
@@ -1926,9 +1938,15 @@ func _run_expansion_ui_regression() -> void:
 		expansion_ui._refresh_ui()
 		var event_button: Button = null
 		for child in expansion_ui.expansion_event_container.get_children():
-			if child is Button and str((child as Button).get_meta("expansion_token", "")) == event_card.id:
-				event_button = child as Button
+			var event_face := child.find_child("EventCardFace", true, false) as Button
+			if event_face != null and str(event_face.get_meta("expansion_token", "")) == event_card.id:
+				event_button = event_face
 				break
+		var event_scroll := expansion_ui.expansion_panel.find_child("EventScroll", true, false) as ScrollContainer
+		if event_button != null and event_scroll != null:
+			var event_holder := event_button.get_parent() as Control
+			event_scroll.scroll_horizontal = int(event_holder.position.x) if event_holder != null else 0
+			await process_frame
 		_check(
 			event_button != null
 			and event_button.get_meta("expansion_action", "") == "event",
@@ -1942,6 +1960,45 @@ func _run_expansion_ui_regression() -> void:
 				and event_style.bg_color.g > event_style.bg_color.b,
 				"Event buttons should use a green action style."
 			)
+			var event_face := event_button
+			_check(
+				event_face != null
+				and event_face.get_meta("expansion_action", "") == "event"
+				and event_face.get_meta("card_type", "") == "event"
+				and event_face.get_meta("card_base_color", Color.TRANSPARENT) == expansion_ui.COLOR_EVENT
+				and expansion_ui._get_card_type_accent("event") == expansion_ui.COLOR_EVENT_BORDER,
+				"Event offers should use compact card faces with an explicit green event palette."
+			)
+			if event_face != null:
+				var saved_motion: bool = expansion_ui.motion_enabled
+				expansion_ui.motion_enabled = false
+				var compact_scale := event_face.scale
+				event_face.mouse_entered.emit()
+				var hover_scale := event_face.scale
+				event_face.mouse_exited.emit()
+				expansion_ui.motion_enabled = saved_motion
+				_check(
+					hover_scale.x > compact_scale.x
+					and event_face.scale.is_equal_approx(compact_scale),
+					"Hovering an event face should return it to its compact preview scale."
+				)
+				expansion_ui._hide_all_previews()
+				var event_preview_click := InputEventMouseButton.new()
+				event_preview_click.button_index = MOUSE_BUTTON_RIGHT
+				event_preview_click.pressed = true
+				event_face.gui_input.emit(event_preview_click)
+				await process_frame
+				_check(
+					expansion_ui.card_preview.visible
+					and expansion_ui.active_preview_id == event_card.id
+					and expansion_ui.preview_name_label.text == event_card.card_name
+					and expansion_ui.preview_meta_label.text.contains("COST %d" % expansion_ui.game_state.get_event_cost(event_card))
+					and expansion_ui.card_preview.get_meta("card_base_color") == expansion_ui.COLOR_EVENT,
+					"Right-clicking an event face should open the shared green card preview."
+				)
+				event_face.gui_input.emit(event_preview_click)
+				await process_frame
+				_check(not expansion_ui.card_preview.visible, "Right-clicking the event face again should close its preview.")
 			event_button.pressed.emit()
 		_check(
 			expansion_ui.last_animation_event == "event_buy",

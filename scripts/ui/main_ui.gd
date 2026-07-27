@@ -58,6 +58,10 @@ const CARD_META_Y := 153.0
 const CARD_META_HEIGHT := 10.0
 const HUD_LEDGER_WIDTH := 158.0
 const RIGHT_DOCK_WIDTH := 202.0
+const ADVENTURES_OVERLAY_WIDTH := 348.0
+const ADVENTURES_OVERLAY_HEIGHT := 224.0
+const ADVENTURES_EVENT_PREVIEW_SIZE := Vector2(72.0, 96.0)
+const ADVENTURES_EVENT_FACE_SCALE := 0.52
 const END_TURN_BUTTON_WIDTH := 188.0
 const PLAYER_STATUS_ROW_HEIGHT := 49.0
 const PLAYER_STATUS_COOLDOWN_BAR_HEIGHT := 5.0
@@ -258,6 +262,7 @@ var home_lobby_address_input: LineEdit
 var home_lobby_status_label: Label
 var player_status_label: Label
 var expansion_panel: PanelContainer
+var expansion_overlay: Control
 var expansion_reserve_container: HBoxContainer
 # Adventures calls the persistent reserve zone the Tavern mat.  Keep the
 # reserve-named property as a compatibility alias for older snapshots/tests,
@@ -523,6 +528,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_position_expansion_overlay()
 	_poll_background_music_load()
 	_keep_background_music_alive()
 	_tick_online_relay_reconnect(delta)
@@ -2319,8 +2325,7 @@ func _build_bottom_docks() -> void:
 	player_status_label.visible = false
 	right_stats.add_child(player_status_label)
 	right_stats.add_child(_create_players_turn_panel())
-	expansion_panel = _create_expansion_panel()
-	right_stats.add_child(expansion_panel)
+	_build_expansion_overlay()
 	end_turn_button.reparent(right_stats)
 	brand.queue_free()
 
@@ -2669,21 +2674,62 @@ func _create_players_turn_panel() -> PanelContainer:
 	return panel
 
 
+func _build_expansion_overlay() -> void:
+	# Keep the Adventures controls visually attached to the in-play mat rather
+	# than making them another status-dock tracker. The overlay is only as large
+	# as the panel, so it cannot cover the rest of the play area.
+	expansion_overlay = Control.new()
+	expansion_overlay.name = "AdventuresOverlay"
+	# Keep the input region exactly as large as the compact panel.  `IGNORE`
+	# would make every child ignore right-clicks too; `PASS` lets its actionable
+	# cards receive input while the rest of the in-play mat stays uncovered.
+	expansion_overlay.mouse_filter = Control.MOUSE_FILTER_PASS
+	expansion_overlay.z_index = 25
+	expansion_overlay.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	add_child(expansion_overlay)
+	expansion_panel = _create_expansion_panel()
+	expansion_panel.z_index = 30
+	expansion_overlay.add_child(expansion_panel)
+	_position_expansion_overlay()
+
+
+func _position_expansion_overlay() -> void:
+	if expansion_panel == null or play_area_panel == null:
+		return
+	if not is_instance_valid(expansion_panel) or not is_instance_valid(play_area_panel):
+		return
+	var mat_rect := play_area_panel.get_global_rect()
+	if mat_rect.size.x <= 0.0 or mat_rect.size.y <= 0.0:
+		return
+	# The panel overlaps the right side of the mat by design.  Keep a small
+	# portion of the mat visible to the left so played-card chips remain legible,
+	# and clamp to the viewport when the table is narrow.
+	var viewport_rect := get_viewport_rect()
+	var target_x := mat_rect.end.x - ADVENTURES_OVERLAY_WIDTH - 8.0
+	var target_y := mat_rect.position.y - 18.0
+	if viewport_rect.size.x > 0.0:
+		target_x = clampf(target_x, 8.0, maxf(8.0, viewport_rect.size.x - ADVENTURES_OVERLAY_WIDTH - 8.0))
+	if viewport_rect.size.y > 0.0:
+		target_y = clampf(target_y, 8.0, maxf(8.0, viewport_rect.size.y - ADVENTURES_OVERLAY_HEIGHT - 8.0))
+	expansion_overlay.position = Vector2(target_x, target_y)
+	expansion_overlay.size = Vector2(ADVENTURES_OVERLAY_WIDTH, ADVENTURES_OVERLAY_HEIGHT)
+	expansion_panel.position = Vector2.ZERO
+	expansion_panel.custom_minimum_size = Vector2(ADVENTURES_OVERLAY_WIDTH, ADVENTURES_OVERLAY_HEIGHT)
+	expansion_panel.size = Vector2(ADVENTURES_OVERLAY_WIDTH, ADVENTURES_OVERLAY_HEIGHT)
+
+
 func _create_expansion_panel() -> PanelContainer:
-	# The expansion surface intentionally lives in the existing right dock so it
-	# remains visible without changing the fixed market geometry.  All values are
-	# read through the generic accessors below; the base game simply shows empty
-	# placeholders until an expansion is enabled.  The visible surface is named
-	# for the authorized Adventures implementation; generic accessors below keep
-	# this panel compatible with older state snapshots.
+	# All state continues to come through the generic expansion accessors below;
+	# only the presentation moved.  This keeps older snapshots and the base game
+	# safe while giving Adventures a compact, card-forward surface.
 	var panel := PanelContainer.new()
 	panel.name = "ExpansionPanel"
-	panel.custom_minimum_size = Vector2(0, 72)
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	panel.custom_minimum_size = Vector2(ADVENTURES_OVERLAY_WIDTH, ADVENTURES_OVERLAY_HEIGHT)
+	panel.size = panel.custom_minimum_size
+	panel.mouse_filter = Control.MOUSE_FILTER_PASS
 	panel.add_theme_stylebox_override(
 		"panel",
-		_make_panel_style(Color(0.07, 0.045, 0.025, 0.9), Color(0.835, 0.667, 0.314, 0.38), 1)
+		_make_panel_style(Color(0.07, 0.045, 0.025, 0.96), Color(0.835, 0.667, 0.314, 0.58), 1)
 	)
 
 	var margin := MarginContainer.new()
@@ -2709,7 +2755,7 @@ func _create_expansion_panel() -> PanelContainer:
 	var reserve_title := Label.new()
 	reserve_title.name = "ReserveTitle"
 	reserve_title.text = "TAVERN MAT"
-	reserve_title.visible = false
+	reserve_title.visible = true
 	reserve_title.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
 	reserve_title.add_theme_font_size_override("font_size", 8)
 	layout.add_child(reserve_title)
@@ -2764,15 +2810,24 @@ func _create_expansion_panel() -> PanelContainer:
 	var event_title := Label.new()
 	event_title.name = "EventTitle"
 	event_title.text = "EVENTS"
-	event_title.visible = false
+	event_title.visible = true
 	event_title.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
 	event_title.add_theme_font_size_override("font_size", 8)
 	layout.add_child(event_title)
+	var event_scroll := ScrollContainer.new()
+	event_scroll.name = "EventScroll"
+	event_scroll.custom_minimum_size = Vector2(0, ADVENTURES_EVENT_PREVIEW_SIZE.y + 4.0)
+	event_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	event_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	event_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	event_scroll.mouse_filter = Control.MOUSE_FILTER_PASS
+	layout.add_child(event_scroll)
 	expansion_event_container = HBoxContainer.new()
 	expansion_event_container.name = "EventRow"
-	expansion_event_container.add_theme_constant_override("separation", 3)
-	expansion_event_container.custom_minimum_size = Vector2(0, 14)
-	layout.add_child(expansion_event_container)
+	expansion_event_container.add_theme_constant_override("separation", 6)
+	expansion_event_container.custom_minimum_size = Vector2(0, ADVENTURES_EVENT_PREVIEW_SIZE.y)
+	expansion_event_container.mouse_filter = Control.MOUSE_FILTER_PASS
+	event_scroll.add_child(expansion_event_container)
 
 	var traveller_title := Label.new()
 	traveller_title.name = "TravellerTitle"
@@ -5067,6 +5122,8 @@ func _show_home_screen(_from_game: bool) -> void:
 		_set_menu_overlay_active(false)
 	if home_overlay != null:
 		home_overlay.show()
+	if expansion_panel != null:
+		expansion_panel.hide()
 	_start_home_motion()
 
 
@@ -5078,6 +5135,8 @@ func _hide_home_screen() -> void:
 	_hide_home_modals()
 	if home_overlay != null:
 		home_overlay.hide()
+	if expansion_panel != null:
+		expansion_panel.show()
 	# A relic offer may have been waiting behind the menu.
 	_refresh_relic_overlay()
 
@@ -7441,7 +7500,9 @@ func _expansion_record_count(record: Variant) -> String:
 	return ""
 
 
-func _create_expansion_action_button(text: String, action_kind: String, record: Variant, index: int) -> Button:
+func _create_expansion_action_button(text: String, action_kind: String, record: Variant, index: int) -> Control:
+	if action_kind == "event" and _expansion_card(record) != null:
+		return _create_expansion_event_preview(record, index)
 	var button := Button.new()
 	button.name = "%s_%d" % [action_kind.capitalize(), index + 1]
 	button.text = ("EVENT  %s" % text) if action_kind == "event" else text
@@ -7487,6 +7548,36 @@ func _create_expansion_action_button(text: String, action_kind: String, record: 
 	else:
 		button.pressed.connect(_on_expansion_event_pressed.bind(record, index))
 	return button
+
+
+func _create_expansion_event_preview(record: Variant, index: int) -> Control:
+	var card := _expansion_card(record)
+	var holder := Control.new()
+	holder.name = "Event_%d" % (index + 1)
+	holder.custom_minimum_size = ADVENTURES_EVENT_PREVIEW_SIZE
+	holder.size = ADVENTURES_EVENT_PREVIEW_SIZE
+	holder.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	holder.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	holder.mouse_filter = Control.MOUSE_FILTER_PASS
+	holder.set_meta("expansion_action", "event")
+	holder.set_meta("expansion_token", _expansion_record_token(record, index))
+
+	# The card face is the one and only interactive control: left-click buys the
+	# event; right-click uses the shared card-preview path.
+	var face := _create_card_button(card, "event_preview")
+	face.name = "EventCardFace"
+	face.custom_minimum_size = Vector2.ZERO
+	face.size = CARD_FACE_SIZE
+	face.position = Vector2(3.0, 2.0)
+	face.scale = Vector2(ADVENTURES_EVENT_FACE_SCALE, ADVENTURES_EVENT_FACE_SCALE)
+	face.set_meta("compact_base_scale", face.scale)
+	face.tooltip_text = "%s - %s\nLeft-click: buy event. Right-click: preview." % [card.card_name, card.description]
+	face.set_meta("expansion_action", "event")
+	face.set_meta("expansion_token", _expansion_record_token(record, index))
+	face.disabled = not _expansion_record_available(record, index)
+	face.pressed.connect(_on_expansion_event_pressed.bind(record, index))
+	holder.add_child(face)
+	return holder
 
 
 func _create_traveller_pile_button(record: Variant, index: int) -> Button:
@@ -7779,12 +7870,14 @@ func _create_card_button(
 	var card_surface := _get_card_surface_color(card.card_type)
 	var is_market_card := visual_state.begins_with("market_")
 	var is_hand_card := visual_state.begins_with("hand_")
+	var is_event_preview := visual_state == "event_preview" or card.card_type == "event"
 	var is_unavailable := visual_state == MARKET_UNAFFORDABLE
 	var is_disabled_face := visual_state == MARKET_UNAFFORDABLE or visual_state == HAND_UNPLAYABLE
 	var is_affordable_face := (
 		visual_state == MARKET_AFFORDABLE
 		or visual_state == HAND_PLAYABLE
 		or visual_state.begins_with("kingdom_")
+		or is_event_preview
 	)
 	var outline_width := CARD_FRAME_BORDER_WIDTH
 	var border_color: Color = type_palette.accent
@@ -8037,8 +8130,10 @@ func _create_card_button(
 
 	if visual_state.begins_with("market_"):
 		button.add_child(_create_pile_badge(game_state.get_supply_count(card.id), type_palette.accent))
-
-	button.add_child(_create_price_badge(game_state.get_effective_cost(card)))
+	if visual_state == "event_preview":
+		button.add_child(_create_price_badge(game_state.get_event_cost(card)))
+	else:
+		button.add_child(_create_price_badge(game_state.get_effective_cost(card)))
 
 	if visual_state == MARKET_UNAFFORDABLE:
 		button.modulate = Color(0.74, 0.72, 0.66, 0.62)
@@ -8323,7 +8418,9 @@ func _on_card_mouse_entered(
 		var is_hand: bool = button.get_meta("hand_fan", false)
 		# Hand cards lift further out of the fan and grow a touch more so the
 		# hovered card clearly pops above its neighbours.
-		_animate_card_scale(button, HAND_HOVER_SCALE if is_hand else CARD_HOVER_SCALE)
+		var base_scale: Vector2 = button.get_meta("compact_base_scale", CARD_NORMAL_SCALE)
+		var hover_scale := base_scale * 1.06 if button.has_meta("compact_base_scale") else (HAND_HOVER_SCALE if is_hand else CARD_HOVER_SCALE)
+		_animate_card_scale(button, hover_scale)
 		button.z_index = 30 if is_hand else 10
 		if is_hand:
 			_reveal_hand_card(button)
@@ -8353,7 +8450,7 @@ func _reveal_hand_card(card: Control) -> void:
 
 
 func _on_card_mouse_exited(button: Button) -> void:
-	_animate_card_scale(button, CARD_NORMAL_SCALE)
+	_animate_card_scale(button, button.get_meta("compact_base_scale", CARD_NORMAL_SCALE))
 	button.z_index = 0
 	# A chosen hand-trash card keeps its X once the pointer leaves, so the
 	# player can review every pending deletion before pressing Confirm.
@@ -8480,11 +8577,12 @@ func _show_card_preview(
 	var type_palette := _get_card_type_palette(card.card_type)
 	preview_name_label.text = card.card_name
 	# The preview meta line stays lean: card type, cost, and kingdom only.
+	var preview_cost := game_state.get_event_cost(card) if card.is_event_card() else game_state.get_effective_cost(card)
 	preview_meta_label.text = (
 		"%s / COST %d / %s"
 		% [
 			card.card_type.to_upper(),
-			game_state.get_effective_cost(card),
+			preview_cost,
 			game_state.get_card_kingdom(card).to_upper()
 		]
 	)
@@ -8767,6 +8865,12 @@ func _format_card_stat(amount: int, singular: String, plural: String) -> String:
 
 func _get_card_palette(visual_state: String) -> Dictionary:
 	match visual_state:
+		"event_preview":
+			return {
+				"border": COLOR_EVENT_BORDER,
+				"text": COLOR_PARCHMENT_LIGHT,
+				"muted": Color("#b5ebbf"),
+			}
 		HAND_PLAYABLE:
 			return {
 				"border": COLOR_ACTION_ACCENT,
@@ -8807,6 +8911,17 @@ func _get_card_palette(visual_state: String) -> Dictionary:
 
 func _get_card_type_palette(card_type: String) -> Dictionary:
 	match card_type:
+		"event":
+			return {
+				"accent": COLOR_EVENT_BORDER,
+				"hover_border": Color("#b5ebbf"),
+				"name_text": Color("#e5f4dc"),
+				"chip_bg": Color(0.29, 0.62, 0.36, 0.24),
+				"chip_text": Color("#b5ebbf"),
+				"description_text": Color(0.87, 0.96, 0.87, 0.86),
+				"footer_text": Color(0.56, 0.82, 0.62, 0.80),
+				"scrim": Color(0.04, 0.19, 0.09, 0.20),
+			}
 		"resource":
 			return {
 				"accent": COLOR_RESOURCE_ACCENT,
@@ -8855,6 +8970,8 @@ func _get_card_type_palette(card_type: String) -> Dictionary:
 
 func _get_card_surface_color(card_type: String) -> Color:
 	match card_type:
+		"event":
+			return COLOR_EVENT
 		"resource":
 			return COLOR_RESOURCE_CARD
 		"victory":
@@ -8867,6 +8984,8 @@ func _get_card_surface_color(card_type: String) -> Color:
 
 func _get_card_type_accent(card_type: String) -> Color:
 	match card_type:
+		"event":
+			return COLOR_EVENT_BORDER
 		"resource":
 			return COLOR_RESOURCE_ACCENT
 		"victory":
