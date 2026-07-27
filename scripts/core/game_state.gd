@@ -1783,7 +1783,11 @@ func _apply_pile_token_bonus(card: CardDefinition) -> void:
 	if card == null:
 		return
 	for token_id in ["action", "buy", "card", "coin"]:
-		if get_active_player_supply_token_card(token_id) != card.id:
+		var owner_has_token := get_active_player_supply_token_card(token_id) == card.id
+		# Keep the count-shaped shared API usable for older callers while still
+		# resolving its token at play time (never at gain time).
+		var shared_has_token := int(supply_tokens.get(card.id, {}).get(token_id, 0)) > 0
+		if not owner_has_token and not shared_has_token:
 			continue
 		match token_id:
 			"action":
