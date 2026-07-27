@@ -26,16 +26,14 @@ const BASE_KINGDOM := "Base Kingdom"
 const BEGINNER_KINGDOM := "First Harvest"
 const HINTERLANDS_GROUP := "Hinterlands"
 const WITCHING_HOUR_GROUP := "Witching Hour"
-const CROWNWEALTH_GROUP := "Crownwealth"
-const TRAILBLAZERS_GROUP := "Trailblazers"
+const PROSPERITY_GROUP := "Prosperity"
 const ADVENTURES_GROUP := "Adventures"
 const KINGDOM_ORDER := [
 	BASE_KINGDOM,
 	BEGINNER_KINGDOM,
 	HINTERLANDS_GROUP,
 	WITCHING_HOUR_GROUP,
-	CROWNWEALTH_GROUP,
-	TRAILBLAZERS_GROUP,
+	PROSPERITY_GROUP,
 	ADVENTURES_GROUP,
 ]
 const REQUIRED_CARD_IDS := [
@@ -56,19 +54,18 @@ const RESOURCE_SUPPLY_COUNT := 12
 const VICTORY_SUPPLY_COUNT := 8
 const CURSE_SUPPLY_COUNT := 20
 const CURSE_CARD_ID := "briar_hex"
-const CROWNWEALTH_RESOURCE_ID := "auric_reserve"
-const CROWNWEALTH_VICTORY_ID := "crownland_expanse"
-const CROWNWEALTH_RESOURCE_SUPPLY_COUNT := 12
-const CROWNWEALTH_VICTORY_SUPPLY_COUNT_2P := 8
-const CROWNWEALTH_VICTORY_SUPPLY_COUNT_3P := 12
+const PROSPERITY_RESOURCE_ID := "auric_reserve"
+const PROSPERITY_VICTORY_ID := "crownland_expanse"
+const PROSPERITY_RESOURCE_SUPPLY_COUNT := 12
+const PROSPERITY_VICTORY_SUPPLY_COUNT_2P := 8
+const PROSPERITY_VICTORY_SUPPLY_COUNT_3P := 12
 # Backward-compatible alias for tests/UI that only need the three-player cap.
-const CROWNWEALTH_VICTORY_SUPPLY_COUNT := CROWNWEALTH_VICTORY_SUPPLY_COUNT_3P
+const PROSPERITY_VICTORY_SUPPLY_COUNT := PROSPERITY_VICTORY_SUPPLY_COUNT_3P
 ## Fixed side supplies sit outside the randomized market and can be purchased
 ## directly. Pebble Coin uses a modest finite pile so its zero-cost buy remains
 ## useful without becoming an infinite-deck escape hatch.
 const PEBBLE_SIDE_SUPPLY_COUNT := 30
 const SIDE_SUPPLY_CARD_IDS := ["pebble_coin", CURSE_CARD_ID]
-const TRAILBLAZERS_SIDE_SUPPLY_CARD_IDS := ["trail_sunken_chest"]
 const SIX_VP_CARD_ID := "royal_charter"
 const SUPPLY_EMPTY_END_COUNT := 3
 const DEFAULT_END_TURN_COOLDOWN_SECONDS := 5.0
@@ -548,12 +545,10 @@ func get_card_kingdom(card: CardDefinition) -> String:
 		return HINTERLANDS_GROUP
 	if card.card_group == WITCHING_HOUR_GROUP:
 		return WITCHING_HOUR_GROUP
-	if card.card_group == CROWNWEALTH_GROUP:
-		return CROWNWEALTH_GROUP
+	if card.card_group == PROSPERITY_GROUP:
+		return PROSPERITY_GROUP
 	if card.card_group == ADVENTURES_GROUP or card.event_group == ADVENTURES_GROUP:
 		return ADVENTURES_GROUP
-	if card.card_group == TRAILBLAZERS_GROUP or card.event_group == TRAILBLAZERS_GROUP:
-		return TRAILBLAZERS_GROUP
 	return BEGINNER_KINGDOM
 
 
@@ -584,10 +579,8 @@ func set_kingdom_enabled(kingdom: String, enabled: bool) -> void:
 	# Side supplies are part of the pack lifecycle, not randomized market
 	# entries. Keep all existing market pile counts intact when this toggle
 	# changes during a game.
-	if kingdom == CROWNWEALTH_GROUP and not supply_piles.is_empty():
-		_set_crownwealth_side_supplies(enabled)
-	if kingdom == TRAILBLAZERS_GROUP and not supply_piles.is_empty():
-		_set_trailblazers_side_supplies(enabled)
+	if kingdom == PROSPERITY_GROUP and not supply_piles.is_empty():
+		_set_prosperity_side_supplies(enabled)
 	if kingdom == ADVENTURES_GROUP and not supply_piles.is_empty():
 		_set_adventures_traveller_piles(enabled)
 
@@ -617,11 +610,8 @@ func is_side_supply_card(card_id: String) -> bool:
 	if SIDE_SUPPLY_CARD_IDS.has(card_id):
 		return true
 	return (
-		is_kingdom_enabled(CROWNWEALTH_GROUP)
-		and card_id in [CROWNWEALTH_RESOURCE_ID, CROWNWEALTH_VICTORY_ID]
-	) or (
-		is_kingdom_enabled(TRAILBLAZERS_GROUP)
-		and TRAILBLAZERS_SIDE_SUPPLY_CARD_IDS.has(card_id)
+		is_kingdom_enabled(PROSPERITY_GROUP)
+		and card_id in [PROSPERITY_RESOURCE_ID, PROSPERITY_VICTORY_ID]
 	)
 
 
@@ -629,12 +619,9 @@ func get_side_supply_card_ids() -> Array[String]:
 	var card_ids: Array[String] = []
 	for side_card_id in SIDE_SUPPLY_CARD_IDS:
 		card_ids.append(side_card_id)
-	if is_kingdom_enabled(CROWNWEALTH_GROUP):
-		card_ids.append(CROWNWEALTH_RESOURCE_ID)
-		card_ids.append(CROWNWEALTH_VICTORY_ID)
-	if is_kingdom_enabled(TRAILBLAZERS_GROUP):
-		for card_id in TRAILBLAZERS_SIDE_SUPPLY_CARD_IDS:
-			card_ids.append(card_id)
+	if is_kingdom_enabled(PROSPERITY_GROUP):
+		card_ids.append(PROSPERITY_RESOURCE_ID)
+		card_ids.append(PROSPERITY_VICTORY_ID)
 	return card_ids
 
 
@@ -798,8 +785,8 @@ func is_game_end_condition_met() -> bool:
 		get_empty_supply_pile_count() >= SUPPLY_EMPTY_END_COUNT
 		or get_supply_count(SIX_VP_CARD_ID) <= 0
 		or (
-			is_kingdom_enabled(CROWNWEALTH_GROUP)
-			and get_supply_count(CROWNWEALTH_VICTORY_ID) <= 0
+			is_kingdom_enabled(PROSPERITY_GROUP)
+			and get_supply_count(PROSPERITY_VICTORY_ID) <= 0
 		)
 	)
 
@@ -954,8 +941,7 @@ func _initialize_supply_piles() -> void:
 		supply_piles["pebble_coin"] = scale_supply_count(PEBBLE_SIDE_SUPPLY_COUNT)
 	if card_catalog.has(CURSE_CARD_ID):
 		supply_piles[CURSE_CARD_ID] = scale_supply_count(CURSE_SUPPLY_COUNT)
-	_set_crownwealth_side_supplies(is_kingdom_enabled(CROWNWEALTH_GROUP))
-	_set_trailblazers_side_supplies(is_kingdom_enabled(TRAILBLAZERS_GROUP))
+	_set_prosperity_side_supplies(is_kingdom_enabled(PROSPERITY_GROUP))
 	_set_adventures_traveller_piles(is_kingdom_enabled(ADVENTURES_GROUP))
 
 
@@ -998,28 +984,19 @@ func _set_adventures_traveller_piles(enabled: bool) -> void:
 			traveller_piles.erase(traveller.id)
 
 
-func _set_crownwealth_side_supplies(enabled: bool) -> void:
+func _set_prosperity_side_supplies(enabled: bool) -> void:
 	if not enabled:
-		supply_piles.erase(CROWNWEALTH_RESOURCE_ID)
-		supply_piles.erase(CROWNWEALTH_VICTORY_ID)
+		supply_piles.erase(PROSPERITY_RESOURCE_ID)
+		supply_piles.erase(PROSPERITY_VICTORY_ID)
 		return
-	if card_catalog.has(CROWNWEALTH_RESOURCE_ID):
-		supply_piles[CROWNWEALTH_RESOURCE_ID] = scale_supply_count(CROWNWEALTH_RESOURCE_SUPPLY_COUNT)
-	if card_catalog.has(CROWNWEALTH_VICTORY_ID):
-		supply_piles[CROWNWEALTH_VICTORY_ID] = scale_supply_count(
-			CROWNWEALTH_VICTORY_SUPPLY_COUNT_2P
+	if card_catalog.has(PROSPERITY_RESOURCE_ID):
+		supply_piles[PROSPERITY_RESOURCE_ID] = scale_supply_count(PROSPERITY_RESOURCE_SUPPLY_COUNT)
+	if card_catalog.has(PROSPERITY_VICTORY_ID):
+		supply_piles[PROSPERITY_VICTORY_ID] = scale_supply_count(
+			PROSPERITY_VICTORY_SUPPLY_COUNT_2P
 			if players.size() <= 2
-			else CROWNWEALTH_VICTORY_SUPPLY_COUNT_3P
+			else PROSPERITY_VICTORY_SUPPLY_COUNT_3P
 		)
-
-
-func _set_trailblazers_side_supplies(enabled: bool) -> void:
-	for card_id in TRAILBLAZERS_SIDE_SUPPLY_CARD_IDS:
-		if not enabled:
-			supply_piles.erase(card_id)
-			continue
-		if card_catalog.has(card_id):
-			supply_piles[card_id] = _default_supply_count(card_catalog[card_id])
 
 
 func _get_gain_supply_cards() -> Array[CardDefinition]:
@@ -4409,13 +4386,13 @@ func _default_supply_count(card: CardDefinition) -> int:
 		base_count = PEBBLE_SIDE_SUPPLY_COUNT
 	elif card != null and card.id == CURSE_CARD_ID:
 		base_count = CURSE_SUPPLY_COUNT
-	elif card != null and card.id == CROWNWEALTH_RESOURCE_ID:
-		base_count = CROWNWEALTH_RESOURCE_SUPPLY_COUNT
-	elif card != null and card.id == CROWNWEALTH_VICTORY_ID:
+	elif card != null and card.id == PROSPERITY_RESOURCE_ID:
+		base_count = PROSPERITY_RESOURCE_SUPPLY_COUNT
+	elif card != null and card.id == PROSPERITY_VICTORY_ID:
 		base_count = (
-			CROWNWEALTH_VICTORY_SUPPLY_COUNT_2P
+			PROSPERITY_VICTORY_SUPPLY_COUNT_2P
 			if players.size() <= 2
-			else CROWNWEALTH_VICTORY_SUPPLY_COUNT_3P
+			else PROSPERITY_VICTORY_SUPPLY_COUNT_3P
 		)
 	else:
 		match card.card_type:

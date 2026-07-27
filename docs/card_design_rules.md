@@ -12,8 +12,10 @@ process.
 
 - `id`: stable snake-case identifier used by rules and saves.
 - `name`: display name. Cards in the authorized Dominion: Adventures
-  implementation may retain their official display names; other expansions use
-  original names as described in the originality section below.
+  implementation may retain their official display names. Preserve the
+  established display names of grandfathered Prosperity records; new cards in
+  other expansions use original names as described in the originality section
+  below.
 - `type`: `resource`, `action`, `victory`, or `curse`.
 - `art_id`: filename stem under `assets/cards/`; cards may share art temporarily.
 - `cost`: coin cost.
@@ -142,8 +144,9 @@ bonus modes remain data-driven without card-specific UI.
 ## Card creation process
 
 1. Choose an art-linked name and `art_id`. For the authorized Adventures
-   implementation, use the approved official card identity; for every other
-   expansion, choose an original identity.
+   implementation, use the approved official card identity. Preserve existing
+   Prosperity records as-is; for every new card in another expansion, choose an
+   original identity.
 2. Define the numeric fields and ordered reusable special effects.
 3. Implement generalized rules support when a new effect kind is required.
 4. Write `description` and effect labels using
@@ -158,8 +161,8 @@ The illustration-linked name should remain the display name when a single card
 uses that artwork. If multiple rules cards share an `art_id`, keep one approved
 name and name variants after the same visible subject plus their role, ideally
 in 15 characters or fewer. Adventures may use its authorized official names;
-other expansions should use original names such as `Hearth Refrain` or
-`Trail Cache`.
+grandfathered Prosperity records retain their established names; other
+expansions should use original names such as `Hearth Refrain` or `Trail Cache`.
 
 Do not give a card a name that contradicts its illustration merely to mirror the
 source role that inspired its mechanics. IDs may remain mechanically descriptive;
@@ -201,15 +204,22 @@ Each selected market card receives a finite pile. Buying or gaining decrements
 that pile; empty piles cannot be bought or gained and count toward effects that
 reference empty supply piles.
 
-## Originality and the Adventures authorization
+## Expansion mapping and originality
 
-The project has an explicit authorization for the official Dominion: Adventures
-implementation. Its approved card names, rules text, terminology, events,
-journeys, Tavern mat, tokens, and Traveller piles may be represented faithfully
-in the Adventures data and UI contracts. Keep those entries clearly scoped to
-the Adventures group and do not treat this exception as permission to import
-other Dominion expansions.
+The catalog keeps each expansion's provenance explicit:
 
-For every other expansion or user-supplied catalog, use original names,
+- `Prosperity` is the canonical label for the renamed legacy group. Its
+  established records are grandfathered; the label is not an authorization to
+  import additional Dominion: Prosperity content.
+- `Adventures` is the authorized implementation of Dominion: Adventures,
+  including its events, journeys, Tavern mat, tokens, and Traveller piles.
+- `Hinterlands` is an original 26-card Conquest Cartes mechanics group that
+  keeps the canonical group name while using original names, wording, and art.
+- `Witching Hour` is intentionally custom and has no Dominion counterpart.
+
+Only the authorized Adventures entries may use mapped expansion terminology
+when created or revised. Preserve grandfathered Prosperity records, but do not
+use them as a precedent for new imports. For Hinterlands, Witching Hour, and
+every other expansion or user-supplied catalog, use original names,
 descriptions, art, and flavor. Do not copy names, exact rules wording,
 terminology, or artwork from an existing commercial deck-builder.

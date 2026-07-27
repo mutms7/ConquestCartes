@@ -1,9 +1,13 @@
 # Project Rules
 
 - This is a Godot 4 project written in GDScript.
-- The Trailblazers expansion is an authorized, faithful implementation of
+- The Adventures expansion is an authorized, faithful implementation of
   Dominion: Adventures. Use the official card names, rules text, terminology,
-  and mechanics for that expansion.
+  and mechanics for that expansion. Prosperity is the canonical label for the
+  renamed legacy group. Preserve its established records, but its label does
+  not authorize importing additional Dominion content. Witching Hour is an
+  intentionally custom set with no Dominion counterpart and must retain
+  original names and rules.
 - Keep card definitions data-driven and separate from game logic.
 - When creating or revising cards, follow `docs/card_wording_conventions.md`
   and the card creation process in `docs/card_design_rules.md`.

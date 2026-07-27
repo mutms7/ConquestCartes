@@ -530,8 +530,8 @@ func _initialize() -> void:
 	_kingdom_toggle(GameState.HINTERLANDS_GROUP).toggled.emit(false)
 	_kingdom_toggle(GameState.WITCHING_HOUR_GROUP).set_pressed_no_signal(false)
 	_kingdom_toggle(GameState.WITCHING_HOUR_GROUP).toggled.emit(false)
-	_kingdom_toggle(GameState.CROWNWEALTH_GROUP).set_pressed_no_signal(false)
-	_kingdom_toggle(GameState.CROWNWEALTH_GROUP).toggled.emit(false)
+	_kingdom_toggle(GameState.PROSPERITY_GROUP).set_pressed_no_signal(false)
+	_kingdom_toggle(GameState.PROSPERITY_GROUP).toggled.emit(false)
 	var adventures_kingdom := _adventures_kingdom_name()
 	if not adventures_kingdom.is_empty():
 		_kingdom_toggle(adventures_kingdom).set_pressed_no_signal(false)
@@ -543,8 +543,8 @@ func _initialize() -> void:
 	_kingdom_toggle(GameState.HINTERLANDS_GROUP).toggled.emit(true)
 	_kingdom_toggle(GameState.WITCHING_HOUR_GROUP).set_pressed_no_signal(true)
 	_kingdom_toggle(GameState.WITCHING_HOUR_GROUP).toggled.emit(true)
-	_kingdom_toggle(GameState.CROWNWEALTH_GROUP).set_pressed_no_signal(true)
-	_kingdom_toggle(GameState.CROWNWEALTH_GROUP).toggled.emit(true)
+	_kingdom_toggle(GameState.PROSPERITY_GROUP).set_pressed_no_signal(true)
+	_kingdom_toggle(GameState.PROSPERITY_GROUP).toggled.emit(true)
 	if not adventures_kingdom.is_empty():
 		_kingdom_toggle(adventures_kingdom).set_pressed_no_signal(true)
 		_kingdom_toggle(adventures_kingdom).toggled.emit(true)
@@ -593,12 +593,12 @@ func _initialize() -> void:
 	_check(
 		main_ui.pebble_coin_side_supply != null
 		and main_ui.briar_hex_side_supply != null
-		and main_ui.crownwealth_resource_side_supply != null
-		and main_ui.crownwealth_victory_side_supply != null
+		and main_ui.prosperity_resource_side_supply != null
+		and main_ui.prosperity_victory_side_supply != null
 		and main_ui.pebble_coin_side_supply.get_meta("card_id", "") == "pebble_coin"
 		and main_ui.briar_hex_side_supply.get_meta("card_id", "") == GameState.CURSE_CARD_ID
-		and main_ui.crownwealth_resource_side_supply.get_meta("card_id", "") == GameState.CROWNWEALTH_RESOURCE_ID
-		and main_ui.crownwealth_victory_side_supply.get_meta("card_id", "") == GameState.CROWNWEALTH_VICTORY_ID
+		and main_ui.prosperity_resource_side_supply.get_meta("card_id", "") == GameState.PROSPERITY_RESOURCE_ID
+		and main_ui.prosperity_victory_side_supply.get_meta("card_id", "") == GameState.PROSPERITY_VICTORY_ID
 		and main_ui.pebble_coin_side_supply.custom_minimum_size == main_ui.CARD_FACE_SIZE
 		and main_ui.briar_hex_side_supply.custom_minimum_size == main_ui.CARD_FACE_SIZE,
 		"All enabled side supplies should render as full finite card faces."
@@ -688,19 +688,19 @@ func _initialize() -> void:
 	main_ui.game_state.set_supply_count(GameState.CURSE_CARD_ID, briar_supply_before)
 	side_player.buys = side_buys
 	side_player.coins = side_coins
-	var reserve_supply_before: int = main_ui.game_state.get_supply_count(GameState.CROWNWEALTH_RESOURCE_ID)
+	var reserve_supply_before: int = main_ui.game_state.get_supply_count(GameState.PROSPERITY_RESOURCE_ID)
 	var reserve_discard_before: int = side_player.discard_pile.size()
 	side_player.buys = 1
-	side_player.coins = main_ui.game_state.card_catalog[GameState.CROWNWEALTH_RESOURCE_ID].cost
-	main_ui.crownwealth_resource_side_supply.pressed.emit()
+	side_player.coins = main_ui.game_state.card_catalog[GameState.PROSPERITY_RESOURCE_ID].cost
+	main_ui.prosperity_resource_side_supply.pressed.emit()
 	_check(
-		main_ui.game_state.get_supply_count(GameState.CROWNWEALTH_RESOURCE_ID) == reserve_supply_before - 1
+		main_ui.game_state.get_supply_count(GameState.PROSPERITY_RESOURCE_ID) == reserve_supply_before - 1
 		and side_player.discard_pile.size() == reserve_discard_before + 1,
 		"Clicking the upgraded resource side face should use the normal purchase path."
 	)
 	while side_player.discard_pile.size() > reserve_discard_before:
 		side_player.discard_pile.pop_back()
-	main_ui.game_state.set_supply_count(GameState.CROWNWEALTH_RESOURCE_ID, reserve_supply_before)
+	main_ui.game_state.set_supply_count(GameState.PROSPERITY_RESOURCE_ID, reserve_supply_before)
 	side_player.buys = side_buys
 	side_player.coins = side_coins
 	main_ui._refresh_ui()

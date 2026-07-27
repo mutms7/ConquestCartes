@@ -12,7 +12,8 @@ An original fantasy deck-builder, built in Godot 4.7. You start with a thin deck
 
 It's a compact but complete deck-builder. The highlights:
 
-- **63 data-driven cards** with original names and painted artwork, plus a named 26-card *Hinterlands* group inside the catalog.
+- **63 data-driven cards** with painted artwork, plus a named 26-card *Hinterlands* group inside the catalog.
+- Expansion provenance is explicit: *Prosperity* is the canonical label for a renamed legacy group, *Adventures* is the authorized Dominion implementation, *Hinterlands* is an original mechanics group, and *Witching Hour* is intentionally custom with no Dominion counterpart.
 - A **14-card kingdom market** each game: 2 resources, 10 actions, and 2 victory cards, laid out art-first (resources left, actions center, victory right).
 - The full deck-builder verb set: draw, **trash, gain, upgrade, replay**, and variable scoring, with interactive prompts whenever a card asks you to choose (discard this, trash that, gain a card up to a cost, reorder your draw).
 - **Reactive triggers** on gain, buy, discard, trash, and cleanup, so cards can respond to what's happening around them.

@@ -119,7 +119,7 @@ const WITCHING_HOUR_CARD_IDS := [
 	"sowing_moon",
 	"long_causeway",
 ]
-const CROWNWEALTH_CARD_IDS := [
+const PROSPERITY_CARD_IDS := [
 	"gilded_ledger",
 	"cairn_appraiser",
 	"skyline_foundry",
@@ -222,14 +222,14 @@ func _initialize() -> void:
 	_test_draw_across_shuffle_boundary()
 	_test_scoring()
 	_test_supply_piles()
-	_test_crownwealth_cards()
+	_test_prosperity_cards()
 	_test_turn_cooldown()
 	_test_turn_phases()
 	_test_turn_based_mode()
 	_test_multiplayer_only_timer_cards()
 	_test_relic_system()
 	_test_multiplayer_lobby_attacks()
-	_test_crownwealth_multiplayer_choices()
+	_test_prosperity_multiplayer_choices()
 	_test_network_snapshot_redaction()
 	_test_multiplayer_game_end()
 	_test_special_effects()
@@ -292,17 +292,17 @@ func _test_card_catalog() -> void:
 				game_state.card_catalog[card_id].card_group == GameState.WITCHING_HOUR_GROUP,
 				"%s should belong to the named Witching Hour card group." % card_id
 			)
-	for card_id in CROWNWEALTH_CARD_IDS:
-		_check(game_state.card_catalog.has(card_id), "Crownwealth card %s should exist." % card_id)
+	for card_id in PROSPERITY_CARD_IDS:
+		_check(game_state.card_catalog.has(card_id), "Prosperity card %s should exist." % card_id)
 		if game_state.card_catalog.has(card_id):
 			_check(
-				game_state.card_catalog[card_id].card_group == GameState.CROWNWEALTH_GROUP,
-				"%s should belong to the named Crownwealth card group." % card_id
+				game_state.card_catalog[card_id].card_group == GameState.PROSPERITY_GROUP,
+				"%s should belong to the named Prosperity card group." % card_id
 			)
 	_check(
-		game_state.card_catalog[GameState.CROWNWEALTH_RESOURCE_ID].card_type == "resource"
-		and game_state.card_catalog[GameState.CROWNWEALTH_VICTORY_ID].card_type == "victory",
-		"Crownwealth side supplies should use resource and victory types."
+		game_state.card_catalog[GameState.PROSPERITY_RESOURCE_ID].card_type == "resource"
+		and game_state.card_catalog[GameState.PROSPERITY_VICTORY_ID].card_type == "victory",
+		"Prosperity side supplies should use resource and victory types."
 	)
 	for card_id in GameState.REQUIRED_CARD_IDS:
 		_check(game_state.card_catalog.has(card_id), "Required card %s should exist." % card_id)
@@ -512,35 +512,35 @@ func _test_supply_piles() -> void:
 			== game_state.scale_supply_count(GameState.CURSE_SUPPLY_COUNT)
 		and game_state.get_supply_count("pebble_coin")
 			== game_state.scale_supply_count(GameState.PEBBLE_SIDE_SUPPLY_COUNT)
-		and game_state.get_supply_count(GameState.CROWNWEALTH_RESOURCE_ID)
-			== game_state.scale_supply_count(GameState.CROWNWEALTH_RESOURCE_SUPPLY_COUNT)
-		and game_state.get_supply_count(GameState.CROWNWEALTH_VICTORY_ID)
-			== game_state.scale_supply_count(GameState.CROWNWEALTH_VICTORY_SUPPLY_COUNT_2P),
+		and game_state.get_supply_count(GameState.PROSPERITY_RESOURCE_ID)
+			== game_state.scale_supply_count(GameState.PROSPERITY_RESOURCE_SUPPLY_COUNT)
+		and game_state.get_supply_count(GameState.PROSPERITY_VICTORY_ID)
+			== game_state.scale_supply_count(GameState.PROSPERITY_VICTORY_SUPPLY_COUNT_2P),
 		"A solo game should halve every pile, including the finite side supplies."
 	)
 	var three_player := GameState.new()
 	_check(three_player.load_cards(CARD_DATA_PATH), "Three-player side-supply test should load card data.")
 	_check(three_player.setup_starting_game(3), "Three-player side-supply test should set up.")
 	_check(
-		three_player.get_supply_count(GameState.CROWNWEALTH_RESOURCE_ID) == 12
-		and three_player.get_supply_count(GameState.CROWNWEALTH_VICTORY_ID) == 12,
-		"Three-player Crownwealth side supplies should be 12/12."
+		three_player.get_supply_count(GameState.PROSPERITY_RESOURCE_ID) == 12
+		and three_player.get_supply_count(GameState.PROSPERITY_VICTORY_ID) == 12,
+		"Three-player Prosperity side supplies should be 12/12."
 	)
-	game_state.set_kingdom_enabled(GameState.CROWNWEALTH_GROUP, false)
+	game_state.set_kingdom_enabled(GameState.PROSPERITY_GROUP, false)
 	_check(
-		not game_state.get_side_supply_card_ids().has(GameState.CROWNWEALTH_RESOURCE_ID)
-		and not game_state.get_side_supply_card_ids().has(GameState.CROWNWEALTH_VICTORY_ID)
-		and game_state.get_supply_count(GameState.CROWNWEALTH_RESOURCE_ID) == 0
-		and game_state.get_supply_count(GameState.CROWNWEALTH_VICTORY_ID) == 0,
-		"Disabling Crownwealth should remove its side-supply entries."
+		not game_state.get_side_supply_card_ids().has(GameState.PROSPERITY_RESOURCE_ID)
+		and not game_state.get_side_supply_card_ids().has(GameState.PROSPERITY_VICTORY_ID)
+		and game_state.get_supply_count(GameState.PROSPERITY_RESOURCE_ID) == 0
+		and game_state.get_supply_count(GameState.PROSPERITY_VICTORY_ID) == 0,
+		"Disabling Prosperity should remove its side-supply entries."
 	)
-	game_state.set_kingdom_enabled(GameState.CROWNWEALTH_GROUP, true)
+	game_state.set_kingdom_enabled(GameState.PROSPERITY_GROUP, true)
 	_check(
-		game_state.get_supply_count(GameState.CROWNWEALTH_RESOURCE_ID)
-			== game_state.scale_supply_count(GameState.CROWNWEALTH_RESOURCE_SUPPLY_COUNT)
-		and game_state.get_supply_count(GameState.CROWNWEALTH_VICTORY_ID)
-			== game_state.scale_supply_count(GameState.CROWNWEALTH_VICTORY_SUPPLY_COUNT_2P),
-		"Re-enabling Crownwealth should restore only its two side supplies."
+		game_state.get_supply_count(GameState.PROSPERITY_RESOURCE_ID)
+			== game_state.scale_supply_count(GameState.PROSPERITY_RESOURCE_SUPPLY_COUNT)
+		and game_state.get_supply_count(GameState.PROSPERITY_VICTORY_ID)
+			== game_state.scale_supply_count(GameState.PROSPERITY_VICTORY_SUPPLY_COUNT_2P),
+		"Re-enabling Prosperity should restore only its two side supplies."
 	)
 	var pebble: CardDefinition = game_state.card_catalog["pebble_coin"]
 	var pebble_count := game_state.get_supply_count("pebble_coin")
@@ -583,22 +583,22 @@ func _test_supply_piles() -> void:
 	)
 	game_state.set_supply_count(card.id, starting_count)
 	game_state.set_supply_count("pebble_coin", GameState.PEBBLE_SIDE_SUPPLY_COUNT)
-	game_state.set_supply_count(GameState.CROWNWEALTH_VICTORY_ID, 0)
+	game_state.set_supply_count(GameState.PROSPERITY_VICTORY_ID, 0)
 	_check(
 		game_state.is_game_end_condition_met(),
-		"An empty Crownwealth victory pile should end a game while the pack is enabled."
+		"An empty Prosperity victory pile should end a game while the pack is enabled."
 	)
 	game_state.set_supply_count("pebble_coin", 17)
-	game_state.set_kingdom_enabled(GameState.CROWNWEALTH_GROUP, false)
+	game_state.set_kingdom_enabled(GameState.PROSPERITY_GROUP, false)
 	_check(
 		game_state.get_supply_count("pebble_coin") == 17
 		and not game_state.is_game_end_condition_met(),
-		"Removing Crownwealth should preserve other supplies and its premium-victory end condition."
+		"Removing Prosperity should preserve other supplies and its premium-victory end condition."
 	)
 
 
-func _test_crownwealth_cards() -> void:
-	# Keep a compact, data-driven contract for every Crownwealth card.  This
+func _test_prosperity_cards() -> void:
+	# Keep a compact, data-driven contract for every Prosperity card.  This
 	# catches accidental ID/type/cost/effect drift while the focused checks below
 	# exercise the new resolution hooks.
 	var game_state := _empty_game()
@@ -1030,7 +1030,7 @@ func _test_multiplayer_lobby_attacks() -> void:
 	)
 
 
-func _test_crownwealth_multiplayer_choices() -> void:
+func _test_prosperity_multiplayer_choices() -> void:
 	# Choices for opponent portions are owned by the victim seat and resolve one
 	# at a time, while returning control to the attacking player afterward.
 	var vault := _empty_multiplayer_game()
@@ -2058,7 +2058,7 @@ func _test_random_market_setup() -> void:
 	game_state.set_kingdom_enabled(GameState.BEGINNER_KINGDOM, false)
 	game_state.set_kingdom_enabled(GameState.HINTERLANDS_GROUP, false)
 	game_state.set_kingdom_enabled(GameState.WITCHING_HOUR_GROUP, false)
-	game_state.set_kingdom_enabled(GameState.CROWNWEALTH_GROUP, false)
+	game_state.set_kingdom_enabled(GameState.PROSPERITY_GROUP, false)
 	game_state.set_kingdom_enabled("Adventures", false)
 	_check(
 		not game_state.has_enough_market_candidates(),
@@ -2067,7 +2067,7 @@ func _test_random_market_setup() -> void:
 	game_state.set_kingdom_enabled(GameState.BEGINNER_KINGDOM, true)
 	game_state.set_kingdom_enabled(GameState.HINTERLANDS_GROUP, true)
 	game_state.set_kingdom_enabled(GameState.WITCHING_HOUR_GROUP, true)
-	game_state.set_kingdom_enabled(GameState.CROWNWEALTH_GROUP, true)
+	game_state.set_kingdom_enabled(GameState.PROSPERITY_GROUP, true)
 	game_state.set_kingdom_enabled("Adventures", true)
 
 	_check(game_state.setup_starting_game(), "A second game should set up even when a repeat is allowed.")

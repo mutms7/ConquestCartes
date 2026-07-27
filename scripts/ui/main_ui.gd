@@ -228,8 +228,8 @@ var market_action_container: GridContainer
 var market_victory_container: GridContainer
 var pebble_coin_side_supply: Button
 var briar_hex_side_supply: Button
-var crownwealth_resource_side_supply: Button
-var crownwealth_victory_side_supply: Button
+var prosperity_resource_side_supply: Button
+var prosperity_victory_side_supply: Button
 var pending_cleanup_ghosts: Array[Control] = []
 var home_overlay: Control
 var menu_backdrop: Control
@@ -5890,8 +5890,8 @@ func _build_market_board() -> void:
 	market_victory_container = estates.cards
 	pebble_coin_side_supply = _create_side_supply_card("pebble_coin", COLOR_RESOURCE_ACCENT)
 	briar_hex_side_supply = _create_side_supply_card(GameState.CURSE_CARD_ID, COLOR_CURSE_ACCENT)
-	crownwealth_resource_side_supply = null
-	crownwealth_victory_side_supply = null
+	prosperity_resource_side_supply = null
+	prosperity_victory_side_supply = null
 
 	market_container.add_child(treasury_carpet)
 	market_container.add_child(
@@ -5929,20 +5929,20 @@ func _ensure_side_supply_cards() -> void:
 		child.queue_free()
 	pebble_coin_side_supply = _create_side_supply_card("pebble_coin", COLOR_RESOURCE_ACCENT)
 	briar_hex_side_supply = _create_side_supply_card(GameState.CURSE_CARD_ID, COLOR_CURSE_ACCENT)
-	crownwealth_resource_side_supply = null
-	crownwealth_victory_side_supply = null
-	if game_state.is_kingdom_enabled(GameState.CROWNWEALTH_GROUP):
-		crownwealth_resource_side_supply = _create_side_supply_card(
-			GameState.CROWNWEALTH_RESOURCE_ID,
+	prosperity_resource_side_supply = null
+	prosperity_victory_side_supply = null
+	if game_state.is_kingdom_enabled(GameState.PROSPERITY_GROUP):
+		prosperity_resource_side_supply = _create_side_supply_card(
+			GameState.PROSPERITY_RESOURCE_ID,
 			COLOR_RESOURCE_ACCENT
 		)
-		crownwealth_victory_side_supply = _create_side_supply_card(
-			GameState.CROWNWEALTH_VICTORY_ID,
+		prosperity_victory_side_supply = _create_side_supply_card(
+			GameState.PROSPERITY_VICTORY_ID,
 			COLOR_VICTORY_ACCENT
 		)
 		market_container.add_child(
 			_create_side_supply_stack(
-				[pebble_coin_side_supply, crownwealth_resource_side_supply],
+				[pebble_coin_side_supply, prosperity_resource_side_supply],
 				"LeftSupplyStack",
 				0.0,
 				MARKET_GROUP_EXTRA_GAP
@@ -5951,7 +5951,7 @@ func _ensure_side_supply_cards() -> void:
 		market_container.move_child(market_container.get_child(market_container.get_child_count() - 1), 1)
 		market_container.add_child(
 			_create_side_supply_stack(
-				[briar_hex_side_supply, crownwealth_victory_side_supply],
+				[briar_hex_side_supply, prosperity_victory_side_supply],
 				"RightSupplyStack",
 				MARKET_GROUP_EXTRA_GAP,
 				0.0
@@ -6035,8 +6035,8 @@ func _align_side_supply_faces() -> void:
 	for side_button in [
 		pebble_coin_side_supply,
 		briar_hex_side_supply,
-		crownwealth_resource_side_supply,
-		crownwealth_victory_side_supply,
+		prosperity_resource_side_supply,
+		prosperity_victory_side_supply,
 	]:
 		if side_button == null or not is_instance_valid(side_button):
 			continue
@@ -6978,12 +6978,12 @@ func _refresh_market() -> void:
 	_refresh_side_supply_card(pebble_coin_side_supply, "pebble_coin")
 	_refresh_side_supply_card(briar_hex_side_supply, GameState.CURSE_CARD_ID)
 	_refresh_side_supply_card(
-		crownwealth_resource_side_supply,
-		GameState.CROWNWEALTH_RESOURCE_ID
+		prosperity_resource_side_supply,
+		GameState.PROSPERITY_RESOURCE_ID
 	)
 	_refresh_side_supply_card(
-		crownwealth_victory_side_supply,
-		GameState.CROWNWEALTH_VICTORY_ID
+		prosperity_victory_side_supply,
+		GameState.PROSPERITY_VICTORY_ID
 	)
 	call_deferred("_align_side_supply_faces")
 
@@ -9296,10 +9296,10 @@ func _animate_queued_gain_flight(card_id: String, destination: String) -> void:
 		source_button = pebble_coin_side_supply
 	if source_button == null and card_id == GameState.CURSE_CARD_ID:
 		source_button = briar_hex_side_supply
-	if source_button == null and card_id == GameState.CROWNWEALTH_RESOURCE_ID:
-		source_button = crownwealth_resource_side_supply
-	if source_button == null and card_id == GameState.CROWNWEALTH_VICTORY_ID:
-		source_button = crownwealth_victory_side_supply
+	if source_button == null and card_id == GameState.PROSPERITY_RESOURCE_ID:
+		source_button = prosperity_resource_side_supply
+	if source_button == null and card_id == GameState.PROSPERITY_VICTORY_ID:
+		source_button = prosperity_victory_side_supply
 	if source_button == null:
 		return
 	var target := _get_hud_target_center("DiscardStat")
@@ -10762,7 +10762,7 @@ func _on_kingdom_toggled(enabled: bool, kingdom: String) -> void:
 		_refresh_kingdom_tab()
 		return
 	game_state.set_kingdom_enabled(kingdom, enabled)
-	if kingdom == GameState.CROWNWEALTH_GROUP:
+	if kingdom == GameState.PROSPERITY_GROUP:
 		_ensure_side_supply_cards()
 	if selected_home_kingdom != kingdom:
 		selected_home_kingdom = kingdom
