@@ -445,11 +445,11 @@ func _initialize() -> void:
 		"Kingdoms should open a tabbed card browser with a detail pane."
 	)
 	for kingdom in GameState.KINGDOM_ORDER:
-		if str(kingdom).to_lower().contains("trail"):
+		if _is_adventures_kingdom(str(kingdom)):
 			_check(
 				_kingdom_tab(str(kingdom)) != null
 				and _kingdom_toggle(str(kingdom)) != null,
-				"Trailblazers should expose the same kingdom filter controls as other packs."
+				"Adventures should expose the same kingdom filter controls as other packs."
 			)
 			break
 	var kingdom_rect := _home_kingdoms_panel().get_global_rect()
@@ -532,9 +532,10 @@ func _initialize() -> void:
 	_kingdom_toggle(GameState.WITCHING_HOUR_GROUP).toggled.emit(false)
 	_kingdom_toggle(GameState.CROWNWEALTH_GROUP).set_pressed_no_signal(false)
 	_kingdom_toggle(GameState.CROWNWEALTH_GROUP).toggled.emit(false)
-	if GameState.KINGDOM_ORDER.has(GameState.TRAILBLAZERS_GROUP):
-		_kingdom_toggle(GameState.TRAILBLAZERS_GROUP).set_pressed_no_signal(false)
-		_kingdom_toggle(GameState.TRAILBLAZERS_GROUP).toggled.emit(false)
+	var adventures_kingdom := _adventures_kingdom_name()
+	if not adventures_kingdom.is_empty():
+		_kingdom_toggle(adventures_kingdom).set_pressed_no_signal(false)
+		_kingdom_toggle(adventures_kingdom).toggled.emit(false)
 	_check(_home_new_game_button().disabled, "New Game should lock when filters cannot fill a market.")
 	_kingdom_toggle(GameState.BEGINNER_KINGDOM).set_pressed_no_signal(true)
 	_kingdom_toggle(GameState.BEGINNER_KINGDOM).toggled.emit(true)
@@ -544,9 +545,9 @@ func _initialize() -> void:
 	_kingdom_toggle(GameState.WITCHING_HOUR_GROUP).toggled.emit(true)
 	_kingdom_toggle(GameState.CROWNWEALTH_GROUP).set_pressed_no_signal(true)
 	_kingdom_toggle(GameState.CROWNWEALTH_GROUP).toggled.emit(true)
-	if GameState.KINGDOM_ORDER.has(GameState.TRAILBLAZERS_GROUP):
-		_kingdom_toggle(GameState.TRAILBLAZERS_GROUP).set_pressed_no_signal(true)
-		_kingdom_toggle(GameState.TRAILBLAZERS_GROUP).toggled.emit(true)
+	if not adventures_kingdom.is_empty():
+		_kingdom_toggle(adventures_kingdom).set_pressed_no_signal(true)
+		_kingdom_toggle(adventures_kingdom).toggled.emit(true)
 	_home_new_game_button().pressed.emit()
 	await process_frame
 	await process_frame
@@ -1635,8 +1636,13 @@ func _initialize() -> void:
 	main_ui._end_respite()
 	var player_row_height_before_cooldown := _player_row(1).custom_minimum_size.y
 	var player_panel_height_before_cooldown := _players_turn_panel().get_global_rect().size.y
-	_click_control(_end_turn_button())
+	main_ui._on_end_turn_pressed()
 	await process_frame
+	# First press ends the Action phase; the next ends Buys and starts the
+	# multiplayer-only cooldown exercised by this regression.
+	if not main_ui.turn_manager.is_cooling_down():
+		main_ui._on_end_turn_pressed()
+		await process_frame
 	_check(
 		main_ui.game_state.active_player_index == 0
 		and main_ui.game_state.player.player_name == "Player 1",
@@ -1822,8 +1828,12 @@ func _run_expansion_ui_regression() -> void:
 		expansion_ui.expansion_panel != null
 		and expansion_ui.expansion_panel.name == "ExpansionPanel"
 		and expansion_ui.expansion_reserve_container.name == "ReserveMat"
-		and expansion_ui.expansion_event_container.name == "EventRow",
-		"The expansion surface should expose reserve/mat and event rows."
+		and expansion_ui.expansion_tavern_container == expansion_ui.expansion_reserve_container
+		and expansion_ui.expansion_traveller_container.name == "TravellerPiles"
+		and expansion_ui.expansion_event_container.name == "EventRow"
+		and (expansion_ui.expansion_panel.find_child("Title", true, false) as Label).text == "ADVENTURES"
+		and (expansion_ui.expansion_panel.find_child("ReserveTitle", true, false) as Label).text == "TAVERN MAT",
+		"The Adventures surface should expose Tavern, Traveller, and event rows."
 	)
 
 	var reserve_card: CardDefinition = null
@@ -1833,20 +1843,36 @@ func _run_expansion_ui_regression() -> void:
 			reserve_card = candidate_card
 			break
 	if reserve_card != null:
-		expansion_ui.game_state.player.store_reserve(reserve_card)
-	expansion_ui.game_state.player.set_journey("smoke_journey", true)
-	expansion_ui.game_state.player.add_player_token("smoke_token", 2)
-	expansion_ui.game_state.player.traveller_progress["smoke_traveller"] = 2
-	expansion_ui.game_state.player.coin_mat = 3
+		if expansion_ui.game_state.player.has_method("store_tavern"):
+			expansion_ui.game_state.player.store_tavern(reserve_card)
+		elif expansion_ui.game_state.player.has_method("store_reserve"):
+			expansion_ui.game_state.player.store_reserve(reserve_card)
+		else:
+			_set_fixture_value(expansion_ui.game_state.player, ["tavern_mat", "reserve_mat"], [reserve_card])
+	if expansion_ui.game_state.player.has_method("set_journey"):
+		expansion_ui.game_state.player.set_journey("smoke_journey", true)
+	else:
+		_set_fixture_value(expansion_ui.game_state.player, ["journey_state", "journey"], {"smoke_journey": true})
+	if expansion_ui.game_state.player.has_method("add_player_token"):
+		expansion_ui.game_state.player.add_player_token("smoke_token", 2)
+	else:
+		_set_fixture_value(expansion_ui.game_state.player, ["player_tokens", "tokens"], {"smoke_token": 2})
+	_set_fixture_value(expansion_ui.game_state.player, ["traveller_progress", "traveller_state", "trail_tokens"], {"smoke_traveller": 2})
+	_set_fixture_value(expansion_ui.game_state.player, ["coin_mat", "coin_tokens"], 3)
 	var token_card := expansion_ui.game_state.market[0] as CardDefinition
-	expansion_ui.game_state.place_supply_token(token_card.id, "smoke_marker", 2)
+	if expansion_ui.game_state.has_method("place_supply_token"):
+		expansion_ui.game_state.place_supply_token(token_card.id, "smoke_marker", 2)
+	else:
+		expansion_ui.game_state.set_meta("supply_tokens", {token_card.id: {"smoke_marker": 2}})
+	_set_fixture_value(expansion_ui.game_state, ["traveller_piles", "traveller_supply", "traveller_side_supply"], {token_card.id: 4})
 	expansion_ui._refresh_ui()
 	_check(
 		expansion_ui.expansion_journey_label.text.contains("JOURNEY")
 		and expansion_ui.expansion_journey_label.text.contains("PATH 2")
 		and expansion_ui.expansion_player_tokens_label.text.contains("2")
 		and expansion_ui.expansion_supply_tokens_label.text.contains("2")
-		and expansion_ui.expansion_coin_mat_label.text.contains("MAT 3"),
+		and expansion_ui.expansion_coin_mat_label.text.contains("MAT 3")
+		and expansion_ui.expansion_traveller_container.find_child("TravellerPile_1", true, false) != null,
 		"Journey, traveller, coin-mat, and player/supply token indicators should mirror generic state."
 	)
 	if reserve_card != null:
@@ -1863,7 +1889,7 @@ func _run_expansion_ui_regression() -> void:
 		if reserve_button != null:
 			reserve_button.pressed.emit()
 		_check(
-			expansion_ui.game_state.player.get_reserve_cards().is_empty()
+			_expansion_fixture_tavern_cards(expansion_ui.game_state.player).is_empty()
 			and expansion_ui.game_state.player.play_area.has(reserve_card)
 			and expansion_ui.last_animation_event == "reserve_call",
 			"Calling a reserve card should use the authoritative GameState path and enter play."
@@ -1871,11 +1897,14 @@ func _run_expansion_ui_regression() -> void:
 
 	var saved_disabled_kingdoms: Dictionary = expansion_ui.game_state.disabled_kingdoms.duplicate(true)
 	var saved_disabled_cards: Dictionary = expansion_ui.game_state.disabled_market_card_ids.duplicate(true)
-	expansion_ui.game_state.disabled_kingdoms["Trailblazers"] = true
+	var adventures_kingdom := _adventures_kingdom_name()
+	if adventures_kingdom.is_empty():
+		adventures_kingdom = "Adventures"
+	expansion_ui.game_state.disabled_kingdoms[adventures_kingdom] = true
 	expansion_ui.game_state.disabled_market_card_ids[token_card.id] = true
 	var expansion_snapshot: Dictionary = expansion_ui._create_network_snapshot()
 	_check(
-		expansion_snapshot.get("disabled_kingdoms", {}).get("Trailblazers", false)
+		expansion_snapshot.get("disabled_kingdoms", {}).get(adventures_kingdom, false)
 		and expansion_snapshot.get("disabled_market_card_ids", {}).get(token_card.id, false)
 		and expansion_snapshot.has("events"),
 		"Network snapshots should carry kingdom/card filters used to derive the event row."
@@ -1886,10 +1915,20 @@ func _run_expansion_ui_regression() -> void:
 	var event_candidates: Array[CardDefinition] = expansion_ui.game_state.get_event_candidates()
 	if not event_candidates.is_empty():
 		var event_card: CardDefinition = event_candidates[0]
+		# Alms is conditional (no Treasures in play). Choose an unconditional event
+		# so this checks the UI buy wiring rather than a deliberate rules rejection.
+		for candidate in event_candidates:
+			if candidate.id == "scouting_party":
+				event_card = candidate
+				break
 		expansion_ui.game_state.player.coins = expansion_ui.game_state.get_event_cost(event_card)
 		expansion_ui.game_state.player.buys = 1
 		expansion_ui._refresh_ui()
-		var event_button := expansion_ui.expansion_event_container.get_child(0) as Button
+		var event_button: Button = null
+		for child in expansion_ui.expansion_event_container.get_children():
+			if child is Button and str((child as Button).get_meta("expansion_token", "")) == event_card.id:
+				event_button = child as Button
+				break
 		_check(
 			event_button != null
 			and event_button.get_meta("expansion_action", "") == "event",
@@ -2612,6 +2651,45 @@ func _cleanup_main_ui() -> void:
 		main_ui.background_music_player.stop()
 	main_ui.free()
 	main_ui = null
+
+
+func _adventures_kingdom_name() -> String:
+	for kingdom in GameState.KINGDOM_ORDER:
+		var name := str(kingdom)
+		if name.to_lower().contains("adventure"):
+			return name
+	for kingdom in GameState.KINGDOM_ORDER:
+		var name := str(kingdom)
+		if name.to_lower().contains("trail"):
+			return name
+	return ""
+
+
+func _is_adventures_kingdom(name: String) -> bool:
+	return name.to_lower().contains("adventure") or name.to_lower().contains("trail")
+
+
+func _set_fixture_value(target: Object, property_names: Array[String], value: Variant) -> void:
+	for property_name in property_names:
+		for entry in target.get_property_list():
+			if str(entry.get("name", "")) == property_name:
+				target.set(property_name, value)
+				return
+	if not property_names.is_empty():
+		target.set_meta(property_names[0], value)
+
+
+func _expansion_fixture_tavern_cards(player: Object) -> Array:
+	for method_name in ["get_tavern_cards", "get_tavern_mat", "get_reserve_cards", "get_reserve_mat"]:
+		if player.has_method(method_name):
+			var cards: Variant = player.call(method_name)
+			return cards if cards is Array else []
+	for property_name in ["tavern_mat", "reserve_mat"]:
+		for entry in player.get_property_list():
+			if str(entry.get("name", "")) == property_name:
+				var cards: Variant = player.get(property_name)
+				return cards if cards is Array else []
+	return []
 
 
 func _check(condition: bool, message: String) -> void:

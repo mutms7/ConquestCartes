@@ -256,6 +256,11 @@ var home_lobby_status_label: Label
 var player_status_label: Label
 var expansion_panel: PanelContainer
 var expansion_reserve_container: HBoxContainer
+# Adventures calls the persistent reserve zone the Tavern mat.  Keep the
+# reserve-named property as a compatibility alias for older snapshots/tests,
+# while exposing the canonical Adventures-facing names to new callers.
+var expansion_tavern_container: HBoxContainer
+var expansion_traveller_container: HBoxContainer
 var expansion_journey_label: Label
 var expansion_player_tokens_label: Label
 var expansion_supply_tokens_label: Label
@@ -1511,14 +1516,12 @@ func _create_network_snapshot(recipient_player_index: int = -1) -> Dictionary:
 			"cooldown_duration": game_player.cooldown_duration,
 			"times_attacked": game_player.times_attacked,
 		}
-		# Expansion token fields are optional so older peers keep working while a
-		# Trailblazers-enabled table can still show each player's tally.
-		for token_key in ["tokens", "journey_tokens", "trail_tokens", "supply_tokens", "player_tokens", "journey_state", "traveller_progress", "coin_mat", "reserve_mat"]:
+		# Adventures fields are optional so older peers keep working while a table
+		# can still show each player's Tavern, Journey, token, and Traveller state.
+		for token_key in ["tokens", "journey_tokens", "trail_tokens", "supply_tokens", "player_supply_tokens", "pile_tokens", "player_tokens", "journey_state", "journey", "journey_face_up", "traveller_progress", "traveller_piles", "coin_mat", "reserve_mat", "tavern_mat", "deck_minus_card_token", "coin_minus_token", "minus_card_token", "minus_coin_token"]:
 			var token_value: Variant = _generic_state_value(game_player, token_key, null)
 			if token_value != null:
-				if token_key == "reserve_mat" and token_value is Array:
-					token_value = _card_ids_from_zone(token_value)
-				player_snapshot[token_key] = token_value
+				player_snapshot[token_key] = _serialize_expansion_value(token_value)
 		player_snapshots.append(player_snapshot)
 	return {
 		"players": player_snapshots,
@@ -1535,10 +1538,18 @@ func _create_network_snapshot(recipient_player_index: int = -1) -> Dictionary:
 		"market": _card_ids_from_zone(game_state.market),
 		"supply": game_state.supply_piles.duplicate(true),
 		"event_purchases": game_state.event_purchases.duplicate(true),
-		"reserve_mat": _expansion_snapshot_card_ids(_expansion_records("reserve_mat", ["get_reserve_mat", "get_reserve_cards"])),
-		"journey_face_up": _expansion_value("journey_face_up", ["get_journey_face_up", "get_journey_state"]),
-		"supply_tokens": _expansion_value("supply_tokens", ["get_supply_tokens"]),
-		"events": _expansion_snapshot_card_ids(_expansion_records("events", ["get_event_row", "get_events", "get_event_candidates"])),
+		"event_total_purchases": _generic_state_value(game_state, "event_total_purchases", {}).duplicate(true),
+		"reserve_mat": _expansion_snapshot_records(_expansion_alias_records(["reserve_mat", "tavern_mat", "tavern_cards"], ["get_reserve_mat", "get_reserve_cards", "get_tavern_mat", "get_tavern_cards"])),
+		"tavern_mat": _expansion_snapshot_records(_expansion_alias_records(["tavern_mat", "reserve_mat", "tavern_cards"], ["get_tavern_mat", "get_tavern_cards", "get_reserve_mat", "get_reserve_cards"])),
+		"journey_face_up": _serialize_expansion_value(_expansion_alias_value(["journey_face_up", "journey", "journey_state"], ["get_journey_face_up", "get_journey_state", "get_journey"])),
+		"journey": _serialize_expansion_value(_expansion_alias_value(["journey", "journey_face_up", "journey_state"], ["get_journey", "get_journey_face_up", "get_journey_state"])),
+		"supply_tokens": _serialize_expansion_value(_expansion_alias_value(["supply_tokens", "player_supply_tokens", "pile_tokens", "supply_markers", "token_supply"], ["get_supply_tokens", "get_player_supply_tokens", "get_pile_tokens"])),
+		"player_supply_tokens": _serialize_expansion_value(_expansion_alias_value(["player_supply_tokens", "supply_tokens", "pile_tokens", "supply_markers", "token_supply"], ["get_player_supply_tokens", "get_supply_tokens", "get_pile_tokens"])),
+		"pile_tokens": _serialize_expansion_value(_expansion_alias_value(["pile_tokens", "player_supply_tokens", "supply_tokens", "supply_markers", "token_supply"], ["get_pile_tokens", "get_player_supply_tokens", "get_supply_tokens"])),
+		"events": _expansion_snapshot_records(_expansion_alias_records(["events", "event_row", "active_events"], ["get_event_row", "get_events", "get_event_candidates"])),
+		"event_catalog": _expansion_snapshot_records(_expansion_alias_records(["event_catalog", "events", "event_row", "active_events"], ["get_event_catalog", "get_events", "get_event_row", "get_event_candidates"])),
+		"traveller_piles": _serialize_expansion_value(_expansion_alias_value(["traveller_piles", "traveller_supply", "traveller_side_supply", "side_supply", "side_supplies"], ["get_traveller_piles", "get_traveller_supply", "get_side_supply"])),
+		"side_supply": _serialize_expansion_value(_expansion_alias_value(["side_supply", "side_supplies", "traveller_piles", "traveller_supply", "traveller_side_supply"], ["get_side_supply", "get_traveller_piles", "get_traveller_supply"])),
 		"turn": {
 			"turn_number": turn_manager.turn_number,
 			"game_over": turn_manager.game_over,
@@ -1785,11 +1796,11 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		synced_player.ending_turn = bool(player_data.get("ending_turn", false))
 		synced_player.cooldown_remaining = float(player_data.get("cooldown_remaining", 0.0))
 		synced_player.cooldown_duration = float(player_data.get("cooldown_duration", 0.0))
-		for token_key in ["tokens", "journey_tokens", "trail_tokens", "supply_tokens", "player_tokens", "journey_state", "traveller_progress", "coin_mat", "reserve_mat"]:
+		for token_key in ["tokens", "journey_tokens", "trail_tokens", "supply_tokens", "player_supply_tokens", "pile_tokens", "player_tokens", "journey_state", "journey", "journey_face_up", "traveller_progress", "traveller_piles", "coin_mat", "reserve_mat", "tavern_mat", "deck_minus_card_token", "coin_minus_token", "minus_card_token", "minus_coin_token"]:
 			if player_data.has(token_key) and _object_has_property(synced_player, token_key):
 				var token_value: Variant = player_data[token_key]
-				if token_key == "reserve_mat" and token_value is Array:
-					token_value = _cards_from_ids(token_value)
+				if token_key in ["reserve_mat", "tavern_mat"] and token_value is Array:
+					token_value = _cards_from_snapshot_value(token_value)
 				synced_player.set(token_key, token_value)
 		game_state.players.append(synced_player)
 	if game_state.players.is_empty():
@@ -1839,9 +1850,17 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		and _object_has_property(game_state, "event_purchases")
 	):
 		game_state.event_purchases = snapshot["event_purchases"].duplicate(true)
-	for expansion_key in ["reserve_mat", "journey_face_up", "supply_tokens", "events"]:
+	if (
+		typeof(snapshot.get("event_total_purchases", {})) == TYPE_DICTIONARY
+		and _object_has_property(game_state, "event_total_purchases")
+	):
+		game_state.event_total_purchases = snapshot["event_total_purchases"].duplicate(true)
+	for expansion_key in ["reserve_mat", "tavern_mat", "journey_face_up", "journey", "supply_tokens", "player_supply_tokens", "pile_tokens", "events", "event_catalog", "traveller_piles", "side_supply"]:
 		if snapshot.has(expansion_key) and _object_has_property(game_state, expansion_key):
-			game_state.set(expansion_key, snapshot[expansion_key])
+			var expansion_value: Variant = snapshot[expansion_key]
+			if expansion_key in ["reserve_mat", "tavern_mat"] and expansion_value is Array:
+				expansion_value = _cards_from_snapshot_value(expansion_value)
+			game_state.set(expansion_key, expansion_value)
 	game_state.pending_choice = game_state.player.pending_choice
 	game_state.player.pending_choice = game_state.pending_choice
 
@@ -1874,6 +1893,20 @@ func _cards_from_ids(card_ids: Array) -> Array[CardDefinition]:
 	var cards: Array[CardDefinition] = []
 	for card_id in card_ids:
 		var card: CardDefinition = game_state.card_catalog.get(str(card_id)) as CardDefinition
+		if card != null:
+			cards.append(card)
+	return cards
+
+
+func _cards_from_snapshot_value(raw_cards: Array) -> Array[CardDefinition]:
+	var cards: Array[CardDefinition] = []
+	for entry in raw_cards:
+		var card_id := ""
+		if entry is Dictionary:
+			card_id = str((entry as Dictionary).get("card_id", (entry as Dictionary).get("id", "")))
+		else:
+			card_id = str(entry)
+		var card: CardDefinition = game_state.card_catalog.get(card_id) as CardDefinition
 		if card != null:
 			cards.append(card)
 	return cards
@@ -2637,7 +2670,9 @@ func _create_expansion_panel() -> PanelContainer:
 	# The expansion surface intentionally lives in the existing right dock so it
 	# remains visible without changing the fixed market geometry.  All values are
 	# read through the generic accessors below; the base game simply shows empty
-	# placeholders until an expansion is enabled.
+	# placeholders until an expansion is enabled.  The visible surface is named
+	# for the authorized Adventures implementation; generic accessors below keep
+	# this panel compatible with older state snapshots.
 	var panel := PanelContainer.new()
 	panel.name = "ExpansionPanel"
 	panel.custom_minimum_size = Vector2(0, 72)
@@ -2660,7 +2695,7 @@ func _create_expansion_panel() -> PanelContainer:
 
 	var title := Label.new()
 	title.name = "Title"
-	title.text = "TRAILBLAZERS"
+	title.text = "ADVENTURES"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", COLOR_BRASS)
 	title.add_theme_font_size_override("font_size", 9)
@@ -2670,18 +2705,20 @@ func _create_expansion_panel() -> PanelContainer:
 
 	var reserve_title := Label.new()
 	reserve_title.name = "ReserveTitle"
-	reserve_title.text = "RESERVE / MAT"
+	reserve_title.text = "TAVERN MAT"
+	reserve_title.visible = false
 	reserve_title.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
 	reserve_title.add_theme_font_size_override("font_size", 8)
 	layout.add_child(reserve_title)
 	expansion_reserve_container = HBoxContainer.new()
 	expansion_reserve_container.name = "ReserveMat"
 	expansion_reserve_container.add_theme_constant_override("separation", 3)
-	expansion_reserve_container.custom_minimum_size = Vector2(0, 18)
+	expansion_reserve_container.custom_minimum_size = Vector2(0, 14)
 	layout.add_child(expansion_reserve_container)
+	expansion_tavern_container = expansion_reserve_container
 	expansion_coin_mat_label = Label.new()
 	expansion_coin_mat_label.name = "CoinMat"
-	expansion_coin_mat_label.text = "MAT 0"
+	expansion_coin_mat_label.text = "TAVERN MAT 0"
 	expansion_coin_mat_label.add_theme_color_override("font_color", COLOR_RESOURCE_ACCENT)
 	expansion_coin_mat_label.add_theme_font_size_override("font_size", 8)
 	expansion_reserve_container.add_child(expansion_coin_mat_label)
@@ -2724,14 +2761,28 @@ func _create_expansion_panel() -> PanelContainer:
 	var event_title := Label.new()
 	event_title.name = "EventTitle"
 	event_title.text = "EVENTS"
+	event_title.visible = false
 	event_title.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
 	event_title.add_theme_font_size_override("font_size", 8)
 	layout.add_child(event_title)
 	expansion_event_container = HBoxContainer.new()
 	expansion_event_container.name = "EventRow"
 	expansion_event_container.add_theme_constant_override("separation", 3)
-	expansion_event_container.custom_minimum_size = Vector2(0, 18)
+	expansion_event_container.custom_minimum_size = Vector2(0, 14)
 	layout.add_child(expansion_event_container)
+
+	var traveller_title := Label.new()
+	traveller_title.name = "TravellerTitle"
+	traveller_title.text = "TRAVELLER PILES"
+	traveller_title.visible = false
+	traveller_title.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
+	traveller_title.add_theme_font_size_override("font_size", 8)
+	layout.add_child(traveller_title)
+	expansion_traveller_container = HBoxContainer.new()
+	expansion_traveller_container.name = "TravellerPiles"
+	expansion_traveller_container.add_theme_constant_override("separation", 3)
+	expansion_traveller_container.custom_minimum_size = Vector2(0, 14)
+	layout.add_child(expansion_traveller_container)
 	return panel
 
 
@@ -7135,6 +7186,28 @@ func _generic_state_value(target: Object, property_name: String, fallback: Varia
 	return fallback
 
 
+func _generic_state_alias_value(target: Object, property_names: Array[String], fallback: Variant = null) -> Variant:
+	var first_value: Variant = null
+	for property_name in property_names:
+		var value: Variant = _generic_state_value(target, property_name, null)
+		if value != null:
+			if first_value == null:
+				first_value = value
+			if not _expansion_value_empty(value):
+				return value
+	return first_value if first_value != null else fallback
+
+
+func _expansion_value_empty(value: Variant) -> bool:
+	if value is Array:
+		return (value as Array).is_empty()
+	if value is Dictionary:
+		return (value as Dictionary).is_empty()
+	if value is String:
+		return str(value).is_empty()
+	return false
+
+
 func _generic_state_call(target: Object, method_names: Array[String], argument: Variant = null) -> Variant:
 	if target == null:
 		return null
@@ -7147,12 +7220,29 @@ func _generic_state_call(target: Object, method_names: Array[String], argument: 
 	return null
 
 
+func _generic_state_alias_call(target: Object, method_names: Array[String], argument: Variant = null) -> Variant:
+	for method_name in method_names:
+		var value: Variant = _generic_state_call(target, [method_name], argument)
+		if value != null:
+			return value
+	return null
+
+
 func _expansion_value(property_name: String, method_names: Array[String] = []) -> Variant:
 	var value: Variant = _generic_state_value(game_state, property_name, null)
 	if value != null:
 		return value
 	if not method_names.is_empty():
 		return _generic_state_call(game_state, method_names)
+	return null
+
+
+func _expansion_alias_value(property_names: Array[String], method_names: Array[String] = []) -> Variant:
+	var value: Variant = _generic_state_alias_value(game_state, property_names, null)
+	if value != null:
+		return value
+	if not method_names.is_empty():
+		return _generic_state_alias_call(game_state, method_names)
 	return null
 
 
@@ -7164,6 +7254,27 @@ func _expansion_records(property_name: String, method_names: Array[String] = [])
 		# Event rows are sometimes exposed as a keyed dictionary; preserving values
 		# makes the renderer independent of the core's storage shape.
 		return (value as Dictionary).values()
+	return []
+
+
+func _expansion_alias_records(property_names: Array[String], method_names: Array[String] = []) -> Array:
+	var value: Variant = _expansion_alias_value(property_names, method_names)
+	if value is Array:
+		return value
+	if value is Dictionary:
+		var records: Array = []
+		for key in (value as Dictionary).keys():
+			var entry: Variant = (value as Dictionary)[key]
+			if entry is Dictionary:
+				var record: Dictionary = (entry as Dictionary).duplicate(true)
+				if not record.has("card_id") and not record.has("id") and not record.has("card"):
+					record["card_id"] = str(key)
+				records.append(record)
+			elif entry is CardDefinition:
+				records.append({"card": entry, "card_id": str(key)})
+			else:
+				records.append({"card_id": str(key), "count": entry})
+		return records
 	return []
 
 
@@ -7182,6 +7293,36 @@ func _expansion_target_records(target: Object, property_name: String, method_nam
 		return value
 	if value is Dictionary:
 		return (value as Dictionary).values()
+	return []
+
+
+func _expansion_target_alias_value(target: Object, property_names: Array[String], method_names: Array[String] = []) -> Variant:
+	var value: Variant = _generic_state_alias_value(target, property_names, null)
+	if value != null:
+		return value
+	if not method_names.is_empty():
+		return _generic_state_alias_call(target, method_names)
+	return null
+
+
+func _expansion_target_alias_records(target: Object, property_names: Array[String], method_names: Array[String] = []) -> Array:
+	var value: Variant = _expansion_target_alias_value(target, property_names, method_names)
+	if value is Array:
+		return value
+	if value is Dictionary:
+		var records: Array = []
+		for key in (value as Dictionary).keys():
+			var entry: Variant = (value as Dictionary)[key]
+			if entry is Dictionary:
+				var record: Dictionary = (entry as Dictionary).duplicate(true)
+				if not record.has("card_id") and not record.has("id") and not record.has("card"):
+					record["card_id"] = str(key)
+				records.append(record)
+			elif entry is CardDefinition:
+				records.append({"card": entry, "card_id": str(key)})
+			else:
+				records.append({"card_id": str(key), "count": entry})
+		return records
 	return []
 
 
@@ -7238,6 +7379,29 @@ func _expansion_snapshot_card_ids(records: Array) -> Array[String]:
 	return ids
 
 
+func _serialize_expansion_value(value: Variant) -> Variant:
+	if value is CardDefinition:
+		return (value as CardDefinition).id
+	if value is Array:
+		var values: Array = []
+		for entry in value:
+			values.append(_serialize_expansion_value(entry))
+		return values
+	if value is Dictionary:
+		var result: Dictionary = {}
+		for key in (value as Dictionary).keys():
+			result[key] = _serialize_expansion_value((value as Dictionary)[key])
+		return result
+	return value
+
+
+func _expansion_snapshot_records(records: Array) -> Array:
+	var snapshot: Array = []
+	for record in records:
+		snapshot.append(_serialize_expansion_value(record))
+	return snapshot
+
+
 func _expansion_record_available(record: Variant, index: int) -> bool:
 	if record is Dictionary:
 		var data: Dictionary = record
@@ -7245,7 +7409,18 @@ func _expansion_record_available(record: Variant, index: int) -> bool:
 			return bool(data["available"])
 		if data.has("called"):
 			return not bool(data["called"])
+		if data.has("purchased"):
+			return not bool(data["purchased"])
+		if data.has("count") and (data["count"] is int or data["count"] is float):
+			return int(data["count"]) > 0
 	var token := _expansion_record_token(record, index)
+	var purchases: Variant = _generic_state_value(game_state, "event_purchases", {})
+	if purchases is Dictionary and bool((purchases as Dictionary).get(token, false)):
+		return false
+	var event_card := _expansion_card(record)
+	if event_card != null and game_state.has_method("get_event_purchase_count"):
+		if int(game_state.get_event_purchase_count(event_card)) > 0:
+			return false
 	var availability: Variant = _generic_state_call(
 		game_state,
 		["is_reserve_available", "is_mat_card_available", "can_call_reserve"],
@@ -7254,11 +7429,20 @@ func _expansion_record_available(record: Variant, index: int) -> bool:
 	return bool(availability) if availability != null else true
 
 
+func _expansion_record_count(record: Variant) -> String:
+	if record is Dictionary:
+		var data: Dictionary = record
+		for key in ["count", "remaining", "available_count", "pile_count", "supply_count"]:
+			if data.has(key):
+				return str(data[key])
+	return ""
+
+
 func _create_expansion_action_button(text: String, action_kind: String, record: Variant, index: int) -> Button:
 	var button := Button.new()
 	button.name = "%s_%d" % [action_kind.capitalize(), index + 1]
-	button.text = text
-	button.tooltip_text = "Call from reserve / mat" if action_kind == "reserve" else "Buy event"
+	button.text = ("EVENT  %s" % text) if action_kind == "event" else text
+	button.tooltip_text = "Call from the Tavern mat" if action_kind == "reserve" else "Buy event"
 	button.custom_minimum_size = Vector2(0, 18)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.clip_text = true
@@ -7280,26 +7464,57 @@ func _create_expansion_action_button(text: String, action_kind: String, record: 
 	return button
 
 
+func _create_traveller_pile_button(record: Variant, index: int) -> Button:
+	var card := _expansion_card(record)
+	var label := _expansion_record_label(record, "Traveller %d" % (index + 1))
+	var count := _expansion_record_count(record)
+	if not count.is_empty():
+		label = "%s  ×%s" % [label, count]
+	var button := Button.new()
+	button.name = "TravellerPile_%d" % (index + 1)
+	button.text = "TRAVELLER  %s" % label
+	button.tooltip_text = "Traveller pile (not a regular Supply pile)"
+	button.custom_minimum_size = Vector2(0, 18)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.clip_text = true
+	button.disabled = true
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_font_size_override("font_size", 8)
+	button.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
+	button.add_theme_stylebox_override(
+		"disabled",
+		_make_pill_style(Color(0.12, 0.08, 0.04, 0.9), COLOR_MENU_BORDER, 4)
+	)
+	button.set_meta("expansion_action", "traveller")
+	button.set_meta("traveller_pile", true)
+	button.set_meta("traveller_card_id", card.id if card != null else _expansion_record_token(record, index))
+	button.set_meta("pile_count", count)
+	return button
+
+
 func _refresh_expansion_ui() -> void:
 	if expansion_panel == null:
 		return
-	# Four-player tables already use the full-height turn tracker. Keep the
-	# expansion surface available for solo/duet tables where it can remain fully
-	# visible without pushing the hand band below the viewport.
-	if game_state.players.size() > 2:
-		expansion_panel.hide()
-		return
+	# Adventures state is useful at every table size.  The right dock can shrink
+	# the rows above this panel, so never silently hide the mat, token, event, or
+	# Traveller state just because more seats are occupied.
 	expansion_panel.show()
-	var reserve_records := _expansion_target_records(
+	var reserve_records := _expansion_target_alias_records(
 		game_state.player,
-		"reserve_mat",
-		["get_reserve_mat", "get_reserve_cards"]
+		["tavern_mat", "reserve_mat", "tavern_cards"],
+		["get_tavern_mat", "get_tavern_cards", "get_reserve_mat", "get_reserve_cards"]
 	)
 	_clear_container(expansion_reserve_container)
-	var coin_mat: Variant = _expansion_target_value(game_state.player, "coin_mat", [])
+	var coin_mat: Variant = _expansion_target_alias_value(
+		game_state.player,
+		["coin_mat", "coin_tokens", "coin_token_count"],
+		["get_coin_mat", "get_coin_tokens"]
+	)
+	if coin_mat == null:
+		coin_mat = 0
 	expansion_coin_mat_label = Label.new()
 	expansion_coin_mat_label.name = "CoinMat"
-	expansion_coin_mat_label.text = "MAT %s" % str(coin_mat)
+	expansion_coin_mat_label.text = "TAVERN MAT %s" % (_format_token_count(coin_mat) if coin_mat is Dictionary or coin_mat is Array else str(coin_mat))
 	expansion_coin_mat_label.add_theme_color_override("font_color", COLOR_RESOURCE_ACCENT)
 	expansion_coin_mat_label.add_theme_font_size_override("font_size", 8)
 	expansion_reserve_container.add_child(expansion_coin_mat_label)
@@ -7317,17 +7532,20 @@ func _refresh_expansion_ui() -> void:
 				)
 			)
 
-	var journey: Variant = _expansion_value("journey_face_up", ["get_journey_face_up", "get_journey_state"])
+	var journey: Variant = _expansion_alias_value(
+		["journey_face_up", "journey", "journey_state"],
+		["get_journey_face_up", "get_journey_state", "get_journey"]
+	)
 	if journey == null:
-		journey = _expansion_target_value(game_state.player, "journey_state", [])
-	var traveller_progress: Variant = _expansion_target_value(
+		journey = _expansion_target_alias_value(game_state.player, ["journey_face_up", "journey", "journey_state"], ["get_journey_face_up", "get_journey_state", "get_journey"])
+	var traveller_progress: Variant = _expansion_target_alias_value(
 		game_state.player,
-		"traveller_progress",
-		["get_traveller_progress"]
+		["traveller_progress", "traveller_state", "traveller_tokens", "trail_tokens"],
+		["get_traveller_progress", "get_traveller_state"]
 	)
 	var traveller_suffix := ""
 	if traveller_progress != null and _format_token_count(traveller_progress) != "0":
-		traveller_suffix = " · PATH %s" % _format_token_count(traveller_progress)
+		traveller_suffix = " · PATH %s · TRAVELLER %s" % [_format_token_count(traveller_progress), _format_token_count(traveller_progress)]
 	if journey is Array:
 		expansion_journey_label.text = "JOURNEY  %d face-up%s" % [(journey as Array).size(), traveller_suffix]
 	elif journey is Dictionary:
@@ -7348,18 +7566,30 @@ func _refresh_expansion_ui() -> void:
 		expansion_journey_label.text = "JOURNEY  %s%s" % [_expansion_record_label(journey), traveller_suffix]
 	expansion_journey_label.set_meta("journey_face_up", journey)
 
-	var player_tokens: Variant = _expansion_target_value(game_state.player, "player_tokens", [])
+	var player_tokens: Variant = _expansion_target_alias_value(
+		game_state.player,
+		["player_tokens", "tokens", "journey_tokens", "coin_tokens"],
+		["get_player_tokens", "get_tokens"]
+	)
 	if player_tokens == null:
-		player_tokens = _expansion_target_value(game_state.player, "tokens", ["get_player_tokens"])
-	var supply_tokens: Variant = _expansion_value("supply_tokens", ["get_supply_tokens"])
+		player_tokens = []
+	var supply_tokens: Variant = _expansion_alias_value(
+		["supply_tokens", "player_supply_tokens", "pile_tokens", "supply_markers", "token_supply"],
+		["get_supply_tokens", "get_player_supply_tokens", "get_pile_tokens"]
+	)
+	if supply_tokens == null:
+		supply_tokens = []
 	expansion_player_tokens_label.text = "YOU  %s" % _format_token_count(player_tokens)
 	expansion_supply_tokens_label.text = "SUPPLY  %s" % _format_token_count(supply_tokens)
 	expansion_player_tokens_label.set_meta("tokens", player_tokens)
 	expansion_supply_tokens_label.set_meta("tokens", supply_tokens)
 
-	var event_records := _expansion_records("events", ["get_event_row", "get_events", "get_event_candidates"])
+	var event_records := _expansion_alias_records(
+		["events", "event_row", "active_events"],
+		["get_event_row", "get_events", "get_event_candidates"]
+	)
 	if event_records.is_empty():
-		event_records = _expansion_records("event_row")
+		event_records = _expansion_alias_records(["event_catalog"], ["get_event_catalog"])
 	_clear_container(expansion_event_container)
 	if event_records.is_empty():
 		var empty_events := Label.new()
@@ -7375,6 +7605,28 @@ func _refresh_expansion_ui() -> void:
 				)
 			)
 
+	_clear_container(expansion_traveller_container)
+	var traveller_records := _expansion_alias_records(
+		["traveller_piles", "traveller_supply", "traveller_side_supply", "side_supply", "side_supplies"],
+		["get_traveller_piles", "get_traveller_supply", "get_side_supply"]
+	)
+	if traveller_records.is_empty():
+		var player_traveller_records := _expansion_target_alias_records(
+			game_state.player,
+			["traveller_piles", "traveller_supply", "traveller_side_supply"],
+			["get_traveller_piles", "get_traveller_supply"]
+		)
+		traveller_records = player_traveller_records
+	if traveller_records.is_empty():
+		var empty_travellers := Label.new()
+		empty_travellers.text = "—"
+		empty_travellers.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
+		empty_travellers.add_theme_font_size_override("font_size", 9)
+		expansion_traveller_container.add_child(empty_travellers)
+	else:
+		for index in range(traveller_records.size()):
+			expansion_traveller_container.add_child(_create_traveller_pile_button(traveller_records[index], index))
+
 
 func _format_token_count(value: Variant) -> String:
 	if value == null:
@@ -7386,6 +7638,12 @@ func _format_token_count(value: Variant) -> String:
 				total += int(_format_token_count(amount))
 			elif amount is int or amount is float:
 				total += int(amount)
+			elif amount is bool and bool(amount):
+				total += 1
+			elif amount is String and not str(amount).is_empty():
+				# Player-owned pile tokens map token ids to card ids; each mapping
+				# represents one token even though its value is not numeric.
+				total += 1
 		return str(total)
 	if value is Array:
 		return str((value as Array).size())
@@ -7396,7 +7654,13 @@ func _call_authoritative_reserve(card: CardDefinition) -> bool:
 	# PlayerState.call_reserve only removes a card from the mat.  The GameState
 	# entry point is the authoritative route because it also puts the called card
 	# into play and queues/resolves its call effects.
-	return card != null and game_state.call_reserve_card(card)
+	if card == null:
+		return false
+	if game_state.has_method("call_tavern_card"):
+		return bool(game_state.call_tavern_card(card))
+	if game_state.has_method("call_reserve_card"):
+		return bool(game_state.call_reserve_card(card))
+	return false
 
 
 func _on_expansion_reserve_pressed(record: Variant, index: int) -> void:

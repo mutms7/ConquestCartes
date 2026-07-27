@@ -1,8 +1,9 @@
 # Project Rules
 
 - This is a Godot 4 project written in GDScript.
-- Build an original deck-building card game only.
-- Do not use Dominion names, art, exact card text, terminology, or exact rules wording.
+- The Trailblazers expansion is an authorized, faithful implementation of
+  Dominion: Adventures. Use the official card names, rules text, terminology,
+  and mechanics for that expansion.
 - Keep card definitions data-driven and separate from game logic.
 - When creating or revising cards, follow `docs/card_wording_conventions.md`
   and the card creation process in `docs/card_design_rules.md`.

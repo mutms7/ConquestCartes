@@ -30,6 +30,10 @@ var reserve: bool = false
 var traveller: bool = false
 var traveller_upgrade_id: String = ""
 var journey: bool = false
+var duration: bool = false
+var supply_card: bool = true
+var traveller_stage: int = 0
+var traveller_path: String = ""
 var tags: Array[String] = []
 # Preserve extension fields so clients/tests can inspect an unfamiliar card
 # definition without requiring a rules-code change for every cosmetic field.
@@ -41,7 +45,9 @@ static func from_dict(data: Dictionary) -> CardDefinition:
 	var card := CardDefinition.new()
 	card.id = str(data.get("id", ""))
 	card.card_name = str(data.get("name", "Unnamed Card"))
-	card.card_type = str(data.get("type", ""))
+	card.card_type = str(data.get("type", data.get("card_type", ""))).to_lower()
+	if card.card_type == "treasure":
+		card.card_type = "resource"
 	card.card_group = str(data.get("group", ""))
 	card.art_id = str(data.get("art_id", card.id))
 	card.cost = int(data.get("cost", 0))
@@ -58,13 +64,25 @@ static func from_dict(data: Dictionary) -> CardDefinition:
 	card.gain_coins = int(data.get("gain_coins", 0))
 	card.market_enabled = bool(data.get("market_enabled", true))
 	card.multiplayer_only = bool(data.get("multiplayer_only", false))
-	card.event_enabled = bool(data.get("event_enabled", data.get("is_event", false)))
+	card.event_enabled = bool(data.get("event_enabled", data.get("is_event", data.get("event", false))))
 	card.event_cost = int(data.get("event_cost", -1))
 	card.event_group = str(data.get("event_group", ""))
-	card.reserve = bool(data.get("reserve", data.get("is_reserve", false)))
-	card.traveller = bool(data.get("traveller", data.get("is_traveller", false)))
-	card.traveller_upgrade_id = str(data.get("traveller_upgrade_id", data.get("upgrade_to", "")))
-	card.journey = bool(data.get("journey", data.get("is_journey", false)))
+	card.reserve = bool(data.get("reserve", data.get("is_reserve", data.get("tavern", false))))
+	card.traveller = bool(data.get("traveller", data.get("is_traveller", data.get("is_traveller_card", false))))
+	card.traveller_upgrade_id = str(data.get("traveller_upgrade_id", data.get("upgrade_to", data.get("exchange_for", ""))))
+	card.journey = bool(data.get("journey", data.get("is_journey", data.get("journey_card", false))))
+	card.duration = bool(data.get("duration", data.get("is_duration", false)))
+	var declared_supply = data.get("supply", data.get("supply_card", null))
+	if declared_supply == null:
+		var non_supply_marker := bool(data.get("non_supply", false)) or bool(data.get("support_pile", false))
+		var raw_tags = data.get("tags", [])
+		if typeof(raw_tags) == TYPE_ARRAY:
+			non_supply_marker = non_supply_marker or raw_tags.has("non_supply")
+		card.supply_card = not non_supply_marker
+	else:
+		card.supply_card = bool(declared_supply)
+	card.traveller_stage = int(data.get("traveller_stage", data.get("stage", 0)))
+	card.traveller_path = str(data.get("traveller_path", data.get("path", "")))
 	var tags_data = data.get("tags", [])
 	if typeof(tags_data) == TYPE_ARRAY:
 		for tag in tags_data:
@@ -77,11 +95,31 @@ static func from_dict(data: Dictionary) -> CardDefinition:
 		for effect in effects_data:
 			if typeof(effect) == TYPE_DICTIONARY:
 				card.special_effects.append(effect.duplicate(true))
+	var effect_sources := [
+		{"value": data.get("on_play", []), "trigger": "play"},
+		{"value": data.get("duration_effects", []), "trigger": "next_turn"},
+		{"value": data.get("future_effects", []), "trigger": "next_turn"},
+		{"value": data.get("call_effects", []), "trigger": "call"},
+		{"value": data.get("on_gain", []), "trigger": "gain"},
+	]
+	for source in effect_sources:
+		var source_value = source["value"]
+		if typeof(source_value) == TYPE_DICTIONARY:
+			source_value = [source_value]
+		if typeof(source_value) != TYPE_ARRAY:
+			continue
+		for effect in source_value:
+			if typeof(effect) != TYPE_DICTIONARY:
+				continue
+			var normalized: Dictionary = effect.duplicate(true)
+			if not normalized.has("trigger"):
+				normalized["trigger"] = source["trigger"]
+			card.special_effects.append(normalized)
 	return card
 
 
 func is_playable() -> bool:
-	return card_type == "resource" or card_type == "action"
+	return card_type == "resource" or card_type == "action" or card_type == "treasure"
 
 
 func is_event_card() -> bool:
@@ -90,6 +128,23 @@ func is_event_card() -> bool:
 
 func is_reserve_card() -> bool:
 	return reserve or tags.has("reserve")
+
+
+func is_duration_card() -> bool:
+	if duration or tags.has("duration"):
+		return true
+	for effect in special_effects:
+		if str(effect.get("trigger", "")) in ["next_turn", "future", "duration", "start_turn"]:
+			return true
+	return false
+
+
+func is_traveller_card() -> bool:
+	return traveller or traveller_stage > 0 or not traveller_upgrade_id.is_empty() or tags.has("traveller")
+
+
+func is_supply_card() -> bool:
+	return supply_card
 
 
 func has_tag(tag: String) -> bool:

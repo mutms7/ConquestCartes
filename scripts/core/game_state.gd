@@ -28,6 +28,7 @@ const HINTERLANDS_GROUP := "Hinterlands"
 const WITCHING_HOUR_GROUP := "Witching Hour"
 const CROWNWEALTH_GROUP := "Crownwealth"
 const TRAILBLAZERS_GROUP := "Trailblazers"
+const ADVENTURES_GROUP := "Adventures"
 const KINGDOM_ORDER := [
 	BASE_KINGDOM,
 	BEGINNER_KINGDOM,
@@ -35,6 +36,7 @@ const KINGDOM_ORDER := [
 	WITCHING_HOUR_GROUP,
 	CROWNWEALTH_GROUP,
 	TRAILBLAZERS_GROUP,
+	ADVENTURES_GROUP,
 ]
 const REQUIRED_CARD_IDS := [
 	"pebble_coin",
@@ -81,6 +83,7 @@ const SOLO_TURN_LIMIT := 21
 var player := PlayerState.new()
 var players: Array[PlayerState] = []
 var active_player_index: int = 0
+var previous_turn_player_index: int = -1
 var multiplayer_enabled: bool = false
 var card_catalog: Dictionary = {}
 var market: Array[CardDefinition] = []
@@ -88,11 +91,20 @@ var market: Array[CardDefinition] = []
 # player's deck; buying one resolves its effects immediately.
 var event_catalog: Array[CardDefinition] = []
 var event_purchases: Dictionary = {}
+var event_total_purchases: Dictionary = {}
 var supply_piles: Dictionary = {}
 # Shared pile-token counts: {card_id: {token_id: count}}.  Tokens remain on a
 # pile until an effect explicitly removes them (or a gain consumes a one-shot
 # token), so this stays deterministic across network snapshots.
 var supply_tokens: Dictionary = {}
+# Adventures pile tokens belong to a player.  `supply_tokens` remains a
+# shared/count-shaped compatibility view; this map is authoritative for the
+# four +1 tokens, -cost, and trash token when resolving a player's turn.
+var player_supply_tokens: Array[Dictionary] = []
+# Traveller training piles are finite but are not Supply piles and therefore do
+# not count toward game end.  They are initialized from card metadata rather
+# than card ids so renamed Adventures data works unchanged.
+var traveller_piles: Dictionary = {}
 var turn_flags: Dictionary = {}
 var pending_choice: CardChoice
 var resolution_queue: Array[Dictionary] = []
@@ -140,11 +152,18 @@ func setup_starting_game(player_count: int = 1) -> bool:
 	_create_players(maxi(1, player_count))
 	turn_flags.clear()
 	event_purchases.clear()
+	event_total_purchases.clear()
 	supply_tokens.clear()
+	player_supply_tokens.clear()
+	player_supply_tokens.resize(players.size())
+	for token_index in range(player_supply_tokens.size()):
+		player_supply_tokens[token_index] = {}
+	traveller_piles.clear()
 	resolution_queue.clear()
 	pending_choice = null
 	cleanup_in_progress = false
 	active_player_index = 0
+	previous_turn_player_index = -1
 	_set_active_player(0, false)
 	print("[Game] Game start")
 
@@ -173,6 +192,9 @@ func _create_players(player_count: int) -> void:
 		players.append(game_player)
 	multiplayer_enabled = player_count > 1
 	player = players[0]
+	player_supply_tokens.resize(players.size())
+	for index in range(player_supply_tokens.size()):
+		player_supply_tokens[index] = {}
 
 
 func set_active_player_index(player_index: int) -> void:
@@ -180,9 +202,14 @@ func set_active_player_index(player_index: int) -> void:
 
 
 func advance_active_player() -> void:
+	if player.mission_extra_turn_active:
+		# Mission's immediate extra turn keeps control with the same seat.  The
+		# no-buy marker was armed during reset_turn_resources before this call.
+		return
 	if players.size() <= 1:
 		_set_active_player(0, false)
 		return
+	previous_turn_player_index = active_player_index
 	_set_active_player((active_player_index + 1) % players.size(), true)
 
 
@@ -325,6 +352,18 @@ func get_journey_state() -> Dictionary:
 	return player.journey_state.duplicate(true)
 
 
+func is_journey_face_up() -> bool:
+	return player.is_journey_active("journey")
+
+
+func set_journey_face_up(face_up: bool) -> void:
+	player.set_journey("journey", face_up)
+
+
+func toggle_journey_token() -> bool:
+	return player.toggle_journey("journey")
+
+
 func get_supply_tokens() -> Dictionary:
 	return supply_tokens.duplicate(true)
 
@@ -344,16 +383,93 @@ func is_event_card(card: CardDefinition) -> bool:
 func get_event_cost(card: CardDefinition) -> int:
 	if card == null:
 		return 0
-	var reduction := int(turn_flags.get("cost_reduction", 0))
+	# Bridge Troll/Ferry-style card discounts never affect Events.  Only an
+	# explicit event discount (useful for custom sideways cards) is applied.
+	var reduction := int(turn_flags.get("event_cost_reduction", 0))
 	var typed_reductions: Dictionary = turn_flags.get("typed_cost_reductions", {})
 	reduction += int(typed_reductions.get("event", 0))
 	return maxi(0, card.get_event_cost() - reduction)
 
 
+func _event_purchase_restricted(card: CardDefinition) -> bool:
+	if card == null:
+		return true
+	var seat_key := "%d:%s" % [active_player_index, card.id]
+	var turn_count := int(event_purchases.get(seat_key, 0))
+	var total_count := int(event_total_purchases.get(seat_key, 0))
+	# Core Adventures wording predates explicit metadata in the card JSON.  Keep
+	# these canonical restrictions here so data-only imports remain faithful.
+	match card.id:
+		"alms":
+			if turn_count > 0:
+				return true
+			for in_play in player.play_area:
+				if card_has_type(in_play, "resource"):
+					return true
+		"borrow", "save", "pilgrimage":
+			if turn_count > 0:
+				return true
+		"mission":
+			# Mission is only available when the immediately preceding turn
+			# belonged to a different seat.  At game start there is no previous
+			# turn, so the sentinel must not count as a valid opponent turn.
+			if turn_count > 0 or (
+				players.size() > 1
+				and (previous_turn_player_index < 0 or previous_turn_player_index == active_player_index)
+			):
+				return true
+		"inheritance":
+			if total_count > 0:
+				return true
+	var metadata := card.metadata
+	var metadata_restriction = metadata.get("restriction", metadata.get("restrictions", {}))
+	if typeof(metadata_restriction) == TYPE_DICTIONARY:
+		if bool(metadata_restriction.get("once_per_turn", false)) and turn_count > 0:
+			return true
+		if bool(metadata_restriction.get("once_per_game", false)) and total_count > 0:
+			return true
+		if bool(metadata_restriction.get("requires_no_treasures", false)):
+			for in_play in player.play_area:
+				if card_has_type(in_play, "resource"):
+					return true
+	var purchase_limit := str(metadata.get("purchase_limit", metadata.get("limit", ""))).to_lower()
+	if (bool(metadata.get("once_per_turn", metadata.get("once_each_turn", false))) or purchase_limit in ["once_per_turn", "once_each_turn"]) and turn_count > 0:
+		return true
+	if (bool(metadata.get("once_per_game", metadata.get("once_each_game", false))) or purchase_limit in ["once_per_game", "once_each_game"]) and total_count > 0:
+		return true
+	if bool(metadata.get("requires_no_treasures", metadata.get("no_treasures", false))):
+		for in_play in player.play_area:
+			if card_has_type(in_play, "resource"):
+				return true
+	for effect in card.special_effects:
+		var restriction := str(effect.get("kind", effect.get("restriction", "")))
+		var condition := str(effect.get("condition", effect.get("requires", ""))).to_lower()
+		if bool(effect.get("once_per_turn", false)) and turn_count > 0:
+			return true
+		if bool(effect.get("once_per_game", false)) and total_count > 0:
+			return true
+		if restriction in ["event_restriction", "restriction", "buy_restriction"]:
+			if bool(effect.get("once_per_turn", false)) and turn_count > 0:
+				return true
+			if bool(effect.get("once_per_game", false)) and total_count > 0:
+				return true
+			if bool(effect.get("requires_no_treasures", effect.get("no_treasures", false))):
+				for in_play in player.play_area:
+					if card_has_type(in_play, "resource"):
+						return true
+			if condition in ["no_treasures", "no_treasure", "no_resources"]:
+				for in_play in player.play_area:
+					if card_has_type(in_play, "resource"):
+						return true
+			if bool(effect.get("requires_previous_player", false)) and players.size() <= 1:
+				return true
+	return false
+
+
 func buy_event(card: CardDefinition) -> bool:
 	if card == null or not is_event_card(card) or not get_event_candidates().has(card):
 		return false
-	if has_pending_choice() or player.buys <= 0:
+	if has_pending_choice() or player.buys <= 0 or bool(turn_flags.get("mission_no_buys", false)) or _event_purchase_restricted(card):
 		return false
 	var cost := get_event_cost(card)
 	if player.coins < cost:
@@ -362,6 +478,8 @@ func buy_event(card: CardDefinition) -> bool:
 	player.buys -= 1
 	var count_key := "%d:%s" % [active_player_index, card.id]
 	event_purchases[count_key] = int(event_purchases.get(count_key, 0)) + 1
+	event_total_purchases[count_key] = int(event_total_purchases.get(count_key, 0)) + 1
+	turn_flags["event_bought"] = true
 	# Events resolve their own effects but are never moved through a supply pile
 	# or registered as an in-play/duration card. Queue base outputs after their
 	# special effects so mandatory event choices can precede an event's draw.
@@ -432,6 +550,8 @@ func get_card_kingdom(card: CardDefinition) -> String:
 		return WITCHING_HOUR_GROUP
 	if card.card_group == CROWNWEALTH_GROUP:
 		return CROWNWEALTH_GROUP
+	if card.card_group == ADVENTURES_GROUP or card.event_group == ADVENTURES_GROUP:
+		return ADVENTURES_GROUP
 	if card.card_group == TRAILBLAZERS_GROUP or card.event_group == TRAILBLAZERS_GROUP:
 		return TRAILBLAZERS_GROUP
 	return BEGINNER_KINGDOM
@@ -468,6 +588,8 @@ func set_kingdom_enabled(kingdom: String, enabled: bool) -> void:
 		_set_crownwealth_side_supplies(enabled)
 	if kingdom == TRAILBLAZERS_GROUP and not supply_piles.is_empty():
 		_set_trailblazers_side_supplies(enabled)
+	if kingdom == ADVENTURES_GROUP and not supply_piles.is_empty():
+		_set_adventures_traveller_piles(enabled)
 
 
 func is_card_enabled_for_market(card_id: String) -> bool:
@@ -523,7 +645,104 @@ func set_supply_count(card_id: String, amount: int) -> void:
 
 func get_supply_token_count(card_id: String, token_id: String) -> int:
 	var pile_tokens: Dictionary = supply_tokens.get(card_id, {})
-	return int(pile_tokens.get(token_id, 0))
+	var shared_count := int(pile_tokens.get(token_id, 0))
+	if shared_count > 0:
+		return shared_count
+	# Adventures pile tokens are player-owned, but expose a count-shaped view for
+	# older callers that only ask whether a token is present on a pile.
+	var normalized := _normalize_pile_token_id(token_id)
+	for owner_map in player_supply_tokens:
+		if str(owner_map.get(normalized, "")) == card_id:
+			return 1
+	return 0
+
+
+func get_player_supply_token_card(player_index: int, token_id: String) -> String:
+	if player_index < 0 or player_index >= player_supply_tokens.size():
+		if player_index >= 0 and player_index < players.size():
+			return players[player_index].get_pile_token_card(_normalize_pile_token_id(token_id))
+		return ""
+	var normalized := _normalize_pile_token_id(token_id)
+	var owner_card := str(player_supply_tokens[player_index].get(normalized, ""))
+	if owner_card.is_empty() and player_index < players.size():
+		owner_card = players[player_index].get_pile_token_card(normalized)
+	return owner_card
+
+
+func get_active_player_supply_token_card(token_id: String) -> String:
+	return get_player_supply_token_card(active_player_index, token_id)
+
+
+func _normalize_pile_token_id(token_id: String) -> String:
+	var normalized := token_id.to_lower().strip_edges().replace("+1", "").replace("+", "").replace(" ", "_")
+	normalized = normalized.replace("-", "minus_")
+	if normalized in ["minus_cost", "cost_reduction", "minus_1_cost"]:
+		return "cost"
+	if normalized in ["trash_token", "trashing", "trash_card"]:
+		return "trash"
+	if normalized in ["action_token", "actions"]:
+		return "action"
+	if normalized in ["buy_token", "buys"]:
+		return "buy"
+	if normalized in ["card_token", "cards"]:
+		return "card"
+	if normalized in ["coin_token", "coins", "money"]:
+		return "coin"
+	return normalized
+
+
+func move_player_supply_token(player_index: int, token_id: String, card_id: String) -> bool:
+	if player_index < 0 or player_index >= player_supply_tokens.size():
+		return false
+	var normalized := _normalize_pile_token_id(token_id)
+	if normalized.is_empty():
+		return false
+	var owner_map: Dictionary = player_supply_tokens[player_index]
+	if card_id.is_empty():
+		owner_map.erase(normalized)
+	else:
+		owner_map[normalized] = card_id
+	player_supply_tokens[player_index] = owner_map
+	# Keep PlayerState's data-shaped view synchronized for network/UI adapters.
+	players[player_index].set_pile_token(normalized, card_id)
+	return true
+
+
+func move_active_player_supply_token(token_id: String, card_id: String) -> bool:
+	return move_player_supply_token(active_player_index, token_id, card_id)
+
+
+func place_player_supply_token(token_id: String, card_id: String, player_index: int = -1) -> bool:
+	return move_player_supply_token(active_player_index if player_index < 0 else player_index, token_id, card_id)
+
+
+func get_player_pile_token(token_id: String, player_index: int = -1) -> String:
+	return get_player_supply_token_card(active_player_index if player_index < 0 else player_index, token_id)
+
+
+func put_deck_minus_card_token(player_index: int = -1) -> bool:
+	var seat := active_player_index if player_index < 0 else player_index
+	if seat < 0 or seat >= players.size():
+		return false
+	return players[seat].put_deck_minus_card_token()
+
+
+func put_coin_minus_token(player_index: int = -1) -> bool:
+	var seat := active_player_index if player_index < 0 else player_index
+	if seat < 0 or seat >= players.size():
+		return false
+	return players[seat].put_coin_minus_token()
+
+
+func get_player_pile_tokens(player_index: int = -1) -> Dictionary:
+	var seat := active_player_index if player_index < 0 else player_index
+	if seat < 0 or seat >= player_supply_tokens.size():
+		return {}
+	return player_supply_tokens[seat].duplicate(true)
+
+
+func get_player_supply_tokens(player_index: int = -1) -> Dictionary:
+	return get_player_pile_tokens(player_index)
 
 
 func place_supply_token(card_id: String, token_id: String, amount: int = 1) -> int:
@@ -621,7 +840,15 @@ func get_non_buy_cost(card: CardDefinition) -> int:
 	# A cost token on a supply pile applies to gains and exact-cost checks as
 	# well as purchases.  It is persistent until a caller removes it.
 	if card != null:
-		reduction += get_supply_token_count(card.id, "cost")
+		var owner_cost_card := get_active_player_supply_token_card("cost")
+		if owner_cost_card == card.id:
+			# Ferry's token is the Adventures -2 coin cost token (the data uses
+			# amount 1 to mean one token, not one coin).
+			reduction += 2
+		else:
+			# Preserve the old count-shaped API for generic effects/tests that do
+			# not assign an owner to their token.
+			reduction += get_supply_token_count(card.id, "cost") * 2
 	return maxi(0, card.cost - reduction)
 
 
@@ -701,6 +928,20 @@ func _setup_random_market() -> bool:
 func _initialize_supply_piles() -> void:
 	supply_piles.clear()
 	supply_tokens.clear()
+	traveller_piles.clear()
+	for catalog_card in card_catalog.values():
+		var training_card := catalog_card as CardDefinition
+		if training_card == null or (
+				not training_card.is_traveller_card()
+				and not bool(training_card.metadata.get("support_pile", false))
+				and not bool(training_card.metadata.get("non_supply", false))
+			):
+			continue
+		# Page/Peasant are Supply cards; their training stages are not.  Data may
+		# state this explicitly, or infer it from a stage greater than zero.
+		if training_card.is_supply_card() and training_card.traveller_stage <= 0:
+			continue
+		traveller_piles[training_card.id] = _traveller_pile_size(training_card)
 	for card in market:
 		match card.card_type:
 			"victory":
@@ -715,6 +956,46 @@ func _initialize_supply_piles() -> void:
 		supply_piles[CURSE_CARD_ID] = scale_supply_count(CURSE_SUPPLY_COUNT)
 	_set_crownwealth_side_supplies(is_kingdom_enabled(CROWNWEALTH_GROUP))
 	_set_trailblazers_side_supplies(is_kingdom_enabled(TRAILBLAZERS_GROUP))
+	_set_adventures_traveller_piles(is_kingdom_enabled(ADVENTURES_GROUP))
+
+
+func _traveller_pile_size(card: CardDefinition) -> int:
+	# Adventures uses five copies of each non-Supply Traveller.  Allow data to
+	# override this for compatible expansions without making the rules depend on
+	# an id or a group name.
+	if card == null:
+		return 0
+	var declared := int(card.metadata.get("pile_size", card.metadata.get("supply_count", 5)))
+	return maxi(0, declared)
+
+
+func get_traveller_supply_count(card_id: String) -> int:
+	return int(traveller_piles.get(card_id, 0))
+
+
+func _set_adventures_traveller_piles(enabled: bool) -> void:
+	if enabled:
+		for catalog_card in card_catalog.values():
+			var traveller := catalog_card as CardDefinition
+			if traveller == null or (
+				not traveller.is_traveller_card()
+				and not bool(traveller.metadata.get("support_pile", false))
+				and not bool(traveller.metadata.get("non_supply", false))
+			):
+				continue
+			if traveller.is_supply_card() and traveller.traveller_stage <= 0:
+				continue
+			if not traveller_piles.has(traveller.id):
+				traveller_piles[traveller.id] = _traveller_pile_size(traveller)
+		return
+	for catalog_card in card_catalog.values():
+		var traveller := catalog_card as CardDefinition
+		if traveller != null and (
+				traveller.is_traveller_card()
+				or bool(traveller.metadata.get("support_pile", false))
+				or bool(traveller.metadata.get("non_supply", false))
+			) and (not traveller.is_supply_card() or traveller.traveller_stage > 0):
+			traveller_piles.erase(traveller.id)
 
 
 func _set_crownwealth_side_supplies(enabled: bool) -> void:
@@ -772,8 +1053,28 @@ func _is_catalog_card_before(first: CardDefinition, second: CardDefinition) -> b
 
 
 func reset_turn_resources(resolve_durations: bool = true, arm_start_reactions: bool = true) -> void:
+	var finishing_mission_extra := player.mission_extra_turn_active
+	var starting_mission_extra := player.mission_extra_turn_pending
+	var initializing_mission_extra := player.mission_extra_turn_start_pending
 	player.reset_turn_resources()
 	turn_flags.clear()
+	if finishing_mission_extra:
+		# In turn-based multiplayer, cleanup first resets the Mission buyer and
+		# then the seat-pass path resets that same player a second time. Preserve
+		# the no-buy marker across that initialization reset; the next cleanup
+		# (with no transient marker) ends the extra turn normally.
+		if initializing_mission_extra and resolve_durations and arm_start_reactions:
+			player.mission_extra_turn_start_pending = false
+			player.mission_extra_turn_active = true
+			turn_flags["mission_no_buys"] = true
+		else:
+			player.mission_extra_turn_start_pending = false
+			player.mission_extra_turn_active = false
+	elif starting_mission_extra:
+		player.mission_extra_turn_pending = false
+		player.mission_extra_turn_active = true
+		player.mission_extra_turn_start_pending = turn_based_enabled and players.size() > 1
+		turn_flags["mission_no_buys"] = true
 	# Event purchases are tracked per seat/turn for analytics and future event
 	# restrictions; the event row itself remains available every turn.
 	for key in event_purchases.keys():
@@ -792,7 +1093,7 @@ func reset_turn_resources(resolve_durations: bool = true, arm_start_reactions: b
 
 func apply_turn_start_relics(target: PlayerState) -> void:
 	if target.relics.has("gilded_purse"):
-		target.coins += 1
+		target.add_coins(1)
 	if target.relics.has("marching_orders") or target.relics.has("sunflower_metronome"):
 		target.actions += 1
 	if target.relics.has("market_writ"):
@@ -1039,7 +1340,7 @@ func check_idle_relics() -> void:
 	if victory_count <= 0:
 		return
 	turn_flags["victory_levy_used"] = true
-	player.coins += victory_count
+	player.add_coins(victory_count)
 	print(
 		"[Game] Victory Levy grants %s %d coins"
 		% [player.player_name, victory_count]
@@ -1047,8 +1348,14 @@ func check_idle_relics() -> void:
 
 
 func draw_cards(amount: int) -> int:
+	var requested_amount := maxi(0, amount)
+	if requested_amount > 0 and player.deck_minus_card_token:
+		# The large -1 Card token modifies one draw instruction, not reveals or
+		# draw-to-size loops that make repeated zero-card requests.
+		requested_amount = maxi(0, requested_amount - 1)
+		player.deck_minus_card_token = false
 	var drawn_count := 0
-	for _draw_index in range(amount):
+	for _draw_index in range(requested_amount):
 		if _maybe_request_shuffle_predraw(amount - drawn_count):
 			# Seeker's Compass paused the draw with a choice; the resolver
 			# draws the remaining cards once the player has picked.
@@ -1153,7 +1460,7 @@ func has_playable_action() -> bool:
 	if player.actions <= 0:
 		return false
 	for card in player.hand:
-		if card.card_type == "action":
+		if card.card_type == "action" or _is_inherited_estate(card):
 			return true
 	return false
 
@@ -1163,10 +1470,10 @@ func can_play_in_current_phase(card: CardDefinition) -> bool:
 	# such as Throne Room / Tiara go through _play_card_internal and bypass this.
 	if card == null:
 		return false
-	if card.card_type == "action":
+	if card.card_type == "action" or _is_inherited_estate(card):
 		return is_action_phase()
 	if card_has_type(card, "resource"):
-		return is_buy_phase()
+		return is_buy_phase() and not bool(turn_flags.get("event_bought", false))
 	return false
 
 
@@ -1201,17 +1508,24 @@ func play_card(card: CardDefinition) -> bool:
 	return _play_card_internal(card, true, 1)
 
 
+func _is_inherited_estate(card: CardDefinition) -> bool:
+	return card != null and card.id == "homestead" and not player.inheritance_card_id.is_empty() and card_catalog.has(player.inheritance_card_id)
+
+
 func _play_card_internal(
 	card: CardDefinition,
 	spend_action: bool,
 	repetitions: int
 ) -> bool:
-	if card == null or not is_card_playable(card) or has_pending_choice():
+	if card == null or (not is_card_playable(card) and not _is_inherited_estate(card)) or has_pending_choice():
+		return false
+	if spend_action and card_has_type(card, "resource") and bool(turn_flags.get("event_bought", false)):
+		# Buying an Event ends Treasure plays for the rest of that Buy phase.
 		return false
 	var hand_index := player.hand.find(card)
 	if hand_index == -1:
 		return false
-	if card.card_type == "action" and spend_action:
+	if (card.card_type == "action" or _is_inherited_estate(card)) and spend_action:
 		if player.actions <= 0:
 			return false
 		player.actions -= 1
@@ -1221,7 +1535,17 @@ func _play_card_internal(
 	player.hand.remove_at(hand_index)
 	player.play_area.append(card)
 	player.register_play_display(card, total_repetitions)
-	_prepend_card_resolutions(card, total_repetitions)
+	# Reserve/Tavern cards leave the play area immediately after being played.
+	# Older data encoded this as a reserve_store special effect; canonical
+	# Adventures data also marks Coin of the Realm and Distant Lands via the
+	# reserve flag alone, so support both shapes.
+	if card.is_reserve_card():
+		player.play_area.erase(card)
+		player.store_reserve(card)
+	if _is_inherited_estate(card):
+		_prepend_card_resolutions(card_catalog[player.inheritance_card_id], total_repetitions)
+	else:
+		_prepend_card_resolutions(card, total_repetitions)
 	_process_resolution_queue()
 	check_idle_relics()
 	print("[Game] Play card: %s" % card.card_name)
@@ -1235,7 +1559,7 @@ func _prepend_card_resolutions(card: CardDefinition, repetitions: int) -> void:
 	for _repeat_index in range(repetitions):
 		sequence.append({"kind": "card_base", "card": card})
 		for effect in card.special_effects:
-			if str(effect.get("trigger", "play")) != "play":
+			if str(effect.get("trigger", "play")) not in ["play", "attack"]:
 				continue
 			sequence.append({
 				"kind": "special",
@@ -1277,7 +1601,8 @@ func _register_duration_effects(card: CardDefinition, repetitions: int) -> void:
 	# and queues one payload per repetition (a replayed duration pays out twice).
 	var payloads: Array[Dictionary] = []
 	for effect in card.special_effects:
-		if str(effect.get("trigger", "play")) == "next_turn":
+		var effect_trigger := str(effect.get("trigger", "play"))
+		if effect_trigger in ["next_turn", "future", "duration"] or bool(effect.get("duration", false)):
 			payloads.append(effect)
 			if str(effect.get("kind", "")) == "attack_immunity":
 				# The guard begins as soon as the duration is played, then its
@@ -1306,6 +1631,11 @@ func _prepend_triggered_effects(
 			continue
 		if str(effect.get("trigger_scope", "self")) == "in_play":
 			continue
+		if bool(effect.get("once", false)) and trigger == "gain":
+			var once_key := "_gain_once_chain:%s:%s" % [card.id, str(context.get("card_id", ""))]
+			if bool(turn_flags.get(once_key, false)):
+				continue
+			turn_flags[once_key] = true
 		var runtime_effect := effect.duplicate(true)
 		for key in context:
 			runtime_effect["_event_%s" % key] = context[key]
@@ -1418,11 +1748,20 @@ func _process_resolution_queue() -> void:
 					)
 			"start_turn_reactions":
 				_play_start_turn_reactions()
+	if resolution_queue.is_empty() and not has_pending_choice():
+		for key in turn_flags.keys().duplicate():
+			if str(key).begins_with("_gain_once_chain:"):
+				turn_flags.erase(key)
 
 
 func _apply_card_base(card: CardDefinition) -> void:
-	player.coins += _card_coin_value(card) + card.gain_coins
+	_apply_pile_token_bonus(card)
+	player.add_coins(_card_coin_value(card) + card.gain_coins)
 	player.actions += card.gain_actions
+	if card.card_type == "action":
+		for permanent in player.play_area:
+			if permanent.id == "champion":
+				player.actions += 1
 	player.buys += card.gain_buys
 	if card.draw_cards > 0:
 		draw_cards(card.draw_cards)
@@ -1433,11 +1772,28 @@ func _apply_card_base(card: CardDefinition) -> void:
 func _apply_event_base(card: CardDefinition) -> void:
 	if card == null:
 		return
-	player.coins += card.coin_value + card.gain_coins
+	player.add_coins(card.coin_value + card.gain_coins)
 	player.actions += card.gain_actions
 	player.buys += card.gain_buys
 	if card.draw_cards > 0:
 		draw_cards(card.draw_cards)
+
+
+func _apply_pile_token_bonus(card: CardDefinition) -> void:
+	if card == null:
+		return
+	for token_id in ["action", "buy", "card", "coin"]:
+		if get_active_player_supply_token_card(token_id) != card.id:
+			continue
+		match token_id:
+			"action":
+				player.actions += 1
+			"buy":
+				player.buys += 1
+			"card":
+				draw_cards(1)
+			"coin":
+				player.add_coins(1)
 
 
 func _apply_resource_bonus(card: CardDefinition) -> void:
@@ -1446,7 +1802,7 @@ func _apply_resource_bonus(card: CardDefinition) -> void:
 	var bonus: Dictionary = turn_flags["resource_bonus"]
 	if bool(bonus.get("used", false)) or str(bonus.get("card_id", "")) != card.id:
 		return
-	player.coins += int(bonus.get("amount", 0))
+	player.add_coins(int(bonus.get("amount", 0)))
 	bonus["used"] = true
 	turn_flags["resource_bonus"] = bonus
 
@@ -1517,6 +1873,14 @@ func call_reserve_card_by_id(card_id: String) -> bool:
 	return false
 
 
+func call_tavern_card(card: CardDefinition) -> bool:
+	return call_reserve_card(card)
+
+
+func call_tavern_card_by_id(card_id: String) -> bool:
+	return call_reserve_card_by_id(card_id)
+
+
 func _prepend_called_card_resolutions(card: CardDefinition) -> void:
 	if card == null:
 		return
@@ -1527,11 +1891,23 @@ func _prepend_called_card_resolutions(card: CardDefinition) -> void:
 		if trigger == "call":
 			has_explicit_call = true
 			call_effects.append(effect)
+	# Coin of the Realm's call ability is printed as reserve text in the
+	# canonical data (without a separate special_effect record).
+	if card.id == "coin_of_the_realm" and not has_explicit_call:
+		call_effects.append({"kind": "gain_actions", "amount": 2, "trigger": "call"})
 	if not has_explicit_call:
 		for effect in card.special_effects:
-			if str(effect.get("trigger", "play")) == "play":
+			if (
+				str(effect.get("trigger", "play")) == "play"
+				and str(effect.get("kind", "")) not in ["reserve_store", "reserve_duplicate_gain", "distant_lands_score"]
+			):
 				call_effects.append(effect)
-	var sequence: Array[Dictionary] = [{"kind": "card_base", "card": card}]
+	# Calling a Reserve card only resolves the text below its dividing line;
+	# bonuses printed above it happened when the card was first played.  Legacy
+	# data may opt into replaying the base with `call_replay_base`.
+	var sequence: Array[Dictionary] = []
+	if bool(card.metadata.get("call_replay_base", false)):
+		sequence.append({"kind": "card_base", "card": card})
 	for effect in call_effects:
 		sequence.append({
 			"kind": "special",
@@ -1544,6 +1920,32 @@ func _prepend_called_card_resolutions(card: CardDefinition) -> void:
 
 func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) -> void:
 	var kind := str(effect.get("kind", ""))
+	# Compact Adventures data often describes a future payload by its fields
+	# instead of a bespoke kind.  Normalize those records before dispatch while
+	# retaining the original effect for callers that inspect it.
+	if kind.is_empty():
+		if effect.has("draw_cards") or effect.has("gain_actions") or effect.has("gain_buys") or effect.has("gain_coins"):
+			kind = "turn_start_bonus" if bool(effect.get("_duration_resolving", false)) or str(effect.get("trigger", "")) in ["next_turn", "future", "duration"] else "card_base"
+		elif effect.has("draw"):
+			kind = "draw"
+	if kind in ["draw", "draw_cards"]:
+		draw_cards(int(effect.get("amount", effect.get("draw", effect.get("draw_cards", 0)))))
+		return
+	if kind in ["gain_coins", "coins"]:
+		player.add_coins(int(effect.get("amount", effect.get("coins", 0))))
+		return
+	if kind in ["gain_actions", "actions"]:
+		player.actions += int(effect.get("amount", effect.get("actions", 0)))
+		return
+	if kind in ["gain_buys", "buys"]:
+		player.buys += int(effect.get("amount", effect.get("buys", 0)))
+		return
+	if kind in ["duration", "future", "duration_effect"]:
+		if bool(effect.get("_duration_resolving", false)):
+			_queue_effect_list(effect.get("effects", []), source_card)
+		else:
+			player.pending_duration_effects.append({"card": source_card, "effect": effect.duplicate(true)})
+		return
 	# Reserve aliases without an explicit `trigger: call` are registrations, not
 	# immediate effects.  The card is already on the mat after reserve_store and
 	# its payload is replayed when the owner calls it later.
@@ -1631,42 +2033,202 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 			var reserve_trash_limit := mini(int(effect.get("amount", 1)), player.hand.size())
 			_request_zone_choice(player.hand, "Choose cards to trash.", 0 if not bool(effect.get("required", false)) else reserve_trash_limit, reserve_trash_limit, "trash_hand", "TRASH", "SKIP")
 		"start_journey", "journey_start", "journey":
-			var journey_id := str(effect.get("journey_id", effect.get("id", source_card.id if source_card != null else "")))
+			var journey_id := str(effect.get("journey_id", effect.get("id", "journey")))
 			player.set_journey(journey_id, true)
 			if effect.has("effects"):
 				_queue_effect_list(effect.get("effects", []), source_card)
 		"journey_flip":
-			var flip_id := str(effect.get("journey_id", effect.get("id", source_card.id if source_card != null else "")))
+			var flip_id := str(effect.get("journey_id", effect.get("id", "journey")))
 			var flipped_active := not player.is_journey_active(flip_id)
 			player.set_journey(flip_id, flipped_active)
 			var flip_effects = effect.get("on_active", []) if flipped_active else effect.get("on_inactive", [])
 			_queue_effect_list(flip_effects, source_card)
 		"journey_conditional":
-			var conditional_id := str(effect.get("journey_id", effect.get("id", "")))
+			var conditional_id := str(effect.get("journey_id", effect.get("id", "journey")))
 			var branch = effect.get("if_active", []) if player.is_journey_active(conditional_id) else effect.get("if_inactive", [])
 			_queue_effect_list(branch, source_card)
 		"journey_attack":
-			if player.is_journey_active(str(effect.get("journey_id", source_card.id if source_card != null else ""))):
+			if player.is_journey_active(str(effect.get("journey_id", "journey"))):
 				_resolve_attack(effect.get("attack", effect), source_card)
+		"artificer":
+			# Artificer discards any number, then gains one exact-cost card onto
+			# the deck for each card discarded.  Keep this as a normal zone choice
+			# so a zero-card choice can resolve without manufacturing a gain.
+			_request_zone_choice(
+				player.hand,
+				"Discard any number of cards for an exact-cost gain.",
+				0,
+				player.hand.size(),
+				"artificer_discard",
+				"DISCARD & GAIN",
+				"DISCARD NONE"
+			)
+		"magpie_reveal":
+			_resolve_magpie_reveal()
+		"messenger_first_buy":
+			# Each played Messenger watches the first buy made this turn.  The
+			# watcher is consumed in buy_card, after the purchased card resolves.
+			turn_flags["messenger_first_buy_count"] = int(turn_flags.get("messenger_first_buy_count", 0)) + 1
+		"messenger_gain":
+			_request_messenger_gain_choice(effect)
+		"mission":
+			# Mission grants a second turn after cleanup; persistent state carries
+			# the marker through reset_turn_resources and the turn-based seat pass.
+			player.mission_extra_turn_pending = true
+		"storyteller":
+			var storyteller_treasures: Array[CardDefinition] = []
+			for hand_card in player.hand:
+				if card_has_type(hand_card, "resource"):
+					storyteller_treasures.append(hand_card)
+			if storyteller_treasures.is_empty():
+				_resolve_storyteller([], source_card)
+			else:
+				_request_zone_choice(
+					storyteller_treasures,
+					"Play up to 3 Treasures from your hand.",
+					0,
+					mini(3, storyteller_treasures.size()),
+					"storyteller_play_treasures",
+					"PLAY TREASURES",
+					"PLAY NONE",
+					{"source_card": source_card}
+				)
+		"pilgrimage":
+			var pilgrimage_id := str(effect.get("journey_id", "journey"))
+			var pilgrimage_active := not player.is_journey_active(pilgrimage_id)
+			player.set_journey(pilgrimage_id, pilgrimage_active)
+			if not pilgrimage_active:
+				return
+			var pilgrimage_cards: Array[CardDefinition] = []
+			var seen_pilgrimage_ids: Dictionary = {}
+			for in_play in player.play_area:
+				if not seen_pilgrimage_ids.has(in_play.id):
+					seen_pilgrimage_ids[in_play.id] = true
+					pilgrimage_cards.append(in_play)
+			if not pilgrimage_cards.is_empty():
+				_request_zone_choice(
+					pilgrimage_cards,
+					"Choose up to 3 differently named cards to gain copies of.",
+					0,
+					mini(3, pilgrimage_cards.size()),
+					"pilgrimage_cards",
+					"GAIN COPIES",
+					"GAIN NONE"
+				)
+		"quest":
+			_request_zone_choice(
+				player.hand,
+				"Discard an Attack, two Curses, or six cards to gain a Gold.",
+				0,
+				mini(6, player.hand.size()),
+				"quest_discard",
+				"DISCARD FOR GOLD",
+				"DECLINE"
+			)
+		"raid":
+			var silver_count := 0
+			for in_play in player.play_area:
+				if in_play.id == "silver_leaf":
+					silver_count += 1
+			for _silver_index in range(silver_count):
+				_gain_card_by_id("silver_leaf", "discard")
+			_resolve_attack({"mode": "raid"}, source_card)
+		"inheritance":
+			_request_inheritance_choice(effect)
+		"bonfire":
+			var bonfire_cards: Array[CardDefinition] = []
+			for in_play in player.play_area:
+				bonfire_cards.append(in_play)
+			_request_zone_choice(
+				bonfire_cards,
+				"Trash up to 2 cards from your play area.",
+				0,
+				mini(2, bonfire_cards.size()),
+				"bonfire_trash",
+				"TRASH",
+				"TRASH NONE"
+			)
+		"trash_from_play":
+			var trash_play_cards: Array[CardDefinition] = player.play_area.duplicate()
+			_request_zone_choice(
+				trash_play_cards,
+				"Trash up to %d cards from your play area." % int(effect.get("amount", 2)),
+				0,
+				mini(int(effect.get("amount", 2)), trash_play_cards.size()),
+				"bonfire_trash",
+				"TRASH",
+				"TRASH NONE"
+			)
+		"trade":
+			var trade_limit := mini(int(effect.get("amount", 2)), player.hand.size())
+			_request_zone_choice(player.hand, "Trash up to %d cards for Silver." % trade_limit, 0, trade_limit, "trade_trash", "TRASH", "TRASH NONE")
+		"next_hand_draw_bonus":
+			player.next_hand_draw_bonus += int(effect.get("amount", 0))
+		"teacher_token":
+			_request_mode_choice(
+				source_card,
+				"Choose which Teacher token to move.",
+				[
+					{"id": "card", "label": "+1 Card token"},
+					{"id": "action", "label": "+1 Action token"},
+					{"id": "buy", "label": "+1 Buy token"},
+					{"id": "coin", "label": "+1 Coin token"},
+				],
+				"teacher_token_choice"
+			)
+		"champion":
+			# Champion's ongoing protection and action bonus are derived from its
+			# permanent presence in play; no immediate payload is required.
+			pass
+		"wine_merchant_call":
+			# Wine Merchant is discarded from the Tavern mat at Buy-phase end if
+			# the player still has two coins.  The cleanup pass handles the actual
+			# removal; this marker makes the rule data-driven.
+			if source_card != null:
+				var wine_effects: Array = turn_flags.get("reserve_cleanup_effects", [])
+				wine_effects.append({"card": source_card, "minimum_coins": 2})
+				turn_flags["reserve_cleanup_effects"] = wine_effects
 		"duration_marker":
 			if source_card != null and not bool(effect.get("_duration_resolving", false)) and not player.duration_hold.has(source_card):
 				player.duration_hold.append(source_card)
-		"supply_tokens", "supply_token":
+		"supply_tokens", "supply_token", "pile_token", "place_pile_token":
 			_resolve_supply_token_effect(effect, source_card)
+		"move_token_to_pile", "choose_supply_pile", "move_player_supply_token", "move_token", "token_move":
+			_request_pile_token_choice(effect)
 		"player_token", "add_player_token", "gain_player_token":
-			player.add_player_token(str(effect.get("token", effect.get("token_id", ""))), int(effect.get("amount", 1)))
+			var player_token_id := str(effect.get("token", effect.get("token_id", ""))).to_lower()
+			var token_targets: Array[PlayerState] = [player]
+			if str(effect.get("trigger", "")) == "attack":
+				token_targets = _get_attack_targets()
+			for token_target in token_targets:
+				if player_token_id in ["-1_card", "minus_1_card", "minus_card", "deck_minus_card", "-card"]:
+					token_target.put_deck_minus_card_token()
+				elif player_token_id in ["-1_coin", "minus_1_coin", "minus_coin", "coin_minus", "-coin"]:
+					token_target.put_coin_minus_token()
+				else:
+					token_target.add_player_token(player_token_id, int(effect.get("amount", 1)))
 		"remove_player_token", "spend_player_token":
 			player.remove_player_token(str(effect.get("token", effect.get("token_id", ""))), int(effect.get("amount", 1)))
+		"deck_minus_card", "minus_card", "minus_one_card", "place_minus_card_token":
+			player.put_deck_minus_card_token()
+		"coin_minus", "minus_coin", "minus_one_coin", "place_minus_coin_token":
+			player.put_coin_minus_token()
+		"toggle_journey", "journey_token_flip":
+			player.toggle_journey(str(effect.get("journey_id", "journey")))
 		"coin_mat_deposit", "deposit_coin_mat":
-			var deposit_amount := mini(player.coins, int(effect.get("amount", player.coins)))
-			deposit_amount = maxi(0, deposit_amount)
-			player.coins -= deposit_amount
-			player.coin_mat += deposit_amount
+			var deposit_candidates: Array[CardDefinition] = []
+			var deposit_id := str(effect.get("card_id", "pebble_coin"))
+			for hand_card in player.hand:
+				if hand_card.id == deposit_id:
+					deposit_candidates.append(hand_card)
+			if deposit_candidates.is_empty():
+				return
+			_request_zone_choice(deposit_candidates, "Put a Copper on your Tavern mat.", 1, 1, "coin_mat_deposit", "DEPOSIT")
 		"coin_mat_take", "take_coin_mat":
 			var take_amount := mini(player.coin_mat, int(effect.get("amount", player.coin_mat)))
 			take_amount = maxi(0, take_amount)
 			player.coin_mat -= take_amount
-			player.coins += take_amount
+			player.add_coins(take_amount)
 		"traveller_upgrade", "upgrade_traveller":
 			_request_optional_source_choice(
 				source_card,
@@ -1706,15 +2268,44 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 		"miser_tokens":
 			player.add_player_token(str(effect.get("token", effect.get("token_id", kind))), int(effect.get("amount", 1)))
 		"miser_spend_tokens":
-			var spend_token_id := str(effect.get("token", effect.get("token_id", "coin")))
-			var spend_count := player.get_player_token(spend_token_id)
-			player.remove_player_token(spend_token_id, spend_count)
-			player.coins += spend_count * int(effect.get("value", effect.get("amount", 1)))
+			var spend_count := player.coin_mat
+			player.coin_mat = 0
+			player.add_coins(spend_count * int(effect.get("value", effect.get("amount", 1))))
 		"magpie_cache":
 			if int(turn_flags.get("last_revealed_resource_count", 0)) >= 2:
-				player.coins += int(effect.get("amount", 1))
+				player.add_coins(int(effect.get("amount", 1)))
 		"storyteller_discard_for_coins":
 			_request_zone_choice(player.hand, "Discard any number of cards for coins.", 0, player.hand.size(), "storyteller_discard_for_coins", "TELL STORY", "KEEP HAND")
+		"raze":
+			_begin_raze(source_card)
+		"register_buy_attack":
+			var buy_attacks: Array = turn_flags.get("buy_attacks", [])
+			buy_attacks.append(effect.get("attack", {}).duplicate(true))
+			turn_flags["buy_attacks"] = buy_attacks
+		"reaction":
+			# Caravan Guard's reaction is a hand-play opportunity when another
+			# player attacks.  The attack dispatcher checks the presence of this
+			# marker; no immediate effect is needed while simply playing the card.
+			turn_flags["attack_reaction"] = true
+		"travelling_fair":
+			turn_flags["travelling_fair"] = true
+		"plan_buy_trash":
+			if not player.hand.is_empty():
+				_request_zone_choice(
+					player.hand,
+					"You may trash a card from your hand.",
+					0,
+					1,
+					"plan_buy_trash",
+					"TRASH",
+					"SKIP",
+					{
+						"expansion_token": "trash",
+						"bought_card_id": str(effect.get("bought_card_id", "")),
+						"ui_choice_kind": "trash_from_hand",
+						"ui_source_zone": "hand",
+					}
+				)
 		"reveal_resources_to_hand":
 			_reveal_resources_to_hand(int(effect.get("amount", 1)))
 		"each_other_player_draws":
@@ -1752,7 +2343,7 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 			if empty_piles >= int(effect.get("buy_at", 1)):
 				player.buys += 1
 			if empty_piles >= int(effect.get("coin_at", 2)):
-				player.coins += 1
+				player.add_coins(1)
 			if empty_piles >= int(effect.get("draw_at", 3)):
 				draw_cards(1)
 		"forge":
@@ -1780,7 +2371,7 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 			for in_play in player.play_area:
 				if card_has_type(in_play, "resource"):
 					resources_in_play += 1
-			player.coins += resources_in_play * int(effect.get("per_resource", 1))
+			player.add_coins(resources_in_play * int(effect.get("per_resource", 1)))
 		"investment":
 			var investment_candidates := player.hand.duplicate()
 			if investment_candidates.is_empty():
@@ -1901,7 +2492,7 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				if str(effect.get("reward", "coin")) == "vp_token":
 					player.vp_tokens += int(effect.get("amount", 1))
 				else:
-					player.coins += int(effect.get("amount", 1))
+					player.add_coins(int(effect.get("amount", 1)))
 		"peddler_discount":
 			# Passive metadata read from the pile by get_effective_cost().
 			pass
@@ -1920,10 +2511,15 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				str(effect.get("prompt", "Choose a card to gain."))
 			)
 		"gain_card":
-			_gain_card_by_id(
-				str(effect.get("card_id", "")),
-				str(effect.get("destination", "discard"))
-			)
+			var gain_id := str(effect.get("card_id", ""))
+			var once_guard := "_gain_once_active:%s:%s" % [source_card.id if source_card != null else "", gain_id]
+			if bool(effect.get("once", false)) and bool(turn_flags.get(once_guard, false)):
+				return
+			if bool(effect.get("once", false)):
+				turn_flags[once_guard] = true
+			_gain_card_by_id(gain_id, str(effect.get("destination", "discard")))
+			if bool(effect.get("once", false)):
+				turn_flags.erase(once_guard)
 		"topdeck_from_hand":
 			_request_zone_choice(
 				player.hand,
@@ -2088,7 +2684,7 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 			var progress_key := "played_%s" % source_card.id
 			var play_count := int(turn_flags.get(progress_key, 0)) + 1
 			turn_flags[progress_key] = play_count
-			player.coins += (
+			player.add_coins(
 				int(effect.get("first_amount", 1))
 				if play_count == 1
 				else int(effect.get("later_amount", 4))
@@ -2244,7 +2840,7 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				str(effect.get("prompt", "Choose a cheaper card to gain."))
 			)
 		"gain_coins_trigger":
-			player.coins += int(effect.get("amount", 0))
+			player.add_coins(int(effect.get("amount", 0)))
 		"gain_vp_tokens":
 			player.vp_tokens += int(effect.get("amount", 1))
 		"play_self_optional":
@@ -2253,11 +2849,11 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 			if _has_other_action_in_play(source_card):
 				_play_card_from_event_zone(source_card, effect)
 		"dynamic_hand_coins":
-			player.coins += maxi(
+			player.add_coins(maxi(
 				0,
 				int(effect.get("base_amount", 0))
 				- player.hand.size() * int(effect.get("per_card", 1))
-			)
+			))
 		"discard_for_action_gain":
 			_request_zone_choice(
 				player.hand,
@@ -2346,7 +2942,7 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				)
 			player.actions += int(effect.get("gain_actions", 0))
 			player.buys += int(effect.get("gain_buys", 0))
-			player.coins += int(effect.get("gain_coins", 0))
+			player.add_coins(int(effect.get("gain_coins", 0)))
 		"set_aside_from_hand":
 			var return_next_turn := (
 				bool(effect.get("return_next_turn", false))
@@ -2393,7 +2989,7 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 				draw_cards(int(effect.get("draw_cards", 0)))
 				player.actions += int(effect.get("gain_actions", 0))
 				player.buys += int(effect.get("gain_buys", 0))
-				player.coins += int(effect.get("gain_coins", 0))
+				player.add_coins(int(effect.get("gain_coins", 0)))
 		"trash_filtered_bonus":
 			var bonus_trash_candidates := _filter_hand_cards(effect)
 			var bonus_trash_amount := mini(
@@ -2440,6 +3036,102 @@ func _resolve_special_effect(effect: Dictionary, source_card: CardDefinition) ->
 			push_warning("Unknown card effect kind: %s" % kind)
 
 
+func _resolve_magpie_reveal() -> void:
+	var revealed := _take_top_card()
+	if revealed == null:
+		return
+	if card_has_type(revealed, "resource"):
+		player.hand.append(revealed)
+		return
+	# A non-Treasure reveal is discarded; Action/Victory reveals also award a
+	# Magpie from its supply.  Gain the copy before the discard trigger so the
+	# normal gain pipeline remains observable to reactions.
+	if revealed.card_type in ["action", "victory"]:
+		_gain_card_by_id("magpie", "discard")
+	player.discard_pile.append(revealed)
+	_prepend_triggered_effects(revealed, "discard", {"zone": "discard"})
+
+
+func _resolve_storyteller(selected: Array[CardDefinition], _source_card: CardDefinition) -> void:
+	# Resources are played without spending actions.  Their coin values and any
+	# normal play payloads resolve before Storyteller converts the final coin
+	# total into cards.
+	for treasure in selected:
+		if treasure == null or not player.hand.has(treasure):
+			continue
+		player.hand.erase(treasure)
+		player.play_area.append(treasure)
+		player.register_play_display(treasure, 1)
+		_apply_card_base(treasure)
+		_prepend_triggered_effects(treasure, "play", {"zone": "play"})
+	var coin_total := player.coins
+	# Storyteller's printed +1 Card is in addition to one card per coin
+	# generated by the played Treasures.
+	draw_cards(1 + coin_total)
+	player.coins = 0
+
+
+func _begin_raze(source_card: CardDefinition) -> void:
+	var candidates: Array[CardDefinition] = []
+	if source_card != null and player.play_area.has(source_card):
+		candidates.append(source_card)
+	candidates.append_array(player.hand)
+	if candidates.is_empty():
+		return
+	var choice := _new_choice(
+		"Trash this or a card from your hand to reveal cards costing that many coins.",
+		1,
+		1,
+		"raze_source",
+		"TRASH"
+	)
+	for index in range(candidates.size()):
+		choice.add_candidate("raze:%d:%d" % [choice.id, index], candidates[index])
+	choice.context["source_card"] = source_card
+	_request_choice(choice)
+
+
+func _request_inheritance_choice(effect: Dictionary) -> void:
+	var max_cost := int(effect.get("max_cost", 5))
+	var candidates: Array[CardDefinition] = []
+	for card in _get_gain_supply_cards():
+		if card == null or card.card_type != "action" or get_non_buy_cost(card) > max_cost:
+			continue
+		if card.has_tag("command") or card.has_tag("duration") and card.id == "champion":
+			continue
+		if not supply_piles.has(card.id) or get_supply_count(card.id) <= 0:
+			continue
+		candidates.append(card)
+	if candidates.is_empty():
+		return
+	var choice := _new_choice(
+		"Choose an Action Supply pile for your Estate token.",
+		1,
+		1,
+		"inheritance_target",
+		"SET ESTATE TOKEN"
+	)
+	for card in candidates:
+		choice.add_candidate("inheritance:%d:%s" % [choice.id, card.id], card)
+	_request_choice(choice)
+
+
+func _request_messenger_gain_choice(effect: Dictionary) -> void:
+	var candidates := get_gain_candidates(int(effect.get("max_cost", 4)), "")
+	if candidates.is_empty():
+		return
+	var choice := _new_choice(
+		"Choose a card for Messenger and each other player to gain.",
+		1,
+		1,
+		"messenger_gain",
+		"GAIN FOR ALL"
+	)
+	for candidate in candidates:
+		choice.add_candidate("messenger:%d:%s" % [choice.id, candidate.id], candidate)
+	_request_choice(choice)
+
+
 func _resolve_supply_token_effect(effect: Dictionary, source_card: CardDefinition = null) -> void:
 	var token_list = effect.get("tokens", null)
 	if typeof(token_list) == TYPE_ARRAY:
@@ -2452,11 +3144,12 @@ func _resolve_supply_token_effect(effect: Dictionary, source_card: CardDefinitio
 			expanded.erase("tokens")
 			_resolve_supply_token_effect(expanded, source_card)
 		return
-	var token_id := str(effect.get("token", effect.get("token_id", "")))
-	token_id = token_id.to_lower().replace("+", "").replace("-", "")
-	var amount := int(effect.get("amount", 1))
-	if token_id.is_empty() or amount == 0:
+	var raw_token_id := str(effect.get("token", effect.get("token_id", effect.get("token_kind", ""))))
+	var token_id := _normalize_pile_token_id(raw_token_id)
+	if bool(effect.get("choose_pile", effect.get("choose_target", false))):
+		_request_pile_token_choice(effect)
 		return
+	var amount := int(effect.get("amount", 1))
 	# A gain-triggered token without a target pile represents taking that token
 	# from the shared supply into the active player's token collection.
 	if (
@@ -2466,11 +3159,44 @@ func _resolve_supply_token_effect(effect: Dictionary, source_card: CardDefinitio
 	):
 		player.add_player_token(token_id, amount)
 		return
+	if token_id in ["card", "action", "buy", "coin", "cost", "trash"]:
+		# These tokens are owned by the active player.  An explicit `shared`
+		# flag retains the old count-shaped API for cards that intentionally place
+		# a common token on a pile.
+		var owner := int(effect.get("player_index", active_player_index))
+		var target_pile := str(effect.get("card_id", effect.get("supply_card_id", effect.get("target_card_id", ""))))
+		if target_pile.is_empty() and turn_flags.has("_last_gain_card_id"):
+			target_pile = str(turn_flags.get("_last_gain_card_id", ""))
+		if target_pile.is_empty() and source_card != null and not is_event_card(source_card):
+			target_pile = source_card.id
+		if target_pile.is_empty():
+			_request_pile_token_choice(effect)
+			return
+		var owner_mode := str(effect.get("mode", "place"))
+		if not bool(effect.get("shared", false)) and owner_mode == "move":
+			move_player_supply_token(owner, token_id, str(effect.get("to_card_id", effect.get("destination_card_id", ""))))
+			turn_flags.erase("_last_gain_card_id")
+			return
+		if not bool(effect.get("shared", false)) and owner_mode not in ["remove", "take", "move"]:
+			move_player_supply_token(owner, token_id, target_pile)
+			turn_flags.erase("_last_gain_card_id")
+			return
+		if not bool(effect.get("shared", false)) and owner_mode in ["remove", "take"]:
+			move_player_supply_token(owner, token_id, "")
+			turn_flags.erase("_last_gain_card_id")
+			return
+	if token_id.is_empty() or amount == 0:
+		return
 	var card_id := str(effect.get("card_id", effect.get("supply_card_id", "")))
 	if card_id.is_empty():
 		card_id = str(effect.get("target_card_id", ""))
-	if card_id.is_empty() and source_card != null:
+	if card_id.is_empty() and turn_flags.has("_last_gain_card_id"):
+		card_id = str(turn_flags.get("_last_gain_card_id", ""))
+	if card_id.is_empty() and source_card != null and not is_event_card(source_card):
 		card_id = source_card.id
+	if card_id.is_empty() and token_id in ["action", "buy", "card", "coin", "cost", "trash"]:
+		_request_pile_token_choice(effect)
+		return
 	var mode := str(effect.get("mode", "place"))
 	match mode:
 		"remove", "take":
@@ -2481,7 +3207,32 @@ func _resolve_supply_token_effect(effect: Dictionary, source_card: CardDefinitio
 			place_supply_token(card_id, token_id, maxi(0, amount))
 
 
-func _upgrade_traveller(source_card: CardDefinition, effect: Dictionary) -> void:
+func _request_pile_token_choice(effect: Dictionary) -> void:
+	var token_id := _normalize_pile_token_id(str(effect.get("token", effect.get("token_id", effect.get("token_kind", "")))))
+	var candidates: Array[CardDefinition] = []
+	for card in _get_gain_supply_cards():
+		if card == null or card.card_type != "action" or not supply_piles.has(card.id):
+			continue
+		if get_player_supply_token_card(active_player_index, token_id) == card.id:
+			continue
+		candidates.append(card)
+	if candidates.is_empty():
+		return
+	var choice := _new_choice(
+		str(effect.get("prompt", "Choose an Action Supply pile for this token.")),
+		1,
+		1,
+		"pile_token_target",
+		str(effect.get("confirm_text", "PLACE TOKEN")),
+		str(effect.get("skip_text", "CANCEL")),
+		{"effect": effect.duplicate(true), "token_id": token_id}
+	)
+	for card in candidates:
+		choice.add_candidate("pile-token:%d:%s" % [choice.id, card.id], card)
+	_request_choice(choice)
+
+
+func _upgrade_traveller(source_card: CardDefinition, effect: Dictionary, cleanup_exchange: bool = false) -> void:
 	if source_card == null:
 		return
 	var upgrade_id := str(effect.get("card_id", effect.get("upgrade_to", source_card.traveller_upgrade_id)))
@@ -2489,13 +3240,29 @@ func _upgrade_traveller(source_card: CardDefinition, effect: Dictionary) -> void
 		return
 	var current_level := int(player.traveller_progress.get(source_card.id, 0)) + 1
 	player.traveller_progress[source_card.id] = current_level
-	# Retiring a Traveller exchanges the old stage; it must not remain in the
-	# deck alongside its successor.
-	_trash_from_play(source_card)
+	# Retiring a Traveller during cleanup returns the old card to its own pile;
+	# this is an exchange, not a trash or gain and therefore must not trigger
+	# gain/trash reactions.  The legacy in-turn retirement path retains its
+	# previous trash semantics for compatibility with existing card data.
+	if cleanup_exchange:
+		player.play_area.erase(source_card)
+		if supply_piles.has(source_card.id):
+			supply_piles[source_card.id] = get_supply_count(source_card.id) + 1
+		else:
+			traveller_piles[source_card.id] = int(traveller_piles.get(source_card.id, 0)) + 1
+	else:
+		_trash_from_play(source_card)
 	var upgraded: CardDefinition = card_catalog[upgrade_id]
-	if supply_piles.has(upgrade_id) and get_supply_count(upgrade_id) > 0:
+	if traveller_piles.has(upgrade_id) and get_traveller_supply_count(upgrade_id) > 0:
+		traveller_piles[upgrade_id] = get_traveller_supply_count(upgrade_id) - 1
+		player.discard_pile.append(upgraded)
+	elif supply_piles.has(upgrade_id) and get_supply_count(upgrade_id) > 0:
 		_gain_from_supply(upgraded, "discard")
 	else:
+		# A custom data set may omit explicit pile initialization; only consume a
+		# non-Supply card when its declared pile has copies available.
+		if not upgraded.is_supply_card():
+			return
 		player.discard_pile.append(upgraded)
 
 
@@ -2529,7 +3296,7 @@ func _apply_per_card_bonus(context: Dictionary, card_count: int) -> void:
 	draw_cards(int(context.get("per_draw_cards", 0)) * card_count)
 	player.actions += int(context.get("per_gain_actions", 0)) * card_count
 	player.buys += int(context.get("per_gain_buys", 0)) * card_count
-	player.coins += int(context.get("per_gain_coins", 0)) * card_count
+	player.add_coins(int(context.get("per_gain_coins", 0)) * card_count)
 
 
 func resolve_choice(tokens: Array[String]) -> bool:
@@ -2561,6 +3328,8 @@ func resolve_choice(tokens: Array[String]) -> bool:
 		if not has_pending_choice() and return_index >= 0 and return_index < players.size() and return_index != active_player_index:
 			_set_active_player(return_index, false)
 		_process_resolution_queue()
+	if not has_pending_choice():
+		turn_flags.erase("_last_gain_card_id")
 	check_idle_relics()
 	return true
 
@@ -2581,9 +3350,92 @@ func _apply_choice_resolution(
 			if cards.is_empty():
 				return
 			call_reserve_card(cards[0])
+		"traveller_cleanup":
+			var cleanup_card: CardDefinition = choice.context.get("traveller_card")
+			if not cards.is_empty() and cleanup_card != null:
+				_upgrade_traveller(cleanup_card, choice.context.get("effect", {}), true)
+			# A decline or a successful exchange may leave another Traveller in
+			# play; continue the same cleanup transaction until all are offered.
+			if not has_pending_choice():
+				_finish_cleanup()
 		"gain_supply":
 			if not cards.is_empty():
 				_gain_from_supply(cards[0], str(choice.context.get("destination", "discard")))
+		"pile_token_target":
+			if not cards.is_empty():
+				move_active_player_supply_token(str(choice.context.get("token_id", "")), cards[0].id)
+		"artificer_discard":
+			if cards.is_empty():
+				return
+			_move_cards(player.hand, player.discard_pile, cards, "discard")
+			_request_exact_supply_choice(
+				cards.size(),
+				"deck",
+				"",
+				"Choose a card costing exactly %d to put onto your deck." % cards.size()
+			)
+		"storyteller_play_treasures":
+			_resolve_storyteller(cards, choice.context.get("source_card"))
+		"pilgrimage_cards":
+			for copied_card in cards:
+				_gain_card_by_id(copied_card.id, "discard")
+		"quest_discard":
+			if cards.is_empty():
+				return
+			var valid_quest := false
+			if cards.size() == 1 and cards[0].has_tag("attack"):
+				valid_quest = true
+			elif cards.size() == 2:
+				valid_quest = cards[0].card_type == "curse" and cards[1].card_type == "curse"
+			elif cards.size() == 6:
+				valid_quest = true
+			if not valid_quest:
+				return
+			_move_cards(player.hand, player.discard_pile, cards, "discard")
+			_gain_card_by_id("amber_circlet", "discard")
+		"travelling_fair_choice":
+			if cards.is_empty():
+				return
+			var fair_card: CardDefinition = choice.context.get("gained_card")
+			if fair_card == null:
+				return
+			var fair_destination := _get_zone(str(choice.context.get("destination", "discard")))
+			fair_destination.erase(fair_card)
+			player.draw_pile.append(fair_card)
+		"bonfire_trash":
+			for card in cards:
+				_trash_from_play(card)
+		"trade_trash":
+			if cards.is_empty():
+				return
+			_move_cards(player.hand, player.trash_pile, cards, "trash")
+			for _silver_index in range(cards.size()):
+				_gain_card_by_id("silver_leaf", "discard")
+		"plan_buy_trash":
+			if not cards.is_empty():
+				_move_cards(player.hand, player.trash_pile, cards, "trash")
+		"inheritance_target":
+			if cards.is_empty():
+				return
+			var inherited := cards[0]
+			if supply_piles.has(inherited.id) and get_supply_count(inherited.id) > 0:
+				supply_piles[inherited.id] = get_supply_count(inherited.id) - 1
+			player.inheritance_card_id = inherited.id
+			# Estate is not physically moved out of the deck in this engine; its
+			# token target is enough for future Estate-as-Action interpretation.
+		"messenger_gain":
+			if cards.is_empty():
+				return
+			var messenger_card := cards[0]
+			_gain_card_by_id(messenger_card.id, "discard")
+			for target_index in range(players.size()):
+				if target_index == active_player_index:
+					continue
+				_gain_card_by_id_for_player(messenger_card.id, "discard", players[target_index])
+		"teacher_token_choice":
+			var teacher_token_id := _selected_mode_id(selected)
+			if not teacher_token_id.is_empty():
+				_request_pile_token_choice({"token": teacher_token_id, "amount": 1, "prompt": "Choose an Action Supply pile for this token."})
 		"topdeck_hand":
 			_move_cards(player.hand, player.draw_pile, cards)
 		"rabble_opponent_order":
@@ -2626,7 +3478,39 @@ func _apply_choice_resolution(
 			_draw_to_size_simple(int(choice.context.get("target_hand_size", 5)))
 		"storyteller_discard_for_coins":
 			_move_cards(player.hand, player.discard_pile, cards, "discard")
-			player.coins += cards.size()
+			player.add_coins(cards.size())
+		"coin_mat_deposit":
+			if cards.is_empty():
+				return
+			for deposited in cards:
+				player.hand.erase(deposited)
+			player.coin_mat += cards.size()
+		"raze_source":
+			if cards.is_empty():
+				return
+			var raze_target := cards[0]
+			var raze_cost := get_non_buy_cost(raze_target)
+			if raze_target == choice.context.get("source_card"):
+				_trash_from_play(raze_target)
+			else:
+				_move_cards(player.hand, player.trash_pile, [raze_target], "trash")
+			var revealed: Array[CardDefinition] = []
+			for _raze_index in range(raze_cost):
+				var revealed_card := _take_top_card()
+				if revealed_card != null:
+					revealed.append(revealed_card)
+			if revealed.is_empty():
+				return
+			_request_zone_choice(revealed, "Choose one revealed card to put into your hand.", 1, 1, "raze_keep", "KEEP", "SKIP", {"revealed": revealed})
+		"raze_keep":
+			var raze_revealed: Array[CardDefinition] = choice.context.get("revealed", [])
+			if cards.is_empty():
+				player.discard_pile.append_array(raze_revealed)
+				return
+			var kept_raze := cards[0]
+			raze_revealed.erase(kept_raze)
+			player.hand.append(kept_raze)
+			player.discard_pile.append_array(raze_revealed)
 		"start_turn_reaction":
 			if cards.is_empty():
 				return
@@ -2644,7 +3528,7 @@ func _apply_choice_resolution(
 			# Opponents may discard two to draw, but only the Vault owner's
 			# optional discard grants coins.
 			if not bool(choice.context.get("_opponent_choice", false)):
-				player.coins += cards.size()
+				player.add_coins(cards.size())
 			if not bool(choice.context.get("_opponent_choice", false)):
 				_vault_other_players()
 			elif cards.size() == 2:
@@ -2697,7 +3581,7 @@ func _apply_choice_resolution(
 			if cards.is_empty():
 				return
 			_move_cards(player.hand, player.trash_pile, cards, "trash")
-			player.coins += int(choice.context.get("amount", 0))
+			player.add_coins(int(choice.context.get("amount", 0)))
 		"remodel":
 			if cards.is_empty():
 				return
@@ -2755,7 +3639,7 @@ func _apply_choice_resolution(
 				player.trash_pile.append(resource)
 				_notify_cards_trashed(player, 1)
 				_prepend_triggered_effects(resource, "trash", {"zone": "trash"})
-				player.coins += resource.coin_value
+				player.add_coins(resource.coin_value)
 			player.discard_pile.append_array(revealed)
 			_queue_zone_events(revealed, "discard", "discard")
 		"replay_action":
@@ -3017,7 +3901,7 @@ func _apply_choice_resolution(
 		"investment_choice":
 			var investment_mode := _selected_mode(choice, selected)
 			if str(investment_mode.get("id", "")) == "coin":
-				player.coins += 1
+				player.add_coins(1)
 			else:
 				var investment_source: CardDefinition = choice.context.get("source_card")
 				if investment_source == null or not player.play_area.has(investment_source):
@@ -3401,7 +4285,7 @@ func _apply_mode_bonus(mode: Dictionary) -> void:
 	draw_cards(int(mode.get("draw_cards", 0)))
 	player.actions += int(mode.get("gain_actions", 0))
 	player.buys += int(mode.get("gain_buys", 0))
-	player.coins += int(mode.get("gain_coins", 0))
+	player.add_coins(int(mode.get("gain_coins", 0)))
 
 
 func _filter_hand_cards(effect: Dictionary) -> Array[CardDefinition]:
@@ -3559,7 +4443,7 @@ func _notify_cards_trashed(target: PlayerState, amount: int) -> void:
 	# Ashen Urn: a coin whenever one of the holder's cards is trashed.
 	if amount <= 0 or not target.relics.has("ashen_urn"):
 		return
-	target.coins += amount
+	target.add_coins(amount)
 	print("[Game] Ashen Urn grants %s %d coin(s)" % [target.player_name, amount])
 
 
@@ -3567,6 +4451,7 @@ func _gain_from_supply(card: CardDefinition, destination: String) -> bool:
 	if not supply_piles.has(card.id) or get_supply_count(card.id) <= 0:
 		return false
 	supply_piles[card.id] = get_supply_count(card.id) - 1
+	turn_flags["_last_gain_card_id"] = card.id
 	if _hex_ward_intercepts(player, card):
 		return true
 	var resolved_destination := _resolve_supply_tokens_on_gain(card, destination)
@@ -3585,43 +4470,37 @@ func _gain_from_supply(card: CardDefinition, destination: String) -> bool:
 				_notify_cards_trashed(player, 1)
 			_:
 				player.discard_pile.append(card)
+	if bool(turn_flags.get("travelling_fair", false)) and resolved_destination != "trash":
+		var fair_choice := _new_choice(
+			"You may put %s onto your deck." % card.card_name,
+			0,
+			1,
+			"travelling_fair_choice",
+			"PUT ON DECK",
+			"LEAVE IT",
+			{"gained_card": card, "destination": resolved_destination}
+		)
+		fair_choice.add_candidate("travelling-fair:%d" % fair_choice.id, card)
+		_request_choice(fair_choice)
 	# Hand reactions resolve before persistent played-card triggers. This makes a
 	# Watchtower trash decisive: a later Tiara topdeck trigger cannot resurrect it.
 	_prepend_gain_play_triggers(card, resolved_destination)
 	_prepend_gain_reactions(card, resolved_destination)
-	_prepend_triggered_effects(card, "gain", {"zone": resolved_destination})
+	_prepend_triggered_effects(card, "gain", {"zone": resolved_destination, "card_id": card.id})
 	_queue_gain_attacks(card)
 	return true
 
 
 func _sets_aside_on_gain(card: CardDefinition) -> bool:
-	if card == null:
-		return false
-	for effect in card.special_effects:
-		if str(effect.get("kind", "")) == "distant_lands_score":
-			return true
 	return false
 
 
 func _resolve_supply_tokens_on_gain(card: CardDefinition, destination: String) -> String:
-	"""Apply one-shot pile token bonuses and return the card destination."""
-	if card == null:
-		return destination
-	var resolved_destination := destination
-	for token_id in ["card", "action", "coin", "trash"]:
-		if get_supply_token_count(card.id, token_id) <= 0:
-			continue
-		remove_supply_token(card.id, token_id, 1)
-		match token_id:
-			"card":
-				draw_cards(1)
-			"action":
-				player.actions += 1
-			"coin":
-				player.coins += 1
-			"trash":
-				resolved_destination = "trash"
-	return resolved_destination
+	# Adventures +1 pile tokens trigger when their pile card is played, not when
+	# that card is gained.  Play resolution applies player-owned tokens via
+	# _apply_pile_token_bonus; gains must leave both owned and legacy shared token
+	# placements untouched.
+	return destination
 
 
 func _trash_from_play(card: CardDefinition) -> void:
@@ -4082,6 +4961,9 @@ func _trash_revealed_resource_for_player(
 
 
 func _is_attack_protected(target: PlayerState) -> bool:
+	for permanent in target.play_area:
+		if permanent.id == "champion":
+			return true
 	var timed_protections: Dictionary = target.turn_flags.get("timed_attack_immunity", {})
 	return (
 		not timed_protections.is_empty()
@@ -4125,6 +5007,53 @@ func _resolve_attack(effect: Dictionary, _source_card: CardDefinition) -> void:
 						"card_id": str(effect.get("card_id", CURSE_CARD_ID)),
 						"destination": str(effect.get("destination", "discard")),
 					})
+		"minus_card_token":
+			for target in targets:
+				target.put_deck_minus_card_token()
+		"raid":
+			for target in targets:
+				target.put_deck_minus_card_token()
+		"giant":
+			for target in targets:
+				var giant_revealed := _take_top_card_for_player(target)
+				if giant_revealed == null:
+					continue
+				if giant_revealed.cost >= 3 and giant_revealed.cost <= 6:
+					target.trash_pile.append(giant_revealed)
+					_notify_cards_trashed(target, 1)
+				else:
+					target.discard_pile.append(giant_revealed)
+					# A card that Giant discards still causes its discard reactions.
+					# Opponent discard reactions are intentionally not interactive here;
+					# the revealed card is already owned by the target and remains in its
+					# discard pile.
+					_gain_card_by_id_for_player("briar_hex", "discard", target)
+		"warrior":
+			var traveller_count := 0
+			for own_card in player.play_area:
+				if own_card.is_traveller_card():
+					traveller_count += 1
+			for target in targets:
+				for _traveller_index in range(traveller_count):
+					var warrior_revealed := _take_top_card_for_player(target)
+					if warrior_revealed == null:
+						continue
+					if warrior_revealed.cost == 3 or warrior_revealed.cost == 4:
+						target.trash_pile.append(warrior_revealed)
+						_notify_cards_trashed(target, 1)
+					else:
+						target.discard_pile.append(warrior_revealed)
+		"soldier":
+			for target in targets:
+				if target.hand.size() < 4:
+					continue
+				if target == player:
+					_request_zone_choice(target.hand, "Choose a card to discard.", 1, 1, "discard_hand", "DISCARD")
+				else:
+					var soldier_discard := target.hand.back() as CardDefinition
+					_move_cards(target.hand, target.discard_pile, [soldier_discard], "discard")
+		"champion":
+			player.turn_flags["champion_active"] = true
 		"discard_down":
 			var target_size := int(effect.get("target_hand_size", 3))
 			for target in targets:
@@ -4528,22 +5457,43 @@ func buy_card(card: CardDefinition) -> bool:
 	):
 		return false
 	var effective_cost := get_effective_cost(card)
-	if player.buys <= 0 or player.coins < effective_cost:
+	if player.buys <= 0 or bool(turn_flags.get("mission_no_buys", false)) or player.coins < effective_cost:
 		return false
 	if _buy_restricted_by_played_card(card):
 		return false
 	player.coins -= effective_cost
 	player.buys -= 1
+	var messenger_watchers := int(turn_flags.get("messenger_first_buy_count", 0))
+	if messenger_watchers > 0:
+		turn_flags["messenger_first_buy_count"] = 0
 	# Thumbed Ledger: the first purchase each turn rebates two coins.
 	if (
 		player.relics.has("thumbed_ledger")
 		and not bool(turn_flags.get("thumbed_ledger_used", false))
 	):
 		turn_flags["thumbed_ledger_used"] = true
-		player.coins += 2
+		player.add_coins(2)
 		print("[Game] Thumbed Ledger rebates %s 2 coins" % player.player_name)
 	_gain_from_supply(card, "discard")
-	player.coins += int(turn_flags.get("buy_coin_bonus", 0))
+	if get_active_player_supply_token_card("trash") == card.id:
+		resolution_queue.push_back({
+			"kind": "special",
+			"source_card": card,
+			"effect": {
+				"kind": "plan_buy_trash",
+				"bought_card_id": card.id,
+				"expansion_token": "trash",
+			},
+		})
+	if messenger_watchers > 0:
+		for _messenger_index in range(messenger_watchers):
+			resolution_queue.push_back({
+				"kind": "special",
+				"source_card": card_catalog.get("messenger"),
+				"effect": {"kind": "messenger_gain", "max_cost": 4},
+			})
+	_resolve_registered_buy_attacks()
+	player.add_coins(int(turn_flags.get("buy_coin_bonus", 0)))
 	_prepend_buy_play_triggers(card)
 	_prepend_triggered_effects(card, "buy", {"zone": "discard"})
 	for _index in range(int(turn_flags.get("buy_bonus_count", 0))):
@@ -4565,6 +5515,28 @@ func buy_card(card: CardDefinition) -> bool:
 	return true
 
 
+func _resolve_registered_buy_attacks() -> void:
+	# Haunted Woods-style buy attacks are attached to the player who played the
+	# card, but affect the buyer (and not that owner) when another seat buys.
+	if players.size() <= 1:
+		return
+	for owner_index in range(players.size()):
+		if owner_index == active_player_index:
+			continue
+		var owner := players[owner_index]
+		for owned in owner.play_area:
+			for effect in owned.special_effects:
+				if str(effect.get("kind", "")) != "register_buy_attack":
+					continue
+				if _is_attack_protected(player):
+					continue
+				var attack: Dictionary = effect.get("attack", {}).duplicate(true)
+				if str(attack.get("mode", "")) == "topdeck_hand":
+					var hand_copy := player.hand.duplicate()
+					player.hand.clear()
+					player.draw_pile.append_array(hand_copy)
+
+
 func _buy_restricted_by_played_card(card: CardDefinition) -> bool:
 	# Restrictions belong to the pile being bought, rather than requiring a
 	# copy of that card to already be in play.
@@ -4583,8 +5555,12 @@ func _buy_restricted_by_played_card(card: CardDefinition) -> bool:
 func begin_cleanup() -> void:
 	if cleanup_in_progress:
 		return
+	previous_turn_player_index = active_player_index
 	cleanup_in_progress = true
 	player.cleanup_in_progress = true
+	_cleanup_tavern_mat()
+	if not turn_flags.has("cleanup_traveller_seen"):
+		turn_flags["cleanup_traveller_seen"] = []
 	var topdeck_count := int(turn_flags.get("cleanup_topdeck_actions", 0))
 	var actions_in_play: Array[CardDefinition] = []
 	for card in player.play_area:
@@ -4606,13 +5582,42 @@ func begin_cleanup() -> void:
 	_finish_cleanup()
 
 
+func _cleanup_tavern_mat() -> void:
+	# Most Reserve cards remain on the Tavern mat indefinitely.  Cards with an
+	# explicit end-of-buy/cleanup condition (Wine Merchant-style) opt in through
+	# data and are discarded here, after the Buy phase has ended.
+	for reserved in player.reserve_mat.duplicate():
+		for effect in reserved.special_effects:
+			var kind := str(effect.get("kind", ""))
+			if kind == "wine_merchant_call":
+				if player.coins >= 2:
+					player.reserve_mat.erase(reserved)
+					player.discard_pile.append(reserved)
+				break
+			if kind not in ["reserve_cleanup", "tavern_cleanup", "discard_reserve_if"]:
+				continue
+			var threshold := int(effect.get("minimum_coins", effect.get("min_coins", effect.get("amount", 0))))
+			if player.coins < threshold or bool(effect.get("requires_unspent_buys", false)) and player.buys <= 0:
+				continue
+			player.reserve_mat.erase(reserved)
+			player.discard_pile.append(reserved)
+			break
+
+
 func _finish_cleanup() -> void:
+	if _request_cleanup_traveller_exchange():
+		return
 	# Duration cards played this turn stay in play until the next cleanup.
 	var kept_durations: Array[CardDefinition] = []
 	for card in player.duration_hold:
 		var play_index := player.play_area.find(card)
 		if play_index != -1:
 			player.play_area.remove_at(play_index)
+			kept_durations.append(card)
+	# Champion's text says it stays in play for the rest of the game even though
+	# its data has no per-turn payload. Treat it as a permanent duration card.
+	for card in player.play_area:
+		if card.id == "champion" and not kept_durations.has(card):
 			kept_durations.append(card)
 	player.duration_hold.clear()
 	var hand_count := player.hand.size()
@@ -4633,6 +5638,36 @@ func _finish_cleanup() -> void:
 	cleanup_in_progress = false
 	player.cleanup_in_progress = false
 	cleanup_completed.emit()
+
+
+func _request_cleanup_traveller_exchange() -> bool:
+	var seen: Array = turn_flags.get("cleanup_traveller_seen", [])
+	for card in player.play_area:
+		if card == null or not card.is_traveller_card() or card.traveller_upgrade_id.is_empty():
+			continue
+		if seen.has(card):
+			continue
+		if get_traveller_supply_count(card.traveller_upgrade_id) <= 0 and get_supply_count(card.traveller_upgrade_id) <= 0:
+			seen.append(card)
+			continue
+		seen.append(card)
+		turn_flags["cleanup_traveller_seen"] = seen
+		var choice := _new_choice(
+			"You may exchange %s for %s." % [card.card_name, card_catalog[card.traveller_upgrade_id].card_name if card_catalog.has(card.traveller_upgrade_id) else card.traveller_upgrade_id],
+			0,
+			1,
+			"traveller_cleanup",
+			"EXCHANGE",
+			"KEEP",
+			{
+				"traveller_card": card,
+				"effect": {"upgrade_to": card.traveller_upgrade_id, "cleanup_exchange": true},
+			}
+		)
+		choice.add_candidate("traveller-cleanup:%d" % choice.id, card)
+		_request_choice(choice)
+		return true
+	return false
 
 
 func discard_hand_and_play_area() -> void:
@@ -4670,7 +5705,7 @@ func _calculate_score_for_player(scored_player: PlayerState, announce: bool = tr
 			score += scored_player.trash_pile.size() / card.score_per_trashed
 		if not card.score_card_id.is_empty():
 			score += int(owned_counts.get(card.score_card_id, 0)) * card.score_card_points
-		score += _scoring_effect_bonus(card, owned_cards)
+		score += _scoring_effect_bonus(card, owned_cards, scored_player)
 	score += _scoring_relic_bonus(scored_player)
 	score += scored_player.vp_tokens
 	if announce:
@@ -4688,7 +5723,11 @@ func _calculate_score_for_player(scored_player: PlayerState, announce: bool = tr
 	return score
 
 
-func _scoring_effect_bonus(card: CardDefinition, owned_cards: Array[CardDefinition]) -> int:
+func _scoring_effect_bonus(
+	card: CardDefinition,
+	owned_cards: Array[CardDefinition],
+	scored_player: PlayerState = null
+) -> int:
 	if card == null:
 		return 0
 	var total := 0
@@ -4697,6 +5736,10 @@ func _scoring_effect_bonus(card: CardDefinition, owned_cards: Array[CardDefiniti
 			continue
 		match str(effect.get("kind", "")):
 			"distant_lands_score":
+				if effect.has("on_mat_points"):
+					if scored_player != null and scored_player.reserve_mat.has(card):
+						total += int(effect.get("on_mat_points", 0))
+					continue
 				var types: Dictionary = {}
 				for owned_card in owned_cards:
 					if not owned_card.card_type.is_empty():

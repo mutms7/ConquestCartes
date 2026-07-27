@@ -11,7 +11,9 @@ process.
 ## Core fields
 
 - `id`: stable snake-case identifier used by rules and saves.
-- `name`: original display name.
+- `name`: display name. Cards in the authorized Dominion: Adventures
+  implementation may retain their official display names; other expansions use
+  original names as described in the originality section below.
 - `type`: `resource`, `action`, `victory`, or `curse`.
 - `art_id`: filename stem under `assets/cards/`; cards may share art temporarily.
 - `cost`: coin cost.
@@ -139,7 +141,9 @@ bonus modes remain data-driven without card-specific UI.
 
 ## Card creation process
 
-1. Choose an original art-linked name and `art_id`.
+1. Choose an art-linked name and `art_id`. For the authorized Adventures
+   implementation, use the approved official card identity; for every other
+   expansion, choose an original identity.
 2. Define the numeric fields and ordered reusable special effects.
 3. Implement generalized rules support when a new effect kind is required.
 4. Write `description` and effect labels using
@@ -150,10 +154,12 @@ bonus modes remain data-driven without card-specific UI.
 
 ## Names and illustration identity
 
-The original illustration name should remain the display name when a single card
-uses that artwork. If multiple rules cards share an `art_id`, keep one exact
-original name and name the variants after the same visible subject plus their
-role, ideally in 15 characters or fewer, such as `Hearth Refrain` or `Trail Cache`.
+The illustration-linked name should remain the display name when a single card
+uses that artwork. If multiple rules cards share an `art_id`, keep one approved
+name and name variants after the same visible subject plus their role, ideally
+in 15 characters or fewer. Adventures may use its authorized official names;
+other expansions should use original names such as `Hearth Refrain` or
+`Trail Cache`.
 
 Do not give a card a name that contradicts its illustration merely to mirror the
 source role that inspired its mechanics. IDs may remain mechanically descriptive;
@@ -195,7 +201,15 @@ Each selected market card receives a finite pile. Buying or gaining decrements
 that pile; empty piles cannot be bought or gained and count toward effects that
 reference empty supply piles.
 
-## Originality
+## Originality and the Adventures authorization
 
-Use original names, descriptions, art, and flavor. Do not copy names, exact rules
-wording, terminology, or artwork from an existing commercial deck-builder.
+The project has an explicit authorization for the official Dominion: Adventures
+implementation. Its approved card names, rules text, terminology, events,
+journeys, Tavern mat, tokens, and Traveller piles may be represented faithfully
+in the Adventures data and UI contracts. Keep those entries clearly scoped to
+the Adventures group and do not treat this exception as permission to import
+other Dominion expansions.
+
+For every other expansion or user-supplied catalog, use original names,
+descriptions, art, and flavor. Do not copy names, exact rules wording,
+terminology, or artwork from an existing commercial deck-builder.

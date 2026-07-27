@@ -4,8 +4,11 @@ Use these conventions for every `description` and every visible special-effect
 `label` in `data/cards/starter_cards.json`.
 
 The wording must describe the implemented Conquest Cartes solo effect exactly.
-Commercial card-game text may be used as a mechanical reference, but names,
-sentences, and rules wording must remain original.
+The authorized Dominion: Adventures implementation is an explicit exception:
+its approved official names, sentences, terminology, and rules wording may be
+retained where the implementation contract calls for faithful representation.
+For every other expansion, commercial card-game text may be used only as a
+mechanical reference; names, sentences, and rules wording must remain original.
 
 ## Voice and structure
 

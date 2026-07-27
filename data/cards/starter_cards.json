@@ -1108,7 +1108,7 @@
     "special_effects": [
       {
         "kind": "reduce_end_turn_cooldown",
-        "amount": 1.0,
+        "amount": 1,
         "label": "Cooldown -1s"
       }
     ]
@@ -1144,7 +1144,7 @@
     "special_effects": [
       {
         "kind": "reduce_end_turn_cooldown",
-        "amount": 3.0,
+        "amount": 3,
         "label": "Cooldown -3s"
       },
       {
@@ -1393,7 +1393,7 @@
       {
         "kind": "attack",
         "mode": "extend_cooldown",
-        "amount": 2.0,
+        "amount": 2,
         "label": "Attack: Slow Timer"
       }
     ]
@@ -1412,7 +1412,7 @@
       {
         "kind": "reduce_end_turn_cooldown",
         "trigger": "next_turn",
-        "amount": 2.0,
+        "amount": 2,
         "label": "Next Turn: Timer -2s"
       }
     ]
@@ -1626,7 +1626,13 @@
     "draw_cards": 1,
     "gain_actions": 2,
     "special_effects": [
-      {"kind": "city_empty_bonus", "buy_at": 2, "coin_at": 2, "draw_at": 1, "label": "Empty-Pile Bonuses"}
+      {
+        "kind": "city_empty_bonus",
+        "buy_at": 2,
+        "coin_at": 2,
+        "draw_at": 1,
+        "label": "Empty-Pile Bonuses"
+      }
     ]
   },
   {
@@ -1640,8 +1646,17 @@
     "description": "Gain 2 coins. Each other player with at least 5 cards in hand puts a card from their hand on top of their deck. At the start of your turn, you may play this from your hand without using an action.",
     "gain_coins": 2,
     "special_effects": [
-      {"kind": "attack", "mode": "topdeck_hand_size", "target_hand_size": 5, "label": "Put on Deck at 5 Cards"},
-      {"kind": "start_turn", "trigger": "start_turn", "label": "Start-Turn Play"}
+      {
+        "kind": "attack",
+        "mode": "topdeck_hand_size",
+        "target_hand_size": 5,
+        "label": "Put on Deck at 5 Cards"
+      },
+      {
+        "kind": "start_turn",
+        "trigger": "start_turn",
+        "label": "Start-Turn Play"
+      }
     ]
   },
   {
@@ -1688,7 +1703,11 @@
     "gain_buys": 1,
     "gain_coins": 2,
     "special_effects": [
-      {"kind": "buy_restriction", "requirement_card_id": "pebble_coin", "label": "No Copper in Play"}
+      {
+        "kind": "buy_restriction",
+        "requirement_card_id": "pebble_coin",
+        "label": "No Copper in Play"
+      }
     ]
   },
   {
@@ -1700,7 +1719,10 @@
     "cost": 4,
     "description": "Trash a card from your hand. Choose one: gain 1 coin, or trash this and reveal your hand to gain 1 VP token for each differently named resource there.",
     "special_effects": [
-      {"kind": "investment", "label": "Invest for Coins or VP"}
+      {
+        "kind": "investment",
+        "label": "Invest for Coins or VP"
+      }
     ]
   },
   {
@@ -1775,7 +1797,11 @@
     "description": "Gain 2 coins and 1 VP token.",
     "gain_coins": 2,
     "special_effects": [
-      {"kind": "gain_vp_tokens", "amount": 1, "label": "Gain a VP Token"}
+      {
+        "kind": "gain_vp_tokens",
+        "amount": 1,
+        "label": "Gain a VP Token"
+      }
     ]
   },
   {
@@ -1823,7 +1849,12 @@
     "description": "Draw 3 cards. Attack: each other player reveals the top 3 cards of their deck, discards the resources and actions, and puts the rest back on top in any order.",
     "draw_cards": 3,
     "special_effects": [
-      {"kind": "attack", "mode": "reveal_discard_reorder", "amount": 3, "label": "Attack: Scatter the Top 3"}
+      {
+        "kind": "attack",
+        "mode": "reveal_discard_reorder",
+        "amount": 3,
+        "label": "Attack: Scatter the Top 3"
+      }
     ]
   },
   {
@@ -1834,9 +1865,14 @@
     "art_id": "firefly_gold",
     "cost": 6,
     "description": "Gain 2 coins. This turn, when you gain a victory card that you bought, gain a Gold.",
-    "coin_value": 2
-    ,"special_effects": [
-      {"kind": "hoard_buy", "trigger": "buy", "trigger_scope": "in_play", "label": "Bought Victory: Gain Gold"}
+    "coin_value": 2,
+    "special_effects": [
+      {
+        "kind": "hoard_buy",
+        "trigger": "buy",
+        "trigger_scope": "in_play",
+        "label": "Bought Victory: Gain Gold"
+      }
     ]
   },
   {
@@ -1956,7 +1992,14 @@
     "coin_value": 2,
     "gain_buys": 1,
     "special_effects": [
-      {"kind": "collection_gain", "trigger": "gain", "trigger_scope": "in_play", "amount": 1, "reward": "vp_token", "label": "Action Gain: +1 VP Token"}
+      {
+        "kind": "collection_gain",
+        "trigger": "gain",
+        "trigger_scope": "in_play",
+        "amount": 1,
+        "reward": "vp_token",
+        "label": "Action Gain: +1 VP Token"
+      }
     ]
   },
   {
@@ -2015,845 +2058,1431 @@
     "market_enabled": false
   },
   {
-    "id": "trail_wayfinder_charm",
-    "name": "Wayfinder Charm",
+    "id": "amulet",
+    "name": "Amulet",
     "type": "action",
-    "group": "Trailblazers",
+    "group": "Adventures",
     "art_id": "astral_vault",
     "cost": 3,
-    "description": "Choose one: gain 2 coins; draw 1 card; or trash a card from your hand.",
+    "description": "Now and at the start of your next turn, choose one: +1 coin; trash a card from your hand; or gain a Silver.",
     "special_effects": [
       {
         "kind": "choose_one_of_standard",
         "modes": [
-          {"id": "coins", "label": "Gain 2 Coins", "gain_coins": 2},
-          {"id": "draw", "label": "Draw 1 Card", "draw_cards": 1},
-          {"id": "trash", "label": "Trash a Card", "effects": [{"kind": "trash_from_hand", "amount": 1, "required": true, "label": "Trash a Card"}]}
+          {
+            "id": "coin",
+            "label": "+1 Coin",
+            "gain_coins": 1
+          },
+          {
+            "id": "trash",
+            "label": "Trash a Card",
+            "effects": [
+              {
+                "kind": "trash_from_hand",
+                "amount": 1,
+                "required": true,
+                "label": "trash from hand"
+              }
+            ]
+          },
+          {
+            "id": "silver",
+            "label": "Gain a Silver",
+            "effects": [
+              {
+                "kind": "gain_card",
+                "card_id": "silver_leaf",
+                "destination": "discard",
+                "label": "gain card"
+              }
+            ]
+          }
         ],
-        "label": "Choose a Charm Path"
+        "label": "choose one of standard"
+      },
+      {
+        "kind": "choose_one_of_standard",
+        "trigger": "next_turn",
+        "modes": [
+          {
+            "id": "coin",
+            "label": "+1 Coin",
+            "gain_coins": 1
+          },
+          {
+            "id": "trash",
+            "label": "Trash a Card",
+            "effects": [
+              {
+                "kind": "trash_from_hand",
+                "amount": 1,
+                "required": true,
+                "label": "trash from hand"
+              }
+            ]
+          },
+          {
+            "id": "silver",
+            "label": "Gain a Silver",
+            "effects": [
+              {
+                "kind": "gain_card",
+                "card_id": "silver_leaf",
+                "destination": "discard",
+                "label": "gain card"
+              }
+            ]
+          }
+        ],
+        "label": "choose one of standard"
       }
     ]
   },
   {
-    "id": "trail_rune_smith",
-    "name": "Rune Smith",
+    "id": "artificer",
+    "name": "Artificer",
     "type": "action",
-    "group": "Trailblazers",
+    "group": "Adventures",
     "art_id": "weavers_loom",
     "cost": 5,
-    "description": "Gain a card costing up to 5 to your hand. Put a card from your hand on top of your deck.",
+    "description": "+1 Card, +1 Action, and +1 coin. Discard any number of cards. You may gain a card onto your deck costing exactly 1 coin per card discarded.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "gain_coins": 1,
     "special_effects": [
-      {"kind": "gain_from_supply", "max_cost": 5, "destination": "hand", "label": "Gain to Hand"},
-      {"kind": "topdeck_from_hand", "amount": 1, "label": "Put on Deck"}
+      {
+        "kind": "artificer",
+        "label": "Discard for Exact-Cost Gain"
+      }
     ]
   },
   {
-    "id": "trail_span_warden",
-    "name": "Span Warden",
+    "id": "bridge_troll",
+    "name": "Bridge Troll",
     "type": "action",
-    "group": "Trailblazers",
-    "art_id": "starlit_causeway",
+    "group": "Adventures",
+    "art_id": "stone_wall",
     "cost": 5,
-    "description": "Gain 1 buy. Cards cost 1 less this turn. Attack: extend each rival's end-turn cooldown by 1 second.",
+    "description": "Each other player takes their -1 coin token. Now and at the start of your next turn, +1 Buy. While this is in play, cards cost 1 less on your turns.",
     "gain_buys": 1,
     "special_effects": [
-      {"kind": "reduce_costs", "amount": 1, "label": "Costs -1 This Turn"},
-      {"kind": "attack", "mode": "extend_cooldown", "amount": 1, "label": "Attack: Slow Rivals"}
+      {
+        "kind": "player_token",
+        "token": "minus_coin",
+        "amount": 1,
+        "trigger": "attack",
+        "label": "player token"
+      },
+      {
+        "kind": "reduce_costs",
+        "amount": 1,
+        "trigger_scope": "in_play",
+        "label": "reduce costs"
+      },
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "gain_buys": 1,
+        "label": "turn start bonus"
+      }
+    ],
+    "tags": [
+      "attack",
+      "duration"
     ]
   },
   {
-    "id": "trail_road_sentinel",
-    "name": "Road Sentinel",
+    "id": "caravan_guard",
+    "name": "Caravan Guard",
     "type": "action",
-    "group": "Trailblazers",
+    "group": "Adventures",
     "art_id": "roadside_reaver",
     "cost": 3,
-    "description": "Draw 1 card. Gain 2 actions. At the start of your next turn, draw 1 card and ignore attacks until then.",
+    "description": "+1 Card and +1 Action. At the start of your next turn, +1 coin. When another player plays an Attack card, you may first play this from your hand.",
     "draw_cards": 1,
-    "gain_actions": 2,
+    "gain_actions": 1,
     "special_effects": [
-      {"kind": "turn_start_bonus", "trigger": "next_turn", "draw_cards": 1, "label": "Next Turn: Draw 1"},
-      {"kind": "attack_immunity", "trigger": "next_turn", "zone": "hand", "label": "Next Turn: Guarded"}
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "gain_coins": 1,
+        "label": "turn start bonus"
+      },
+      {
+        "kind": "reaction",
+        "trigger": "attack",
+        "label": "React to an Attack"
+      }
+    ],
+    "tags": [
+      "duration",
+      "reaction"
     ]
   },
   {
-    "id": "trail_pocket_token",
-    "name": "Pocket Token",
+    "id": "coin_of_the_realm",
+    "name": "Coin of the Realm",
     "type": "resource",
-    "group": "Trailblazers",
-    "art_id": "moonwell_token",
+    "group": "Adventures",
+    "art_id": "pebble_coin",
     "cost": 2,
-    "description": "Set this aside on your waypoint mat. Call it for 2 coins and 1 buy.",
+    "description": "Worth 1 coin. Put it on your Tavern mat. After you play an Action card, you may call this for +2 Actions.",
+    "coin_value": 1,
     "reserve": true,
-    "tags": ["reserve", "coin_reserve"],
-    "special_effects": [
-      {"kind": "reserve_store", "label": "Store on Waypoint Mat"},
-      {"kind": "turn_start_bonus", "trigger": "call", "gain_coins": 2, "gain_buys": 1, "label": "Call for Coins and Buy"}
+    "tags": [
+      "reserve"
     ]
   },
   {
-    "id": "trail_far_horizons",
-    "name": "Far Horizons",
-    "type": "victory",
-    "group": "Trailblazers",
+    "id": "distant_lands",
+    "name": "Distant Lands",
+    "type": "action",
+    "group": "Adventures",
     "art_id": "orchard_map",
     "cost": 5,
-    "description": "Set this aside when gained. At the end of the game, score 2 VP for each different card type you own, up to 8 VP.",
+    "description": "Put this on your Tavern mat. Worth 4 VP if it is on your Tavern mat at the end of the game, otherwise 0 VP.",
+    "reserve": true,
     "victory_points": 0,
+    "tags": [
+      "reserve",
+      "victory"
+    ],
     "special_effects": [
-      {"kind": "distant_lands_score", "trigger": "scoring", "per_type": 2, "maximum": 8, "label": "Score for Card Types"}
+      {
+        "kind": "distant_lands_score",
+        "trigger": "scoring",
+        "on_mat_points": 4,
+        "label": "distant lands score"
+      }
     ]
   },
   {
-    "id": "trail_two_key_cell",
-    "name": "Two-Key Cell",
+    "id": "dungeon",
+    "name": "Dungeon",
     "type": "action",
-    "group": "Trailblazers",
-    "art_id": "quiet_archive",
-    "cost": 3,
-    "description": "Draw 1 card. Gain 1 action. Set aside up to 2 cards from your hand. At the start of your next turn, draw 2 cards and return those cards to your hand.",
-    "draw_cards": 1,
-    "gain_actions": 1,
-    "special_effects": [
-      {"kind": "set_aside_from_hand", "amount": 2, "label": "Set Aside up to 2"},
-      {"kind": "turn_start_bonus", "trigger": "next_turn", "draw_cards": 2, "label": "Next Turn: Draw 2"},
-      {"kind": "return_set_aside", "trigger": "next_turn", "label": "Return Waypoint Cards"}
-    ]
-  },
-  {
-    "id": "trail_echo_seal",
-    "name": "Echo Seal",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "echoing_hall",
-    "cost": 5,
-    "description": "Set this aside on your waypoint mat. Call it when you gain a card costing up to 5 to gain a copy of that card.",
-    "reserve": true,
-    "tags": ["reserve", "gain_duplicate"],
-    "special_effects": [
-      {"kind": "reserve_store", "label": "Store on Waypoint Mat"},
-      {"kind": "reserve_duplicate_gain", "max_cost": 5, "label": "Call: Copy a Gain"}
-    ]
-  },
-  {
-    "id": "trail_pack_latch",
-    "name": "Pack Latch",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "sowing_moon",
-    "cost": 3,
-    "description": "Draw 1 card. Gain 1 action. Set aside up to 2 cards from your hand. At the start of your next turn, return them and draw 1 card.",
-    "draw_cards": 1,
-    "gain_actions": 1,
-    "special_effects": [
-      {"kind": "set_aside_from_hand", "amount": 2, "label": "Latch up to 2 Cards"},
-      {"kind": "return_set_aside", "trigger": "next_turn", "label": "Unlatch Cards"},
-      {"kind": "turn_start_bonus", "trigger": "next_turn", "draw_cards": 1, "label": "Next Turn: Draw 1"}
-    ]
-  },
-  {
-    "id": "trail_stormstepper",
-    "name": "Stormstepper",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "starlit_caravan",
-    "cost": 5,
-    "description": "Begin a journey. Choose one: gain 3 coins; or attack by making each rival discard down to 3 cards.",
-    "journey": true,
-    "tags": ["journey", "giant_path"],
-    "special_effects": [
-      {"kind": "journey_start", "label": "Begin Storm Journey"},
-      {"kind": "choose_one_of_standard", "modes": [{"id": "coins", "label": "Gain 3 Coins", "gain_coins": 3}, {"id": "attack", "label": "Attack: Discard Down", "effects": [{"kind": "attack", "mode": "discard_down", "target_hand_size": 3, "label": "Attack: Discard Down"}]}], "label": "Choose a Storm Path"}
-    ]
-  },
-  {
-    "id": "trail_trail_guide",
-    "name": "Trail Guide",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "river_courier",
-    "cost": 3,
-    "description": "Set this aside on your waypoint mat. Call it to discard your hand, then draw 5 cards.",
-    "reserve": true,
-    "tags": ["reserve", "redraw"],
-    "special_effects": [
-      {"kind": "reserve_store", "label": "Store on Waypoint Mat"},
-      {"kind": "discard_from_hand_draw", "trigger": "call", "label": "Call: Refresh Your Hand"}
-    ]
-  },
-  {
-    "id": "trail_whisper_grove",
-    "name": "Whisper Grove",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "quiet_stratagem",
-    "cost": 5,
-    "description": "Draw 1 card. Gain 1 action. At the start of your next turn, draw 2 cards. Attack: each rival discards down to 3 cards.",
-    "draw_cards": 1,
-    "gain_actions": 1,
-    "special_effects": [
-      {"kind": "turn_start_bonus", "trigger": "next_turn", "draw_cards": 2, "label": "Next Turn: Draw 2"},
-      {"kind": "attack", "mode": "discard_down", "target_hand_size": 3, "label": "Attack: Thin Rival Hands"}
-    ]
-  },
-  {
-    "id": "trail_camp_companion",
-    "name": "Camp Companion",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "hearthside_lodge",
-    "cost": 6,
-    "description": "Draw 1 card. Gain 1 action. At the start of each of your turns, draw 1 extra card while this remains in play.",
-    "draw_cards": 1,
-    "gain_actions": 1,
-    "special_effects": [
-      {"kind": "turn_start_bonus", "trigger": "next_turn", "draw_cards": 1, "repeat": true, "label": "Next Turns: Draw 1"},
-      {"kind": "duration_hand_size", "trigger": "next_turn", "amount": 1, "label": "Keep a Larger Hand"}
-    ]
-  },
-  {
-    "id": "trail_ruined_beacon",
-    "name": "Ruined Beacon",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "sunspire_monument",
-    "cost": 5,
-    "description": "Draw 2 cards. Gain 1 action. Each other player draws 1 card.",
-    "draw_cards": 2,
-    "gain_actions": 1,
-    "special_effects": [
-      {"kind": "each_other_player_draws", "amount": 1, "label": "Signal Other Players"}
-    ]
-  },
-  {
-    "id": "trail_bright_pin",
-    "name": "Bright-Pin Crow",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "bonepicker_crow",
-    "cost": 4,
-    "description": "Reveal cards from your deck until you reveal 2 resources. Put those resources into your hand and discard the rest. If both are revealed, gain 1 coin.",
-    "special_effects": [
-      {"kind": "reveal_resources_to_hand", "amount": 2, "label": "Find 2 Resources"},
-      {"kind": "magpie_cache", "amount": 1, "label": "Crow Cache"}
-    ]
-  },
-  {
-    "id": "trail_swift_courier",
-    "name": "Swift Courier",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "river_courier",
-    "cost": 4,
-    "description": "Draw 1 card. Gain 1 action and 1 buy. Gain a card costing up to 4 to your discard pile.",
-    "draw_cards": 1,
-    "gain_actions": 1,
-    "gain_buys": 1,
-    "special_effects": [
-      {"kind": "gain_from_supply", "max_cost": 4, "destination": "discard", "label": "Deliver a Card"}
-    ]
-  },
-  {
-    "id": "trail_tide_hoard",
-    "name": "Tide Hoard",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "firefly_gold",
-    "cost": 4,
-    "description": "Take 1 coin token. You may remove any number of your coin tokens for 1 coin each.",
-    "special_effects": [
-      {"kind": "miser_tokens", "amount": 1, "token_id": "coin", "label": "Take a Coin Token"},
-      {"kind": "miser_spend_tokens", "token_id": "coin", "label": "Spend Coin Tokens"}
-    ]
-  },
-  {
-    "id": "trail_pathfinder_page",
-    "name": "Pathfinder Page",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "dawn_whistle",
-    "cost": 2,
-    "description": "Draw 1 card. Gain 1 action. You may retire this to take the first training card from its path.",
-    "draw_cards": 1,
-    "gain_actions": 1,
-    "traveller": true,
-    "traveller_upgrade_id": "trail_page_treasure",
-    "tags": ["traveller", "page_path"],
-    "special_effects": [
-      {"kind": "traveller_upgrade", "label": "Advance the Page"}
-    ]
-  },
-  {
-    "id": "trail_field_recruit",
-    "name": "Field Recruit",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "village_bell",
-    "cost": 2,
-    "description": "Draw 1 card. Gain 1 action. You may retire this to take the first training card from its path.",
-    "draw_cards": 1,
-    "gain_actions": 1,
-    "traveller": true,
-    "traveller_upgrade_id": "trail_peasant_scout",
-    "tags": ["traveller", "peasant_path"],
-    "special_effects": [
-      {"kind": "traveller_upgrade", "label": "Advance the Recruit"}
-    ]
-  },
-  {
-    "id": "trail_harbor_depot",
-    "name": "Harbor Depot",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "merchant_barge",
-    "cost": 4,
-    "description": "Draw 1 card. Gain 2 actions. Whenever you gain this card, gain a cheaper card.",
-    "draw_cards": 1,
-    "gain_actions": 2,
-    "special_effects": [
-      {"kind": "gain_cheaper", "trigger": "gain", "destination": "discard", "label": "Gain: Cheaper Cargo"}
-    ]
-  },
-  {
-    "id": "trail_moonpath_ranger",
-    "name": "Moonpath Ranger",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "river_trail",
-    "cost": 4,
-    "description": "Begin a journey. Reveal the top 5 cards of your deck, keep one resource, and discard the rest.",
-    "journey": true,
-    "tags": ["journey", "ranger_path"],
-    "special_effects": [
-      {"kind": "journey_start", "label": "Begin Moon Journey"},
-      {"kind": "inspect_top", "amount": 5, "label": "Survey the Trail"}
-    ]
-  },
-  {
-    "id": "trail_camp_scrubber",
-    "name": "Camp Scrubber",
-    "type": "action",
-    "group": "Trailblazers",
+    "group": "Adventures",
     "art_id": "root_cellar",
-    "cost": 2,
-    "description": "Set this aside on your waypoint mat. Call it to trash a card from your hand and draw 1 card.",
-    "reserve": true,
-    "tags": ["reserve", "trash_service"],
-    "special_effects": [
-      {"kind": "reserve_store", "label": "Store on Waypoint Mat"},
-      {"kind": "trash_from_hand", "trigger": "call", "amount": 1, "required": true, "label": "Call: Clear Your Pack"},
-      {"kind": "turn_start_bonus", "trigger": "call", "draw_cards": 1, "label": "Call: Draw 1"}
-    ]
-  },
-  {
-    "id": "trail_scorch_mark",
-    "name": "Scorch Mark",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "orchard_estate",
     "cost": 3,
-    "description": "Trash a card from your hand. Gain a card costing up to 1 more.",
+    "description": "+1 Action. Now and at the start of your next turn, +2 Cards, then discard 2 Cards.",
+    "gain_actions": 1,
+    "draw_cards": 2,
     "special_effects": [
-      {"kind": "remodel", "cost_delta": 1, "label": "Transform a Card"}
+      {
+        "kind": "discard_filtered",
+        "amount": 2,
+        "required": true,
+        "label": "discard filtered"
+      },
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "draw_cards": 2,
+        "discard_cards": 2,
+        "label": "turn start bonus"
+      }
+    ],
+    "tags": [
+      "duration"
     ]
   },
   {
-    "id": "trail_sunken_relic",
-    "name": "Sunken Relic",
+    "id": "duplicate",
+    "name": "Duplicate",
     "type": "action",
-    "group": "Trailblazers",
-    "art_id": "gilded_reliquary",
-    "cost": 5,
-    "description": "Reveal the top 2 cards of your deck. You may trash one revealed resource and gain coins equal to its value. Attack: each rival discards a resource.",
-    "special_effects": [
-      {"kind": "salvage_resource", "amount": 2, "label": "Salvage 2 Cards"},
-      {"kind": "attack", "mode": "discard_resource", "label": "Attack: Discard a Resource"}
-    ]
-  },
-  {
-    "id": "trail_coach_echoes",
-    "name": "Coach of Echoes",
-    "type": "action",
-    "group": "Trailblazers",
+    "group": "Adventures",
     "art_id": "echoing_hall",
-    "cost": 5,
-    "description": "Set this aside on your waypoint mat. Call it to play an action card from your hand twice.",
+    "cost": 4,
+    "description": "Put this on your Tavern mat. When you gain a card costing up to 6 coins, you may call this to gain a copy of that card.",
     "reserve": true,
-    "tags": ["reserve", "replay"],
+    "tags": [
+      "reserve"
+    ],
     "special_effects": [
-      {"kind": "reserve_store", "label": "Store on Waypoint Mat"},
-      {"kind": "replay_action", "trigger": "call", "repetitions": 2, "label": "Call: Replay an Action"}
+      {
+        "kind": "reserve_store",
+        "label": "reserve store"
+      },
+      {
+        "kind": "reserve_duplicate_gain",
+        "max_cost": 6,
+        "label": "reserve duplicate gain"
+      }
     ]
   },
   {
-    "id": "trail_tale_spinner",
-    "name": "Tale Spinner",
+    "id": "gear",
+    "name": "Gear",
     "type": "action",
-    "group": "Trailblazers",
-    "art_id": "quiet_archive",
+    "group": "Adventures",
+    "art_id": "bellfoundry_village",
+    "cost": 3,
+    "description": "+2 Cards. Set aside up to 2 cards from your hand face down under this. At the start of your next turn, put them into your hand.",
+    "draw_cards": 2,
+    "special_effects": [
+      {
+        "kind": "set_aside_from_hand",
+        "amount": 2,
+        "return_next_turn": true,
+        "label": "set aside from hand"
+      },
+      {
+        "kind": "duration_marker",
+        "trigger": "next_turn",
+        "label": "duration marker"
+      }
+    ],
+    "tags": [
+      "duration"
+    ]
+  },
+  {
+    "id": "giant",
+    "name": "Giant",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "briar_hound",
     "cost": 5,
-    "description": "Draw 3 cards. Gain coins equal to the number of cards in your hand, then discard your hand.",
-    "draw_cards": 3,
+    "description": "Turn your Journey token over (it starts face up). Then if it is face down, +1 coin. If it is face up, +5 coins, and each other player reveals the top card of their deck, trashes it if it costs from 3 to 6 coins, and otherwise discards it and gains a Curse.",
     "special_effects": [
-      {"kind": "storyteller_discard_for_coins", "label": "Tell a Tale for Coins"}
+      {
+        "kind": "journey_flip",
+        "on_active": [
+          {
+            "kind": "gain_coins",
+            "amount": 5
+          }
+        ],
+        "on_inactive": [
+          {
+            "kind": "gain_coins",
+            "amount": 1
+          }
+        ],
+        "label": "journey flip"
+      },
+      {
+        "kind": "journey_attack",
+        "attack": {
+          "mode": "giant",
+          "amount": 1
+        },
+        "label": "journey attack"
+      }
+    ],
+    "tags": [
+      "attack"
     ]
   },
   {
-    "id": "trail_bog_hexer",
-    "name": "Bog Hexer",
+    "id": "guide",
+    "name": "Guide",
     "type": "action",
-    "group": "Trailblazers",
+    "group": "Adventures",
+    "art_id": "trail_biscuit",
+    "cost": 3,
+    "description": "+1 Card and +1 Action. Put this on your Tavern mat. At the start of your turn, you may call this to discard your hand and draw 5 cards.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "reserve": true,
+    "tags": [
+      "reserve"
+    ],
+    "special_effects": [
+      {
+        "kind": "reserve_store",
+        "label": "reserve store"
+      },
+      {
+        "kind": "reserve_redraw",
+        "trigger": "call",
+        "label": "reserve redraw"
+      }
+    ]
+  },
+  {
+    "id": "haunted_woods",
+    "name": "Haunted Woods",
+    "type": "action",
+    "group": "Adventures",
     "art_id": "briar_hut",
     "cost": 5,
-    "description": "At the start of your next turn, gain 3 coins. Attack: each rival gains a curse.",
+    "description": "Until your next turn, when any other player buys a card, they put their hand onto their deck in any order. At the start of your next turn, +3 Cards.",
     "special_effects": [
-      {"kind": "turn_start_bonus", "trigger": "next_turn", "gain_coins": 3, "label": "Next Turn: Gain 3 Coins"},
-      {"kind": "attack", "mode": "gain_curse", "card_id": "briar_hex", "label": "Attack: Send a Curse"}
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "draw_cards": 3,
+        "label": "turn start bonus"
+      },
+      {
+        "kind": "register_buy_attack",
+        "trigger_scope": "in_play",
+        "attack": {
+          "mode": "topdeck_hand"
+        },
+        "label": "register buy attack"
+      }
+    ],
+    "tags": [
+      "attack",
+      "duration"
     ]
   },
   {
-    "id": "trail_shape_shifter",
-    "name": "Shape Shifter",
+    "id": "hireling",
+    "name": "Hireling",
     "type": "action",
-    "group": "Trailblazers",
-    "art_id": "wishing_crossroads",
-    "cost": 4,
-    "description": "Set this aside on your waypoint mat. Call it to trash a card from your hand and gain a card costing up to 1 more.",
-    "reserve": true,
-    "tags": ["reserve", "transform"],
+    "group": "Adventures",
+    "art_id": "hearthside_lodge",
+    "cost": 6,
+    "description": "At the start of each of your turns for the rest of the game, +1 Card. This stays in play.",
     "special_effects": [
-      {"kind": "reserve_store", "label": "Store on Waypoint Mat"},
-      {"kind": "remodel", "trigger": "call", "cost_delta": 1, "label": "Call: Transform a Card"}
+      {
+        "kind": "duration_hand_size",
+        "amount": 1,
+        "trigger": "next_turn",
+        "repeat": true,
+        "label": "duration hand size"
+      }
+    ],
+    "tags": [
+      "duration"
     ]
   },
   {
-    "id": "trail_roaming_fair",
-    "name": "Roaming Fair",
+    "id": "lost_city",
+    "name": "Lost City",
     "type": "action",
-    "group": "Trailblazers",
-    "art_id": "lantern_bazaar",
-    "cost": 4,
-    "description": "Gain 2 buys. Cards cost 2 less this turn, to a minimum of 0.",
-    "gain_buys": 2,
-    "special_effects": [
-      {"kind": "reduce_costs", "amount": 2, "label": "Costs -2 This Turn"}
-    ]
-  },
-  {
-    "id": "trail_cellar_steward",
-    "name": "Cellar Steward",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "candlecap_kettle",
+    "group": "Adventures",
+    "art_id": "scholars_hall",
     "cost": 5,
-    "description": "Set this aside on your waypoint mat. Call it for 2 coins and 1 buy.",
-    "reserve": true,
-    "tags": ["reserve", "wine_service"],
+    "description": "+2 Cards and +2 Actions. When you gain this, each other player draws a card.",
+    "draw_cards": 2,
+    "gain_actions": 2,
     "special_effects": [
-      {"kind": "reserve_store", "label": "Store on Waypoint Mat"},
-      {"kind": "turn_start_bonus", "trigger": "call", "gain_coins": 2, "gain_buys": 1, "label": "Call: Pour a Round"}
+      {
+        "kind": "each_other_player_draws",
+        "amount": 1,
+        "trigger": "gain",
+        "label": "each other player draws"
+      }
     ]
   },
   {
-    "id": "trail_sunken_chest",
-    "name": "Sunken Chest",
+    "id": "magpie",
+    "name": "Magpie",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "bonepicker_crow",
+    "cost": 4,
+    "description": "+1 Card and +1 Action. Reveal the top card of your deck. If it is a Treasure, put it into your hand. If it is an Action or Victory card, gain a Magpie.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "magpie_reveal",
+        "label": "magpie reveal"
+      }
+    ]
+  },
+  {
+    "id": "messenger",
+    "name": "Messenger",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "river_courier",
+    "cost": 4,
+    "description": "+1 Buy and +1 coin. You may put your deck into your discard pile. When this is your first buy in a turn, gain a card costing up to 4 coins, and each other player gains a copy of it.",
+    "gain_buys": 1,
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "discard_deck",
+        "label": "discard deck"
+      },
+      {
+        "kind": "messenger_first_buy",
+        "max_cost": 4,
+        "label": "messenger first buy"
+      }
+    ]
+  },
+  {
+    "id": "miser",
+    "name": "Miser",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "acorn_purse",
+    "cost": 4,
+    "description": "Choose one: put a Copper from your hand onto your Tavern mat; or +1 coin per Copper on your Tavern mat.",
+    "special_effects": [
+      {
+        "kind": "choose_one_of_standard",
+        "modes": [
+          {
+            "id": "deposit",
+            "label": "Put a Copper on your Tavern mat",
+            "effects": [
+              {
+                "kind": "coin_mat_deposit",
+                "card_id": "pebble_coin",
+                "amount": 1,
+                "label": "coin mat deposit"
+              }
+            ]
+          },
+          {
+            "id": "coins",
+            "label": "+1 Coin per Copper",
+            "effects": [
+              {
+                "kind": "miser_spend_tokens",
+                "token": "coin",
+                "value": 1,
+                "label": "miser spend tokens"
+              }
+            ]
+          }
+        ],
+        "label": "choose one of standard"
+      }
+    ]
+  },
+  {
+    "id": "page",
+    "name": "Page",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "village_bell",
+    "cost": 2,
+    "description": "+1 Card and +1 Action. When you discard this from play, you may exchange it for a Treasure Hunter.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "traveller": true,
+    "traveller_upgrade_id": "treasure_hunter",
+    "tags": [
+      "traveller",
+      "page_path"
+    ],
+    "special_effects": [
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
+  },
+  {
+    "id": "peasant",
+    "name": "Peasant",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "village_bell",
+    "cost": 2,
+    "description": "+1 Buy and +1 coin. When you discard this from play, you may exchange it for a Soldier.",
+    "gain_buys": 1,
+    "gain_coins": 1,
+    "traveller": true,
+    "traveller_upgrade_id": "soldier",
+    "tags": [
+      "traveller",
+      "peasant_path"
+    ],
+    "special_effects": [
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
+  },
+  {
+    "id": "port",
+    "name": "Port",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "merchant_barge",
+    "cost": 4,
+    "description": "+1 Card and +2 Actions. When you gain this, gain another Port.",
+    "draw_cards": 1,
+    "gain_actions": 2,
+    "special_effects": [
+      {
+        "kind": "gain_card",
+        "card_id": "port",
+        "destination": "discard",
+        "trigger": "gain",
+        "once": true,
+        "label": "gain card"
+      }
+    ]
+  },
+  {
+    "id": "ranger",
+    "name": "Ranger",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "river_trail",
+    "cost": 4,
+    "description": "+1 Buy. Turn your Journey token over (it starts face up). Then if it is face up, +5 Cards.",
+    "gain_buys": 1,
+    "special_effects": [
+      {
+        "kind": "journey_flip",
+        "on_active": [
+          {
+            "kind": "draw_cards",
+            "amount": 5
+          }
+        ],
+        "on_inactive": [],
+        "label": "journey flip"
+      }
+    ]
+  },
+  {
+    "id": "ratcatcher",
+    "name": "Ratcatcher",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "root_cellar",
+    "cost": 2,
+    "description": "+1 Card and +1 Action. Put this on your Tavern mat. At the start of your turn, you may call this to trash a card from your hand.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "reserve": true,
+    "tags": [
+      "reserve"
+    ],
+    "special_effects": [
+      {
+        "kind": "reserve_store",
+        "label": "reserve store"
+      },
+      {
+        "kind": "reserve_trash",
+        "trigger": "call",
+        "amount": 1,
+        "label": "reserve trash"
+      }
+    ]
+  },
+  {
+    "id": "raze",
+    "name": "Raze",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "orchard_estate",
+    "cost": 2,
+    "description": "+1 Action. Trash this or a card from your hand. Look at one card from the top of your deck per coin the trashed card costs. Put one into your hand and discard the rest.",
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "raze",
+        "label": "raze"
+      }
+    ]
+  },
+  {
+    "id": "relic",
+    "name": "Relic",
     "type": "resource",
-    "group": "Trailblazers",
+    "group": "Adventures",
     "art_id": "gilded_reliquary",
     "cost": 5,
-    "description": "Gain 2 coins. When you gain this, take a coin token from the supply.",
+    "description": "Worth 2 coins. Each other player puts their -1 Card token on their deck.",
     "coin_value": 2,
-    "market_enabled": false,
-    "support_pile": true,
     "special_effects": [
-      {"kind": "supply_token", "token_id": "coin", "amount": 1, "trigger": "gain", "label": "Recover a Coin Token"}
+      {
+        "kind": "attack",
+        "mode": "minus_card_token",
+        "label": "attack"
+      }
+    ],
+    "tags": [
+      "attack"
     ]
   },
   {
-    "id": "trail_page_treasure",
-    "name": "Cache Seeker",
+    "id": "royal_carriage",
+    "name": "Royal Carriage",
     "type": "action",
-    "group": "Trailblazers",
-    "art_id": "moonwell_token",
-    "cost": 3,
-    "description": "Gain 1 buy and 1 coin. Retire this to take the next training card from the page path.",
-    "market_enabled": false,
-    "support_pile": true,
-    "traveller_stage": 1,
-    "traveller_upgrade_id": "trail_page_warrior",
-    "special_effects": [{"kind": "traveller_upgrade", "label": "Advance the Page"}]
-  },
-  {
-    "id": "trail_page_warrior",
-    "name": "Ridge Defender",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "stone_wall",
-    "cost": 4,
-    "description": "Gain 2 actions. Attack: each rival discards a card. Retire this to take the next training card from the page path.",
-    "market_enabled": false,
-    "support_pile": true,
-    "traveller_stage": 2,
-    "traveller_upgrade_id": "trail_page_hero",
-    "gain_actions": 2,
-    "special_effects": [{"kind": "attack", "mode": "discard_one", "label": "Attack: Test Rivals"}, {"kind": "traveller_upgrade", "label": "Advance the Page"}]
-  },
-  {
-    "id": "trail_page_hero",
-    "name": "Banner Hero",
-    "type": "action",
-    "group": "Trailblazers",
-    "art_id": "royal_clerk",
+    "group": "Adventures",
+    "art_id": "echoing_hall",
     "cost": 5,
-    "description": "Gain a resource costing up to 6. Retire this to take the next training card from the page path.",
-    "market_enabled": false,
-    "support_pile": true,
-    "traveller_stage": 3,
-    "traveller_upgrade_id": "trail_page_champion",
-    "special_effects": [{"kind": "gain_from_supply", "max_cost": 6, "card_type": "resource", "label": "Gain a Resource"}, {"kind": "traveller_upgrade", "label": "Advance the Page"}]
+    "description": "+1 Action. Put this on your Tavern mat. After you play an Action card, if it is still in play, you may call this to replay that Action.",
+    "gain_actions": 1,
+    "reserve": true,
+    "tags": [
+      "reserve"
+    ],
+    "special_effects": [
+      {
+        "kind": "reserve_store",
+        "label": "reserve store"
+      },
+      {
+        "kind": "reserve_replay",
+        "trigger": "call",
+        "repetitions": 1,
+        "label": "reserve replay"
+      }
+    ]
   },
   {
-    "id": "trail_page_champion",
-    "name": "Path Champion",
+    "id": "storyteller",
+    "name": "Storyteller",
     "type": "action",
-    "group": "Trailblazers",
-    "art_id": "sunspire_monument",
-    "cost": 6,
-    "description": "Gain 2 actions and 2 buys. This card stays in play for your next turn.",
-    "market_enabled": false,
-    "support_pile": true,
-    "traveller_stage": 4,
-    "gain_actions": 2,
-    "gain_buys": 2,
-    "special_effects": [{"kind": "duration_marker", "trigger": "next_turn", "label": "Keep for Next Turn"}]
+    "group": "Adventures",
+    "art_id": "quiet_archive",
+    "cost": 5,
+    "description": "+1 Action. Play up to 3 Treasures from your hand. +1 Card. Pay all your coins. +1 Card per coin paid.",
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "storyteller",
+        "label": "storyteller"
+      }
+    ]
   },
   {
-    "id": "trail_peasant_scout",
-    "name": "Road Scout",
+    "id": "swamp_hag",
+    "name": "Swamp Hag",
     "type": "action",
-    "group": "Trailblazers",
+    "group": "Adventures",
+    "art_id": "witchs_bargain",
+    "cost": 5,
+    "description": "Until your next turn, when any other player buys a card, they gain a Curse. At the start of your next turn, +3 coins.",
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "gain_coins": 3,
+        "label": "turn start bonus"
+      },
+      {
+        "kind": "register_gain_attack",
+        "trigger_scope": "in_play",
+        "attack": {
+          "mode": "gain_curse",
+          "card_id": "briar_hex"
+        },
+        "label": "register gain attack"
+      }
+    ],
+    "tags": [
+      "attack",
+      "duration"
+    ]
+  },
+  {
+    "id": "transmogrify",
+    "name": "Transmogrify",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "root_cellar",
+    "cost": 4,
+    "description": "+1 Action. Put this on your Tavern mat. At the start of your turn, you may call this to trash a card from your hand and gain a card costing up to 1 more onto your hand.",
+    "gain_actions": 1,
+    "reserve": true,
+    "tags": [
+      "reserve"
+    ],
+    "special_effects": [
+      {
+        "kind": "reserve_store",
+        "label": "reserve store"
+      },
+      {
+        "kind": "reserve_remodel",
+        "trigger": "call",
+        "cost_delta": 1,
+        "destination": "hand",
+        "label": "reserve remodel"
+      }
+    ]
+  },
+  {
+    "id": "treasure_trove",
+    "name": "Treasure Trove",
+    "type": "resource",
+    "group": "Adventures",
+    "art_id": "gilded_reliquary",
+    "cost": 5,
+    "description": "Worth 2 coins. When you play this, gain a Gold and a Copper.",
+    "coin_value": 2,
+    "special_effects": [
+      {
+        "kind": "gain_card",
+        "card_id": "amber_circlet",
+        "destination": "discard",
+        "trigger": "play",
+        "label": "gain card"
+      },
+      {
+        "kind": "gain_card",
+        "card_id": "pebble_coin",
+        "destination": "discard",
+        "trigger": "play",
+        "label": "gain card"
+      }
+    ]
+  },
+  {
+    "id": "wine_merchant",
+    "name": "Wine Merchant",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "candlecap_kettle",
+    "cost": 5,
+    "description": "+1 Buy and +4 coins. Put this on your Tavern mat. At the end of your Buy phase, if you have at least 2 coins, you may discard this from your Tavern mat.",
+    "gain_buys": 1,
+    "gain_coins": 4,
+    "reserve": true,
+    "tags": [
+      "reserve"
+    ],
+    "special_effects": [
+      {
+        "kind": "reserve_store",
+        "label": "reserve store"
+      },
+      {
+        "kind": "wine_merchant_call",
+        "trigger": "buy_phase_end",
+        "gain_buys": 0,
+        "label": "wine merchant call"
+      }
+    ]
+  },
+  {
+    "id": "treasure_hunter",
+    "name": "Treasure Hunter",
+    "type": "action",
+    "group": "Adventures",
     "art_id": "trail_biscuit",
     "cost": 3,
-    "description": "Draw 2 cards. Retire this to take the next training card from the recruit path.",
+    "description": "+1 Action and +1 coin. Gain a Silver per card the player to your right gained in their last turn. When you discard this from play, you may exchange it for a Warrior.",
+    "gain_actions": 1,
+    "gain_coins": 1,
     "market_enabled": false,
     "support_pile": true,
-    "traveller_stage": 1,
-    "traveller_upgrade_id": "trail_peasant_guard",
-    "draw_cards": 2,
-    "special_effects": [{"kind": "traveller_upgrade", "label": "Advance the Recruit"}]
+    "traveller": true,
+    "traveller_upgrade_id": "warrior",
+    "tags": [
+      "traveller",
+      "non_supply"
+    ],
+    "special_effects": [
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
   },
   {
-    "id": "trail_peasant_guard",
-    "name": "Road Guard",
+    "id": "warrior",
+    "name": "Warrior",
     "type": "action",
-    "group": "Trailblazers",
+    "group": "Adventures",
     "art_id": "roadside_reaver",
     "cost": 4,
-    "description": "Gain 2 actions. Attack: each rival discards a resource. Retire this to take the next training card from the recruit path.",
+    "description": "+2 Cards. For each Traveller you have in play, each other player discards the top card of their deck and trashes it if it costs exactly 3 or 4 coins. When you discard this from play, you may exchange it for a Hero.",
+    "draw_cards": 2,
     "market_enabled": false,
     "support_pile": true,
-    "traveller_stage": 2,
-    "traveller_upgrade_id": "trail_peasant_teacher",
-    "gain_actions": 2,
-    "special_effects": [{"kind": "attack", "mode": "discard_resource", "label": "Attack: Discard a Resource"}, {"kind": "traveller_upgrade", "label": "Advance the Recruit"}]
+    "traveller": true,
+    "traveller_upgrade_id": "hero",
+    "tags": [
+      "traveller",
+      "non_supply",
+      "attack"
+    ],
+    "special_effects": [
+      {
+        "kind": "attack",
+        "mode": "warrior",
+        "label": "attack"
+      },
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
   },
   {
-    "id": "trail_peasant_teacher",
-    "name": "Camp Teacher",
+    "id": "hero",
+    "name": "Hero",
     "type": "action",
-    "group": "Trailblazers",
+    "group": "Adventures",
+    "art_id": "royal_clerk",
+    "cost": 5,
+    "description": "+2 coins. Gain a Treasure. When you discard this from play, you may exchange it for a Champion.",
+    "gain_coins": 2,
+    "market_enabled": false,
+    "support_pile": true,
+    "traveller": true,
+    "traveller_upgrade_id": "champion",
+    "tags": [
+      "traveller",
+      "non_supply"
+    ],
+    "special_effects": [
+      {
+        "kind": "gain_from_supply",
+        "card_type": "resource",
+        "max_cost": 99,
+        "label": "gain from supply"
+      },
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
+  },
+  {
+    "id": "champion",
+    "name": "Champion",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "sunspire_monument",
+    "cost": 6,
+    "description": "+1 Action. For the rest of the game, when another player plays an Attack, it does not affect you, and when you play an Action card, +1 Action. This stays in play.",
+    "gain_actions": 1,
+    "market_enabled": false,
+    "support_pile": true,
+    "tags": [
+      "non_supply",
+      "duration"
+    ],
+    "special_effects": [
+      {
+        "kind": "champion",
+        "label": "champion"
+      }
+    ]
+  },
+  {
+    "id": "soldier",
+    "name": "Soldier",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "roadside_reaver",
+    "cost": 3,
+    "description": "+2 coins, plus +1 coin per other Attack you have in play. Each other player with 4 or more cards in hand discards a card. When you discard this from play, you may exchange it for a Fugitive.",
+    "gain_coins": 2,
+    "market_enabled": false,
+    "support_pile": true,
+    "traveller": true,
+    "traveller_upgrade_id": "fugitive",
+    "tags": [
+      "traveller",
+      "non_supply",
+      "attack"
+    ],
+    "special_effects": [
+      {
+        "kind": "attack",
+        "mode": "soldier",
+        "label": "attack"
+      },
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
+  },
+  {
+    "id": "fugitive",
+    "name": "Fugitive",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "trail_biscuit",
+    "cost": 4,
+    "description": "+2 Cards and +1 Action. Discard a card. When you discard this from play, you may exchange it for a Disciple.",
+    "draw_cards": 2,
+    "gain_actions": 1,
+    "market_enabled": false,
+    "support_pile": true,
+    "traveller": true,
+    "traveller_upgrade_id": "disciple",
+    "tags": [
+      "traveller",
+      "non_supply"
+    ],
+    "special_effects": [
+      {
+        "kind": "discard_from_hand_draw",
+        "amount": 1,
+        "label": "discard from hand draw"
+      },
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
+  },
+  {
+    "id": "disciple",
+    "name": "Disciple",
+    "type": "action",
+    "group": "Adventures",
     "art_id": "weavers_loom",
     "cost": 5,
-    "description": "Play an action card from your hand twice. Retire this to take the next training card from the recruit path.",
+    "description": "You may play an Action card from your hand twice. Gain a copy of it. When you discard this from play, you may exchange it for a Teacher.",
     "market_enabled": false,
     "support_pile": true,
-    "traveller_stage": 3,
-    "traveller_upgrade_id": "trail_peasant_captain",
-    "special_effects": [{"kind": "replay_action", "repetitions": 2, "label": "Replay an Action"}, {"kind": "traveller_upgrade", "label": "Advance the Recruit"}]
+    "traveller": true,
+    "traveller_upgrade_id": "teacher",
+    "tags": [
+      "traveller",
+      "non_supply"
+    ],
+    "special_effects": [
+      {
+        "kind": "replay_action",
+        "repetitions": 2,
+        "label": "replay action"
+      },
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
   },
   {
-    "id": "trail_peasant_captain",
-    "name": "Camp Captain",
+    "id": "teacher",
+    "name": "Teacher",
     "type": "action",
-    "group": "Trailblazers",
-    "art_id": "royal_charter",
+    "group": "Adventures",
+    "art_id": "village_bell",
     "cost": 6,
-    "description": "Draw 2 cards. Gain 2 actions and 1 buy. This card stays in play for your next turn.",
+    "description": "Put this on your Tavern mat. At the start of your turn, you may call this to move your +1 Card, +1 Action, +1 Buy, or +1 coin token to an Action Supply pile.",
     "market_enabled": false,
     "support_pile": true,
-    "traveller_stage": 4,
-    "draw_cards": 2,
-    "gain_actions": 2,
-    "gain_buys": 1,
-    "special_effects": [{"kind": "duration_marker", "trigger": "next_turn", "label": "Keep for Next Turn"}]
+    "reserve": true,
+    "tags": [
+      "reserve",
+      "non_supply"
+    ],
+    "special_effects": [
+      {
+        "kind": "reserve_store",
+        "label": "reserve store"
+      },
+      {
+        "kind": "teacher_token",
+        "trigger": "call",
+        "label": "teacher token"
+      }
+    ]
   },
   {
-    "id": "trail_event_scout_route",
-    "name": "Scout Route",
+    "id": "alms",
+    "name": "Alms",
     "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "river_trail",
-    "event_cost": 2,
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "candlecap_kettle",
+    "event_cost": 0,
     "market_enabled": false,
     "event_enabled": true,
-    "description": "Draw 2 cards.",
-    "draw_cards": 2,
-    "special_effects": []
+    "description": "Once per turn: If you have no Treasures in play, gain a card costing up to 4 coins.",
+    "special_effects": [
+      {
+        "kind": "gain_from_supply",
+        "max_cost": 4,
+        "label": "gain from supply"
+      }
+    ]
   },
   {
-    "id": "trail_event_forage",
-    "name": "Forage",
+    "id": "ball",
+    "name": "Ball",
     "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "trail_biscuit",
-    "event_cost": 2,
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "stone_wall",
+    "event_cost": 5,
     "market_enabled": false,
     "event_enabled": true,
-    "description": "Gain a resource costing up to 3.",
-    "special_effects": [{"kind": "gain_from_supply", "max_cost": 3, "card_type": "resource", "label": "Gather a Resource"}]
+    "description": "Take your -1 coin token. Gain 2 cards each costing up to 4 coins.",
+    "special_effects": [
+      {
+        "kind": "player_token",
+        "token": "minus_coin",
+        "amount": 1,
+        "label": "player token"
+      },
+      {
+        "kind": "gain_from_supply",
+        "max_cost": 4,
+        "label": "gain from supply"
+      },
+      {
+        "kind": "gain_from_supply",
+        "max_cost": 4,
+        "label": "gain from supply"
+      }
+    ]
   },
   {
-    "id": "trail_event_campfire",
-    "name": "Campfire",
+    "id": "bonfire",
+    "name": "Bonfire",
     "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
+    "group": "Adventures",
+    "event_group": "Adventures",
     "art_id": "firefly_supper",
     "event_cost": 3,
     "market_enabled": false,
     "event_enabled": true,
-    "description": "Gain 2 actions and 1 buy.",
-    "gain_actions": 2,
-    "gain_buys": 1,
-    "special_effects": []
+    "description": "Trash up to 2 cards you have in play.",
+    "special_effects": [
+      {
+        "kind": "trash_from_play",
+        "amount": 2,
+        "label": "trash from play"
+      }
+    ]
   },
   {
-    "id": "trail_event_river_passage",
-    "name": "River Passage",
+    "id": "borrow",
+    "name": "Borrow",
     "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "acorn_purse",
+    "event_cost": 0,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Once per turn: +1 Buy. If your -1 Card token is not on your deck, put it there and +1 coin.",
+    "gain_buys": 1,
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "player_token",
+        "token": "minus_card",
+        "amount": 1,
+        "label": "player token"
+      }
+    ]
+  },
+  {
+    "id": "expedition",
+    "name": "Expedition",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "river_trail",
+    "event_cost": 3,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Draw 2 extra cards for your next hand.",
+    "special_effects": [
+      {
+        "kind": "next_hand_draw_bonus",
+        "amount": 2,
+        "label": "next hand draw bonus"
+      }
+    ]
+  },
+  {
+    "id": "ferry",
+    "name": "Ferry",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
     "art_id": "merchant_barge",
-    "event_cost": 2,
-    "market_enabled": false,
-    "event_enabled": true,
-    "description": "Gain 1 buy. Cards cost 1 less this turn.",
-    "gain_buys": 1,
-    "special_effects": [{"kind": "reduce_costs", "amount": 1, "label": "Cross at Lower Cost"}]
-  },
-  {
-    "id": "trail_event_chart_course",
-    "name": "Chart Course",
-    "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "orchard_map",
     "event_cost": 3,
     "market_enabled": false,
     "event_enabled": true,
-    "description": "Put a card from your discard pile on top of your deck.",
-    "special_effects": [{"kind": "topdeck_from_discard", "label": "Set Your Next Draw"}]
+    "description": "Move your -2 coin cost token to an Action Supply pile. Cards from that pile cost 2 less on your turns.",
+    "special_effects": [
+      {
+        "kind": "supply_tokens",
+        "token": "minus_cost",
+        "amount": 1,
+        "label": "supply tokens"
+      }
+    ]
   },
   {
-    "id": "trail_event_barter",
-    "name": "Trail Barter",
+    "id": "inheritance",
+    "name": "Inheritance",
     "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "silverleaf_broker",
-    "event_cost": 4,
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "royal_charter",
+    "event_cost": 7,
     "market_enabled": false,
     "event_enabled": true,
-    "description": "Gain 3 coins. Cards cost 2 less this turn.",
-    "gain_coins": 3,
-    "special_effects": [{"kind": "reduce_costs", "amount": 2, "label": "Bargain on the Trail"}]
+    "description": "Once per game: Set aside a non-Command Action card from the Supply costing up to 5 coins. Move your Estate token to it. During your turns, Estates are also Actions with that card's text.",
+    "special_effects": [
+      {
+        "kind": "inheritance",
+        "max_cost": 5,
+        "label": "inheritance"
+      }
+    ]
   },
   {
-    "id": "trail_event_call_helpers",
-    "name": "Call Helpers",
+    "id": "lost_arts",
+    "name": "Lost Arts",
     "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "village_bell",
-    "event_cost": 3,
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "weavers_loom",
+    "event_cost": 6,
     "market_enabled": false,
     "event_enabled": true,
-    "description": "Gain an action card costing up to 4.",
-    "special_effects": [{"kind": "gain_from_supply", "max_cost": 4, "card_type": "action", "label": "Hire an Action Card"}]
+    "description": "Move your +1 Action token to an Action Supply pile. When you play a card from that pile, you first get +1 Action.",
+    "special_effects": [
+      {
+        "kind": "supply_tokens",
+        "token": "action",
+        "amount": 1,
+        "label": "supply tokens"
+      }
+    ]
   },
   {
-    "id": "trail_event_hidden_cache",
-    "name": "Hidden Cache",
+    "id": "mission",
+    "name": "Mission",
     "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "quiet_archive",
-    "event_cost": 2,
-    "market_enabled": false,
-    "event_enabled": true,
-    "description": "Set aside up to 2 cards from your hand until your next turn.",
-    "special_effects": [{"kind": "set_aside_from_hand", "amount": 2, "label": "Hide up to 2 Cards"}]
-  },
-  {
-    "id": "trail_event_dare_wild",
-    "name": "Dare the Wild",
-    "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "starlit_caravan",
-    "event_cost": 3,
-    "market_enabled": false,
-    "event_enabled": true,
-    "description": "Attack: each rival discards down to 3 cards.",
-    "special_effects": [{"kind": "attack", "mode": "discard_down", "target_hand_size": 3, "label": "Attack: Dare Rivals"}]
-  },
-  {
-    "id": "trail_event_unearth_cache",
-    "name": "Unearth Cache",
-    "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "gilded_reliquary",
-    "event_cost": 4,
-    "market_enabled": false,
-    "event_enabled": true,
-    "description": "Gain a 3-coin resource.",
-    "special_effects": [{"kind": "gain_card", "card_id": "amber_circlet", "destination": "discard", "label": "Recover a 3-Coin Resource"}]
-  },
-  {
-    "id": "trail_event_rescue",
-    "name": "Rescue",
-    "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "briar_hound",
-    "event_cost": 2,
-    "market_enabled": false,
-    "event_enabled": true,
-    "description": "Put a card costing up to 4 from your trash pile into your discard pile.",
-    "special_effects": [{"kind": "gain_from_trash", "max_cost": 4, "label": "Recover from Trash"}]
-  },
-  {
-    "id": "trail_event_old_rites",
-    "name": "Old Rites",
-    "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "witchs_bargain",
-    "event_cost": 3,
-    "market_enabled": false,
-    "event_enabled": true,
-    "description": "Trash a curse from your hand. Draw 2 cards.",
-    "draw_cards": 2,
-    "special_effects": [{"kind": "trash_filtered", "amount": 1, "required": true, "card_type": "curse", "label": "Burn a Curse"}]
-  },
-  {
-    "id": "trail_event_night_watch",
-    "name": "Night Watch",
-    "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "fen_lighthouse",
-    "event_cost": 2,
-    "market_enabled": false,
-    "event_enabled": true,
-    "description": "Ignore attacks until the start of your next turn.",
-    "special_effects": [{"kind": "attack_immunity", "trigger": "next_turn", "zone": "hand", "label": "Guard Until Next Turn"}]
-  },
-  {
-    "id": "trail_event_wayfarer_fair",
-    "name": "Wayfarer Fair",
-    "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "lantern_bazaar",
-    "event_cost": 5,
-    "market_enabled": false,
-    "event_enabled": true,
-    "description": "Gain 2 buys and 2 coins.",
-    "gain_buys": 2,
-    "gain_coins": 2,
-    "special_effects": []
-  },
-  {
-    "id": "trail_event_trade_pact",
-    "name": "Trade Pact",
-    "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "royal_clerk",
-    "event_cost": 3,
-    "market_enabled": false,
-    "event_enabled": true,
-    "description": "This turn, whenever you buy a card, gain 1 coin.",
-    "special_effects": [{"kind": "register_buy_bonus", "amount": 1, "label": "Buy: Gain 1 Coin"}]
-  },
-  {
-    "id": "trail_event_move_camp",
-    "name": "Move Camp",
-    "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "moonlit_caravan",
-    "event_cost": 3,
-    "market_enabled": false,
-    "event_enabled": true,
-    "description": "Discard any number of cards, then draw that many cards.",
-    "special_effects": [{"kind": "discard_from_hand_draw", "label": "Pack and Redraw"}]
-  },
-  {
-    "id": "trail_event_field_training",
-    "name": "Field Training",
-    "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "candlecap",
-    "event_cost": 2,
-    "market_enabled": false,
-    "event_enabled": true,
-    "description": "Trash a resource from your hand and gain a resource costing up to 2 more.",
-    "special_effects": [{"kind": "upgrade_resource", "cost_delta": 2, "label": "Train a Resource"}]
-  },
-  {
-    "id": "trail_event_tell_tale",
-    "name": "Tell a Tale",
-    "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "quiet_archive",
-    "event_cost": 2,
-    "market_enabled": false,
-    "event_enabled": true,
-    "description": "Discard any number of cards to gain 1 coin for each discarded card.",
-    "special_effects": [{"kind": "storyteller_discard_for_coins", "label": "Trade a Story for Coins"}]
-  },
-  {
-    "id": "trail_event_read_omens",
-    "name": "Read Omens",
-    "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
-    "art_id": "astral_vault",
-    "event_cost": 2,
-    "market_enabled": false,
-    "event_enabled": true,
-    "description": "Look at the top 3 cards of your deck. Discard any number and return the rest in any order.",
-    "special_effects": [{"kind": "survey_top", "amount": 3, "label": "Read the Top 3"}]
-  },
-  {
-    "id": "trail_event_homeward",
-    "name": "Homeward",
-    "type": "event",
-    "group": "Trailblazers",
-    "event_group": "Trailblazers",
+    "group": "Adventures",
+    "event_group": "Adventures",
     "art_id": "river_ward",
     "event_cost": 4,
     "market_enabled": false,
     "event_enabled": true,
-    "description": "Return all cards set aside on your waypoint mat to your hand. Draw 1 card.",
-    "draw_cards": 1,
-    "special_effects": [{"kind": "return_set_aside", "label": "Return Waypoint Cards"}]
+    "description": "Once per turn: If the previous turn was not yours, take another turn after this one, during which you cannot buy cards.",
+    "special_effects": [
+      {
+        "kind": "mission",
+        "label": "mission"
+      }
+    ]
+  },
+  {
+    "id": "pathfinding",
+    "name": "Pathfinding",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "orchard_map",
+    "event_cost": 8,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Move your +1 Card token to an Action Supply pile. When you play a card from that pile, you first get +1 Card.",
+    "special_effects": [
+      {
+        "kind": "supply_tokens",
+        "token": "card",
+        "amount": 1,
+        "label": "supply tokens"
+      }
+    ]
+  },
+  {
+    "id": "pilgrimage",
+    "name": "Pilgrimage",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "starlit_caravan",
+    "event_cost": 4,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Once per turn: Turn your Journey token over (it starts face up); then if it is face up, choose up to 3 differently named cards you have in play and gain a copy of each.",
+    "special_effects": [
+      {
+        "kind": "pilgrimage",
+        "label": "pilgrimage"
+      }
+    ]
+  },
+  {
+    "id": "plan",
+    "name": "Plan",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "quiet_chapel",
+    "event_cost": 3,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Move your Trashing token to an Action Supply pile. When you buy a card from that pile, you may trash a card from your hand.",
+    "special_effects": [
+      {
+        "kind": "supply_tokens",
+        "token": "trash",
+        "amount": 1,
+        "label": "supply tokens"
+      }
+    ]
+  },
+  {
+    "id": "quest",
+    "name": "Quest",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "witchs_bargain",
+    "event_cost": 0,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "You may discard an Attack, two Curses, or six cards. If you do, gain a Gold.",
+    "special_effects": [
+      {
+        "kind": "quest",
+        "label": "quest"
+      }
+    ]
+  },
+  {
+    "id": "raid",
+    "name": "Raid",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "roadside_reaver",
+    "event_cost": 5,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Gain a Silver per Silver you have in play. Each other player puts their -1 Card token on their deck.",
+    "special_effects": [
+      {
+        "kind": "raid",
+        "label": "raid"
+      }
+    ],
+    "tags": [
+      "attack"
+    ]
+  },
+  {
+    "id": "save",
+    "name": "Save",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "quiet_archive",
+    "event_cost": 1,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Once per turn: +1 Buy. Set aside a card from your hand, and put it into your hand at end of turn after drawing.",
+    "gain_buys": 1,
+    "special_effects": [
+      {
+        "kind": "set_aside_from_hand",
+        "amount": 1,
+        "return_next_turn": true,
+        "label": "set aside from hand"
+      }
+    ]
+  },
+  {
+    "id": "scouting_party",
+    "name": "Scouting Party",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "river_trail",
+    "event_cost": 2,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "+1 Buy. Look at the top 5 cards of your deck. Discard 3 and put the rest back in any order.",
+    "gain_buys": 1,
+    "special_effects": [
+      {
+        "kind": "survey_top",
+        "amount": 5,
+        "discard_count": 3,
+        "label": "survey top"
+      }
+    ]
+  },
+  {
+    "id": "seaway",
+    "name": "Seaway",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "merchant_barge",
+    "event_cost": 5,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Gain an Action card costing up to 4 coins. Move your +1 Buy token to its pile.",
+    "special_effects": [
+      {
+        "kind": "gain_from_supply",
+        "max_cost": 4,
+        "card_type": "action",
+        "label": "gain from supply"
+      },
+      {
+        "kind": "supply_tokens",
+        "token": "buy",
+        "amount": 1,
+        "label": "supply tokens"
+      }
+    ]
+  },
+  {
+    "id": "trade",
+    "name": "Trade",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "silverleaf_broker",
+    "event_cost": 5,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Trash up to 2 cards from your hand. Gain a Silver per card you trashed.",
+    "special_effects": [
+      {
+        "kind": "trade",
+        "amount": 2,
+        "label": "trade"
+      }
+    ]
+  },
+  {
+    "id": "training",
+    "name": "Training",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "weavers_loom",
+    "event_cost": 6,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Move your +1 coin token to an Action Supply pile. When you play a card from that pile, you first get +1 coin.",
+    "special_effects": [
+      {
+        "kind": "supply_tokens",
+        "token": "coin",
+        "amount": 1,
+        "label": "supply tokens"
+      }
+    ]
+  },
+  {
+    "id": "travelling_fair",
+    "name": "Travelling Fair",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "lantern_bazaar",
+    "event_cost": 2,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "+2 Buys. When you gain a card this turn, you may put it onto your deck.",
+    "gain_buys": 2,
+    "special_effects": [
+      {
+        "kind": "travelling_fair",
+        "label": "travelling fair"
+      }
+    ]
   }
 ]
