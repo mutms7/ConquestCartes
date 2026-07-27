@@ -1935,6 +1935,13 @@ func _run_expansion_ui_regression() -> void:
 			"Available events should render as buy buttons."
 		)
 		if event_button != null:
+			var event_style := event_button.get_theme_stylebox("normal") as StyleBoxFlat
+			_check(
+				event_style != null
+				and event_style.bg_color.g > event_style.bg_color.r
+				and event_style.bg_color.g > event_style.bg_color.b,
+				"Event buttons should use a green action style."
+			)
 			event_button.pressed.emit()
 		_check(
 			expansion_ui.last_animation_event == "event_buy",

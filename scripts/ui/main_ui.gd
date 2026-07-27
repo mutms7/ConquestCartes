@@ -103,6 +103,9 @@ const COLOR_WALNUT := Color("#271c12")
 const COLOR_WALNUT_DARK := Color("#150e08")
 const COLOR_BRASS := Color("#e8c879")
 const COLOR_FOREST := Color("#3d7d58")
+const COLOR_EVENT := Color("#24643b")
+const COLOR_EVENT_HOVER := Color("#347f4d")
+const COLOR_EVENT_BORDER := Color("#8fd19e")
 const COLOR_OXBLOOD := Color("#a64b55")
 const COLOR_SLATE := Color("#a87845")
 const COLOR_INK := Color("#30251d")
@@ -7451,9 +7454,31 @@ func _create_expansion_action_button(text: String, action_kind: String, record: 
 	button.add_theme_font_size_override("font_size", 8)
 	button.add_theme_color_override("font_color", COLOR_PARCHMENT_BODY)
 	button.add_theme_color_override("font_hover_color", Color.WHITE)
-	button.add_theme_stylebox_override("normal", _make_pill_style(Color(0.12, 0.08, 0.04, 0.9), COLOR_MENU_BORDER, 4))
-	button.add_theme_stylebox_override("hover", _make_pill_style(Color(0.2, 0.13, 0.06, 0.95), COLOR_BRASS, 4))
-	button.add_theme_stylebox_override("disabled", _make_pill_style(Color(0.08, 0.06, 0.04, 0.65), Color(0.4, 0.32, 0.18, 0.3), 4))
+	var is_event := action_kind == "event"
+	button.add_theme_stylebox_override(
+		"normal",
+		_make_pill_style(
+			Color(COLOR_EVENT, 0.9) if is_event else Color(0.12, 0.08, 0.04, 0.9),
+			COLOR_EVENT_BORDER if is_event else COLOR_MENU_BORDER,
+			4
+		)
+	)
+	button.add_theme_stylebox_override(
+		"hover",
+		_make_pill_style(
+			Color(COLOR_EVENT_HOVER, 0.95) if is_event else Color(0.2, 0.13, 0.06, 0.95),
+			COLOR_EVENT_BORDER if is_event else COLOR_BRASS,
+			4
+		)
+	)
+	button.add_theme_stylebox_override(
+		"disabled",
+		_make_pill_style(
+			Color("#183623", 0.65) if is_event else Color(0.08, 0.06, 0.04, 0.65),
+			Color("#477457", 0.42) if is_event else Color(0.4, 0.32, 0.18, 0.3),
+			4
+		)
+	)
 	button.set_meta("expansion_action", action_kind)
 	button.set_meta("expansion_token", _expansion_record_token(record, index))
 	button.disabled = not _expansion_record_available(record, index)
