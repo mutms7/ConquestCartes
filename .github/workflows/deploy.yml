@@ -1,0 +1,129 @@
+name: Export and deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Cap the job so a hung headless Godot run (e.g. a broken asset that leaves
+    # the smoke test waiting) fails fast instead of burning the full 6h ceiling.
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          # The background music is a Git LFS object; without this the runner
+          # only gets the LFS pointer text and Godot can't decode the "mp3".
+          lfs: true
+
+      - name: Cache Godot
+        id: godot-cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.local/bin/godot
+            ~/.local/share/godot/export_templates/4.7.stable
+          key: godot-4.7-stable-linux
+
+      - name: Install Godot and export templates
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          curl --fail --location --output godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          mkdir -p ~/.local/bin
+          mv Godot_v4.7-stable_linux.x86_64 ~/.local/bin/godot
+          chmod +x ~/.local/bin/godot
+
+          curl --fail --location --output templates.tpz \
+            https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_export_templates.tpz
+          unzip -q templates.tpz
+          mkdir -p ~/.local/share/godot/export_templates/4.7.stable
+          mv templates/* ~/.local/share/godot/export_templates/4.7.stable/
+
+      - name: Import project and build script class cache
+        run: ~/.local/bin/godot --headless --editor --path . --quit
+
+      - name: Run rules smoke test
+        run: ~/.local/bin/godot --headless --path . --script res://tests/smoke_test.gd
+
+      - name: Run UI smoke test
+        run: ~/.local/bin/godot --headless --path . --script res://tests/ui_smoke_test.gd
+
+      - name: Export Web build
+        run: |
+          mkdir -p web
+          ~/.local/bin/godot \
+            --headless \
+            --path . \
+            --export-release "Web" \
+            web/index.html
+          test -f web/index.html
+          test -f web/index.wasm
+          test -f web/index.pck
+
+      - name: Verify Vercel secrets
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          test -n "$VERCEL_ORG_ID"
+          test -n "$VERCEL_PROJECT_ID"
+          test -n "$VERCEL_TOKEN"
+
+      - name: Configure generated static build
+        run: |
+          # The lobby relay runs on its own always-on host now, so the Vercel
+          # deploy is pure static hosting: no serverless function, no npm deps.
+          # The COOP/COEP headers give the page the cross-origin isolation that
+          # the multi-threaded web export needs (SharedArrayBuffer); without them
+          # a threaded Godot build refuses to boot.
+          cat > web/vercel.json <<'JSON'
+          {
+            "framework": null,
+            "buildCommand": null,
+            "outputDirectory": ".",
+            "headers": [
+              {
+                "source": "/(.*)",
+                "headers": [
+                  { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+                  { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" }
+                ]
+              }
+            ]
+          }
+          JSON
+
+      - name: Link generated build to Vercel project
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          mkdir -p web/.vercel
+          printf '{"orgId":"%s","projectId":"%s"}\n' \
+            "$VERCEL_ORG_ID" \
+            "$VERCEL_PROJECT_ID" \
+            > web/.vercel/project.json
+
+      - name: Deploy production build to Vercel
+        run: |
+          npx --yes vercel@54.17.0 deploy . \
+            --cwd web \
+            --prod \
+            --yes \
+            --archive=tgz \
+            --token="${{ secrets.VERCEL_TOKEN }}"

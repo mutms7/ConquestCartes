@@ -1,0 +1,22 @@
+# Deploys the lobby relay as a single always-on Node process.
+#
+# The relay holds all lobby state in memory, so it MUST run as exactly one
+# instance. Do not raise numInstances or enable autoscaling: a second replica
+# can't see rooms created by the first, which silently kicks the host out of
+# the lobby the moment a second player joins.
+#
+# After the first deploy, copy the service URL (e.g.
+# https://conquest-cartes-relay.onrender.com) and set ONLINE_RELAY_DEFAULT_URL
+# in scripts/ui/main_ui.gd to "<that-url>/api/relay".
+services:
+  - type: web
+    name: conquest-cartes-relay
+    runtime: node
+    plan: free
+    numInstances: 1
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "20"

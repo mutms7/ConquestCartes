@@ -10,10 +10,10 @@ config_version=5
 
 [application]
 
-config/name="New Game Project"
+config/name="Conquest Cartes"
 run/main_scene="uid://155xx7s6y6ta"
 config/features=PackedStringArray("4.7", "Mobile")
-config/icon="res://icon.svg"
+config/icon="res://assets/imported/icon.svg"
 
 [display]
 
@@ -22,7 +22,6 @@ window/size/viewport_height=720
 window/size/window_width_override=1280
 window/size/window_height_override=720
 window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
 
 [physics]
 
@@ -31,4 +30,5 @@ window/stretch/aspect="expand"
 [rendering]
 
 rendering_device/driver.windows="d3d12"
-renderer/rendering_method="mobile"
+renderer/rendering_method="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.141176, 0.094118, 0.07451, 1)

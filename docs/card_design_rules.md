@@ -1,0 +1,225 @@
+# Card Design Rules
+
+Cards are authored in `data/cards/starter_cards.json`. Definitions remain pure
+data; gameplay resolution belongs in `scripts/core/game_state.gd`, and card UI
+belongs in `scripts/ui/main_ui.gd`.
+
+Before writing or revising any card text, read
+`docs/card_wording_conventions.md`. Its checklist is part of the card creation
+process.
+
+## Core fields
+
+- `id`: stable snake-case identifier used by rules and saves.
+- `name`: display name. Cards in the authorized Dominion: Adventures
+  implementation may retain their official display names. Preserve the
+  established display names of grandfathered Prosperity records; new cards in
+  other expansions use original names as described in the originality section
+  below.
+- `type`: `resource`, `action`, `victory`, or `curse`.
+- `art_id`: filename stem under `assets/cards/`; cards may share art temporarily.
+- `cost`: coin cost.
+- `description`: detailed tooltip explanation written for this solo ruleset.
+- `coin_value`: resource output.
+- `victory_points`: fixed final score.
+- `score_per_cards`: awards 1 VP per this many owned cards.
+- `score_per_trashed`: awards 1 VP per this many cards in the owner's trash pile.
+- `score_card_id` / `score_card_points`: awards `score_card_points` VP per owned
+  copy of the named card (e.g. Bramble Idol scores per owned Briar Hex).
+- `draw_cards`, `gain_actions`, `gain_buys`, `gain_coins`: standard outputs.
+- `market_enabled`: optional; defaults to `true`. Set it to `false` to retain a
+  complete playable definition while excluding it from random market setup.
+- `special_effects`: ordered reusable effect records.
+
+## Special effects
+
+Every special effect has a `kind`, optional parameters, and a short `label` for
+compact interaction contexts. Card faces and previews display the complete
+data-driven `description`, with fixed numeric gains and draws rendered as bold
+`+` shorthand in the UI. Add generalized effect kinds to the rules engine; do
+not branch on individual card IDs in UI code.
+
+Effects default to `trigger: "play"`. Reactive effects may instead use
+`gain`, `buy`, `gain_reaction`, `discard`, or `trash`. Cleanup effects register
+turn state during play and resolve through the cleanup choice flow.
+
+Duration effects use `trigger: "next_turn"`. A card with any `next_turn` effect
+stays in the play area through the next cleanup, and its deferred effects
+resolve at the start of the owner's next turn (a replayed duration queues its
+payload twice). `attack_immunity` is a passive marker with `trigger: "passive"`
+and a `zone` of `hand` or `play`; the attack resolver skips protected players
+and never queues the marker itself.
+
+Supported kinds:
+
+- `reveal_resources_to_hand`
+- `gain_from_supply`
+- `gain_card`
+- `topdeck_from_hand`
+- `discard_from_hand_draw`
+- `discard_deck`
+- `trash_from_hand`
+- `trash_self`
+- `topdeck_from_discard`
+- `draw_to_size`
+- `resource_bonus`
+- `upgrade_resource`
+- `trash_named_for_coins`
+- `remodel`
+- `inspect_top`
+- `inspect_top_one`
+- `salvage_resource`
+- `replay_action`
+- `vassal`
+- `discard_per_empty_supply`
+- `progressive_resource`
+- `draw_per_type_in_hand`
+- `first_play_actions`
+- `survey_top`
+- `develop`
+- `register_buy_bonus`
+- `reduce_costs`
+- `reduce_end_turn_cooldown`
+- `discard_filtered`
+- `trash_filtered`
+- `topdeck_action_at_cleanup`
+- `trash_resource_choose_bonus`
+- `discard_resource_bonus`
+- `conditional_draw`
+- `choose_named_or_supply`
+- `gain_cheaper`
+- `gain_coins_trigger`
+- `play_self_optional`
+- `play_self_if_action_in_play`
+- `dynamic_hand_coins`
+- `discard_for_action_gain`
+- `optional_gain_card`
+- `trash_for_copies`
+- `replace_gain`
+- `shuffle_actions_from_discard`
+- `upgrade_exact_nonself`
+- `attack`
+- `register_gain_attack`
+- `turn_start_bonus`
+- `set_aside_from_hand`
+- `return_set_aside`
+- `gain_from_trash`
+- `trash_size_bonus`
+- `trash_filtered_bonus`
+- `discard_filtered_bonus`
+- `draw_per_relic`
+- `offer_relic_draft`
+- `attack_immunity`
+
+`reduce_end_turn_cooldown` lowers the active player's current end-turn cooldown
+by the configured float amount, such as `0.5`.
+
+`attack` resolves the configured attack mode against rival players in a lobby,
+or against the active player in solo fallback. Supported modes are
+`gain_curse`, `discard_down`, `topdeck_victory`, `trash_revealed_resource`, and
+`extend_cooldown` (lengthens each victim's end-turn cooldown this turn).
+`register_gain_attack` stores an attack for the turn
+and resolves it whenever a gained card matches the configured filter, such as
+an action card. Curse attacks gain `briar_hex`, a 0-cost curse worth -1 VP.
+
+The Witching Hour kingdom group extends the pool with a curse economy
+(self-hexing payoffs), trash-pile synergies, relic-scaling cards, and the
+duration cards described above.
+
+Effects resolve in array order. Descriptions and compact labels must present
+that same order.
+
+## Interactive choices
+
+Choice-like effects create a `CardChoice` in the rules layer. The UI renders that
+request generically and returns selected candidate tokens to `GameState`; it does
+not decide what the selected cards do.
+
+Use reusable choice sources and resolvers rather than card IDs. Required and
+optional selections, supply gains, multi-card selections, revealed cards, and
+multi-step continuations all use the same pending-choice/effect-queue system.
+Mode choices reuse the same overlay with labeled versions of the source card, so
+bonus modes remain data-driven without card-specific UI.
+
+## Card creation process
+
+1. Choose an art-linked name and `art_id`. For the authorized Adventures
+   implementation, use the approved official card identity. Preserve existing
+   Prosperity records as-is; for every new card in another expansion, choose an
+   original identity.
+2. Define the numeric fields and ordered reusable special effects.
+3. Implement generalized rules support when a new effect kind is required.
+4. Write `description` and effect labels using
+   `docs/card_wording_conventions.md`.
+5. Add rules tests for mechanics and wording, plus UI coverage when presentation
+   changes.
+6. Run both headless test suites and a Web export.
+
+## Names and illustration identity
+
+The illustration-linked name should remain the display name when a single card
+uses that artwork. If multiple rules cards share an `art_id`, keep one approved
+name and name variants after the same visible subject plus their role, ideally
+in 15 characters or fewer. Adventures may use its authorized official names;
+grandfathered Prosperity records retain their established names; other
+expansions should use original names such as `Hearth Refrain` or `Trail Cache`.
+
+Do not give a card a name that contradicts its illustration merely to mirror the
+source role that inspired its mechanics. IDs may remain mechanically descriptive;
+the player-facing name should describe the actual Conquest Cartes artwork.
+
+## Type surfaces
+
+Card faces and previews use a generic, high-contrast type-based dark surface:
+
+- resources: golden umber with an amber inner accent
+- actions: midnight blue with a pale blue inner accent
+- victory cards: deep plum with a rose inner accent
+
+Availability and playability remain bright outer-border states. Type styling
+uses the card body, art-frame accent, and footer label and must be derived from
+`card_type`, never from individual card IDs.
+
+## Market composition
+
+`GameState` builds a fourteen-card market:
+
+- 2 resource cards
+- 10 action cards
+- 2 victory cards
+
+The UI routes these definitions by `card_type` into the left resource column,
+center action grid, and right victory column of the unified market field.
+Market presentation must not branch on individual card IDs.
+
+Pebble Coin and Homestead are starter cards and do not enter the market. Every
+other definition with `market_enabled: true` is eligible. A
+`market_enabled: false` card remains loadable, playable in tests or future modes,
+and available to preserve its art/name identity.
+
+Briar Hex is a non-market support curse. It remains in the catalog so attack
+effects can gain it from its finite curse pile.
+
+Each selected market card receives a finite pile. Buying or gaining decrements
+that pile; empty piles cannot be bought or gained and count toward effects that
+reference empty supply piles.
+
+## Expansion mapping and originality
+
+The catalog keeps each expansion's provenance explicit:
+
+- `Prosperity` is the canonical label for the renamed legacy group. Its
+  established records are grandfathered; the label is not an authorization to
+  import additional Dominion: Prosperity content.
+- `Adventures` is the authorized implementation of Dominion: Adventures,
+  including its events, journeys, Tavern mat, tokens, and Traveller piles.
+- `Hinterlands` is an original 26-card Conquest Cartes mechanics group that
+  keeps the canonical group name while using original names, wording, and art.
+- `Witching Hour` is intentionally custom and has no Dominion counterpart.
+
+Only the authorized Adventures entries may use mapped expansion terminology
+when created or revised. Preserve grandfathered Prosperity records, but do not
+use them as a precedent for new imports. For Hinterlands, Witching Hour, and
+every other expansion or user-supplied catalog, use original names,
+descriptions, art, and flavor. Do not copy names, exact rules wording,
+terminology, or artwork from an existing commercial deck-builder.

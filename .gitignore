@@ -1,4 +1,8 @@
 .godot/
 *.tmp
 *.translation
-export_presets.cfg
+/web/
+/.vercel/
+/node_modules/
+.env*
+/_shots/

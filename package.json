@@ -1,0 +1,18 @@
+{
+  "name": "conquest-cartes",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node api/relay.js",
+    "check:relay": "node --check api/relay.js",
+    "art:audit": "node tools/card-art-workflow.mjs audit",
+    "art:batch": "node tools/card-art-workflow.mjs batch",
+    "art:shards": "node tools/card-art-workflow.mjs shards 5",
+    "art:cycles": "node tools/card-art-workflow.mjs cycles 5",
+    "art:next": "node tools/card-art-workflow.mjs next --copy",
+    "art:apply": "node tools/card-art-workflow.mjs apply"
+  }
+}

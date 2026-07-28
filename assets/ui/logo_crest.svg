@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" width="100" height="120">
+  <defs>
+    <linearGradient id="brass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4d99a"/>
+      <stop offset="0.5" stop-color="#e8c879"/>
+      <stop offset="1" stop-color="#b8923f"/>
+    </linearGradient>
+    <linearGradient id="field" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2c1e15"/>
+      <stop offset="1" stop-color="#160d08"/>
+    </linearGradient>
+  </defs>
+  <!-- Heraldic shield -->
+  <path d="M 18 14 L 82 14 Q 86 14 86 20 L 86 60 Q 86 92 50 108 Q 14 92 14 60 L 14 20 Q 14 14 18 14 Z"
+        fill="url(#field)" stroke="url(#brass)" stroke-width="3.5"/>
+  <path d="M 22 19 L 78 19 Q 81 19 81 23 L 81 59 Q 81 87 50 101 Q 19 87 19 59 L 19 23 Q 19 19 22 19 Z"
+        fill="none" stroke="#8f6f34" stroke-width="1" opacity="0.7"/>
+  <!-- Interlocking CC monogram -->
+  <g fill="none" stroke="url(#brass)" stroke-width="8" stroke-linecap="round">
+    <path d="M 54.14 72.85 A 22 22 0 1 1 54.14 39.15"/>
+    <path d="M 45.86 39.15 A 22 22 0 1 1 45.86 72.85"/>
+  </g>
+</svg>

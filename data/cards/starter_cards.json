@@ -1,106 +1,3488 @@
 [
   {
     "id": "pebble_coin",
-    "name": "Pebble Coin",
+    "name": "Copper",
     "type": "resource",
+    "art_id": "pebble_coin",
     "cost": 0,
     "description": "Gain 1 coin.",
-    "coin_value": 1,
-    "victory_points": 0,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
-  },
-  {
-    "id": "homestead",
-    "name": "Homestead",
-    "type": "victory",
-    "cost": 0,
-    "description": "Worth 1 victory point at final scoring.",
-    "coin_value": 0,
-    "victory_points": 1,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
+    "coin_value": 1
   },
   {
     "id": "silver_leaf",
-    "name": "Silver Leaf",
+    "name": "Silver",
     "type": "resource",
+    "art_id": "silver_leaf",
     "cost": 3,
     "description": "Gain 2 coins.",
-    "coin_value": 2,
-    "victory_points": 0,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
+    "coin_value": 2
   },
   {
-    "id": "village_bell",
-    "name": "Village Bell",
+    "id": "amber_circlet",
+    "name": "Gold",
+    "type": "resource",
+    "art_id": "amber_circlet",
+    "cost": 6,
+    "description": "Gain 3 coins.",
+    "coin_value": 3
+  },
+  {
+    "id": "homestead",
+    "name": "Estate",
+    "type": "victory",
+    "art_id": "homestead",
+    "cost": 2,
+    "description": "Worth 1 VP.",
+    "victory_points": 1
+  },
+  {
+    "id": "briar_gate",
+    "name": "Duchy",
+    "type": "victory",
+    "art_id": "briar_gate",
+    "cost": 5,
+    "description": "Worth 3 VP.",
+    "victory_points": 3
+  },
+  {
+    "id": "royal_charter",
+    "name": "Province",
+    "type": "victory",
+    "art_id": "royal_charter",
+    "cost": 8,
+    "description": "Worth 6 VP.",
+    "victory_points": 6
+  },
+  {
+    "id": "briar_hex",
+    "name": "Curse",
+    "type": "curse",
+    "art_id": "briar_hex",
+    "cost": 0,
+    "description": "Worth -1 VP.",
+    "victory_points": -1,
+    "market_enabled": false
+  },
+  {
+    "id": "wishing_garden",
+    "name": "Gardens",
+    "type": "victory",
+    "art_id": "wishing_garden",
+    "cost": 4,
+    "description": "Worth 1 VP per 10 cards you own, rounded down.",
+    "score_per_cards": 10
+  },
+  {
+    "id": "starpath_seeker",
+    "name": "Adventurer",
     "type": "action",
+    "art_id": "starpath_seeker",
+    "cost": 6,
+    "description": "Reveal cards from your deck until you reveal 2 resources. Put those resources into your hand and discard the other revealed cards.",
+    "market_enabled": false,
+    "special_effects": [
+      {
+        "kind": "reveal_resources_to_hand",
+        "amount": 2,
+        "label": "Find 2 Resources"
+      }
+    ]
+  },
+  {
+    "id": "master_weaver",
+    "name": "Artisan",
+    "type": "action",
+    "art_id": "master_weaver",
+    "cost": 6,
+    "description": "Gain a card costing up to 5 to your hand. Put a card from your hand on top of your deck.",
+    "special_effects": [
+      {
+        "kind": "gain_from_supply",
+        "max_cost": 5,
+        "destination": "hand",
+        "label": "Choose Cost 5 to Hand"
+      },
+      {
+        "kind": "topdeck_from_hand",
+        "amount": 1,
+        "label": "Put 1 on Deck"
+      }
+    ]
+  },
+  {
+    "id": "roadside_reaver",
+    "multiplayer_only": true,
+    "name": "Bandit",
+    "type": "action",
+    "art_id": "roadside_reaver",
+    "cost": 5,
+    "description": "Gain a Gold. Attack: reveal the top 2 cards of your deck. Trash one revealed resource other than Copper, then discard the rest.",
+    "special_effects": [
+      {
+        "kind": "gain_card",
+        "card_id": "amber_circlet",
+        "destination": "discard",
+        "label": "Gain Gold"
+      },
+      {
+        "kind": "attack",
+        "mode": "trash_revealed_resource",
+        "amount": 2,
+        "exclude_card_id": "pebble_coin",
+        "label": "Attack: Break Resource"
+      }
+    ]
+  },
+  {
+    "id": "royal_clerk",
+    "multiplayer_only": true,
+    "name": "Bureaucrat",
+    "type": "action",
+    "art_id": "royal_clerk",
+    "cost": 4,
+    "description": "Gain a Silver on top of your deck. Attack: put a victory card from your hand on top of your deck.",
+    "special_effects": [
+      {
+        "kind": "gain_card",
+        "card_id": "silver_leaf",
+        "destination": "deck",
+        "label": "Silver to Deck"
+      },
+      {
+        "kind": "attack",
+        "mode": "topdeck_victory",
+        "label": "Attack: Save Victory"
+      }
+    ]
+  },
+  {
+    "id": "root_cellar",
+    "name": "Cellar",
+    "type": "action",
+    "art_id": "root_cellar",
+    "cost": 2,
+    "description": "Gain 1 action. Discard any number of cards, then draw one card for each card discarded.",
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "discard_from_hand_draw",
+        "label": "Discard and Redraw"
+      }
+    ]
+  },
+  {
+    "id": "river_ward",
+    "name": "Chancellor",
+    "type": "action",
+    "art_id": "river_ward",
     "cost": 3,
-    "description": "Draw 1 card and gain 1 action.",
-    "coin_value": 0,
-    "victory_points": 0,
+    "description": "Gain 2 coins. Put your deck into your discard pile.",
+    "gain_coins": 2,
+    "market_enabled": false,
+    "special_effects": [
+      {
+        "kind": "discard_deck",
+        "label": "Discard Deck"
+      }
+    ]
+  },
+  {
+    "id": "quiet_chapel",
+    "name": "Chapel",
+    "type": "action",
+    "art_id": "quiet_chapel",
+    "cost": 2,
+    "description": "Trash up to 4 cards from your hand.",
+    "special_effects": [
+      {
+        "kind": "trash_from_hand",
+        "amount": 4,
+        "label": "Trash up to 4"
+      }
+    ]
+  },
+  {
+    "id": "council_hearth",
+    "name": "Council Room",
+    "type": "action",
+    "art_id": "council_hearth",
+    "cost": 5,
+    "description": "Draw 4 cards. Gain 1 buy. Each other player draws a card.",
+    "draw_cards": 4,
+    "gain_buys": 1,
+    "multiplayer_only": true,
+    "special_effects": [
+      {
+        "kind": "each_other_player_draws",
+        "amount": 1,
+        "label": "Each other player draws"
+      }
+    ]
+  },
+  {
+    "id": "harvest_feast",
+    "name": "Feast",
+    "type": "action",
+    "art_id": "harvest_feast",
+    "cost": 4,
+    "description": "Trash this card. Gain a card costing up to 5.",
+    "market_enabled": false,
+    "special_effects": [
+      {
+        "kind": "trash_self",
+        "label": "Trash Self"
+      },
+      {
+        "kind": "gain_from_supply",
+        "max_cost": 5,
+        "destination": "discard",
+        "label": "Gain Cost 5"
+      }
+    ]
+  },
+  {
+    "id": "lantern_festival",
+    "name": "Festival",
+    "type": "action",
+    "art_id": "lantern_festival",
+    "cost": 5,
+    "description": "Gain 2 actions, 1 buy, and 2 coins.",
+    "gain_actions": 2,
+    "gain_buys": 1,
+    "gain_coins": 2
+  },
+  {
+    "id": "dawn_herald",
+    "name": "Harbinger",
+    "type": "action",
+    "art_id": "dawn_herald",
+    "cost": 3,
+    "description": "Draw 1 card. Gain 1 action. You may put a card from your discard pile on top of your deck.",
     "draw_cards": 1,
     "gain_actions": 1,
-    "gain_buys": 0,
-    "gain_coins": 0
+    "special_effects": [
+      {
+        "kind": "topdeck_from_discard",
+        "label": "Put Discard on Deck"
+      }
+    ]
   },
   {
-    "id": "market_fox",
-    "name": "Market Fox",
+    "id": "candlecap_laboratory",
+    "name": "Laboratory",
     "type": "action",
-    "cost": 4,
-    "description": "Gain 1 coin and 1 buy.",
-    "coin_value": 0,
-    "victory_points": 0,
-    "draw_cards": 0,
-    "gain_actions": 0,
+    "art_id": "candlecap_laboratory",
+    "cost": 5,
+    "description": "Draw 2 cards. Gain 1 action.",
+    "draw_cards": 2,
+    "gain_actions": 1
+  },
+  {
+    "id": "grand_archive",
+    "name": "Library",
+    "type": "action",
+    "art_id": "grand_archive",
+    "cost": 5,
+    "description": "Draw until you have 7 cards in your hand. Whenever you reveal an action card, you may set it aside instead. Discard cards set aside this way afterward.",
+    "special_effects": [
+      {
+        "kind": "draw_to_size",
+        "amount": 7,
+        "label": "Draw to 7"
+      }
+    ]
+  },
+  {
+    "id": "crossroads_market",
+    "name": "Market",
+    "type": "action",
+    "art_id": "crossroads_market",
+    "cost": 5,
+    "description": "Draw 1 card. Gain 1 action, 1 buy, and 1 coin.",
+    "draw_cards": 1,
+    "gain_actions": 1,
     "gain_buys": 1,
     "gain_coins": 1
   },
   {
-    "id": "scribe",
-    "name": "Scribe",
+    "id": "silver_merchant",
+    "name": "Merchant",
     "type": "action",
+    "art_id": "silver_merchant",
+    "cost": 3,
+    "description": "Draw 1 card. Gain 1 action. When you play your first Silver this turn, gain 1 extra coin.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "resource_bonus",
+        "card_id": "silver_leaf",
+        "amount": 1,
+        "label": "First Silver +1 Coin"
+      }
+    ]
+  },
+  {
+    "id": "moonlit_mine",
+    "name": "Mine",
+    "type": "action",
+    "art_id": "moonlit_mine",
+    "cost": 5,
+    "description": "You may trash a resource from your hand. If you do, gain a resource to your hand costing up to 3 more.",
+    "special_effects": [
+      {
+        "kind": "upgrade_resource",
+        "cost_delta": 3,
+        "label": "Upgrade Resource +3"
+      }
+    ]
+  },
+  {
+    "id": "coin_broker",
+    "name": "Moneylender",
+    "type": "action",
+    "art_id": "coin_broker",
     "cost": 4,
-    "description": "Draw 2 cards.",
-    "coin_value": 0,
-    "victory_points": 0,
+    "description": "You may trash a Copper from your hand. If you do, gain 3 coins.",
+    "special_effects": [
+      {
+        "kind": "trash_named_for_coins",
+        "card_id": "pebble_coin",
+        "amount": 3,
+        "label": "Trash Copper for +3"
+      }
+    ]
+  },
+  {
+    "id": "supply_scout",
+    "name": "Poacher",
+    "type": "action",
+    "art_id": "supply_scout",
+    "cost": 4,
+    "description": "Draw 1 card. Gain 1 action and 1 coin. Discard one card for each empty supply pile.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "discard_per_empty_supply",
+        "label": "Discard per Empty Pile"
+      }
+    ]
+  },
+  {
+    "id": "manor_rebuilder",
+    "name": "Remodel",
+    "type": "action",
+    "art_id": "manor_rebuilder",
+    "cost": 4,
+    "description": "Trash a card from your hand. Gain a card costing up to 2 more.",
+    "special_effects": [
+      {
+        "kind": "remodel",
+        "cost_delta": 2,
+        "label": "Trash and Gain +2"
+      }
+    ]
+  },
+  {
+    "id": "clockwork_sentry",
+    "name": "Sentry",
+    "type": "action",
+    "art_id": "clockwork_sentry",
+    "cost": 5,
+    "description": "Draw 1 card. Gain 1 action. Look at the top 2 cards of your deck. Trash or discard any number of them, then return the rest in any order.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "inspect_top",
+        "amount": 2,
+        "label": "Look at Top 2"
+      }
+    ]
+  },
+  {
+    "id": "forge_hall",
+    "name": "Smithy",
+    "type": "action",
+    "art_id": "forge_hall",
+    "cost": 4,
+    "description": "Draw 3 cards.",
+    "draw_cards": 3
+  },
+  {
+    "id": "astral_spyglass",
+    "name": "Spyglass",
+    "type": "action",
+    "art_id": "astral_spyglass",
+    "cost": 4,
+    "description": "Draw 1 card. Gain 1 action. Look at the top card of your deck. Choose whether to discard it or return it to the top of your deck.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "market_enabled": false,
+    "special_effects": [
+      {
+        "kind": "inspect_top_one",
+        "label": "Look at Top Card"
+      }
+    ]
+  },
+  {
+    "id": "relic_seeker",
+    "name": "Reliquary",
+    "type": "action",
+    "art_id": "relic_seeker",
+    "cost": 4,
+    "description": "Reveal the top 2 cards of your deck. You may trash one revealed resource and gain coins equal to its value. Discard the other revealed cards.",
+    "market_enabled": false,
+    "special_effects": [
+      {
+        "kind": "salvage_resource",
+        "amount": 2,
+        "label": "Salvage 2 Cards"
+      }
+    ]
+  },
+  {
+    "id": "echoing_hall",
+    "name": "Throne Room",
+    "type": "action",
+    "art_id": "echoing_hall",
+    "cost": 4,
+    "description": "You may play an action card from your hand twice without spending another action.",
+    "special_effects": [
+      {
+        "kind": "replay_action",
+        "label": "Play an Action Twice"
+      }
+    ]
+  },
+  {
+    "id": "banner_vassal",
+    "name": "Vassal",
+    "type": "action",
+    "art_id": "banner_vassal",
+    "cost": 3,
+    "description": "Gain 2 coins. Reveal the top card of your deck. If it is an action card, you may play it without spending an action. Otherwise, discard it.",
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "vassal",
+        "label": "Reveal and Play Action"
+      }
+    ]
+  },
+  {
+    "id": "village_bell",
+    "name": "Village",
+    "type": "action",
+    "art_id": "village_bell",
+    "cost": 3,
+    "description": "Draw 1 card. Gain 2 actions.",
+    "draw_cards": 1,
+    "gain_actions": 2
+  },
+  {
+    "id": "briar_witch",
+    "multiplayer_only": true,
+    "name": "Witch",
+    "type": "action",
+    "art_id": "briar_witch",
+    "cost": 5,
+    "description": "Draw 2 cards. Attack: gain a Curse.",
     "draw_cards": 2,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
+    "special_effects": [
+      {
+        "kind": "attack",
+        "mode": "gain_curse",
+        "card_id": "briar_hex",
+        "label": "Attack: Gain Curse"
+      }
+    ]
   },
   {
-    "id": "stone_wall",
-    "name": "Stone Wall",
+    "id": "guild_workshop",
+    "name": "Workshop",
+    "type": "action",
+    "art_id": "guild_workshop",
+    "cost": 3,
+    "description": "Gain a card costing up to 4.",
+    "special_effects": [
+      {
+        "kind": "gain_from_supply",
+        "max_cost": 4,
+        "destination": "discard",
+        "label": "Gain Cost 4"
+      }
+    ]
+  },
+  {
+    "id": "briar_passage",
+    "name": "Tunnel",
     "type": "victory",
-    "cost": 4,
-    "description": "Worth 2 victory points at final scoring.",
-    "coin_value": 0,
+    "group": "Hinterlands",
+    "art_id": "briar_passage",
+    "cost": 3,
+    "description": "Worth 2 VP. When you discard this outside cleanup, you may gain a Gold.",
     "victory_points": 2,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
+    "special_effects": [
+      {
+        "kind": "optional_gain_card",
+        "trigger": "discard",
+        "card_id": "amber_circlet",
+        "destination": "discard",
+        "prompt": "Reveal Tunnel to gain a Gold?",
+        "label": "Discard: Gain Gold"
+      }
+    ]
   },
   {
-    "id": "royal_charter",
-    "name": "Royal Charter",
+    "id": "orchard_acre",
+    "name": "Farmland",
     "type": "victory",
+    "group": "Hinterlands",
+    "art_id": "orchard_acre",
     "cost": 6,
-    "description": "Worth 5 victory points at final scoring.",
-    "coin_value": 0,
-    "victory_points": 5,
-    "draw_cards": 0,
-    "gain_actions": 0,
-    "gain_buys": 0,
-    "gain_coins": 0
+    "description": "Worth 2 VP. When you gain this, trash a card from your hand and gain a different card costing exactly 2 more.",
+    "victory_points": 2,
+    "special_effects": [
+      {
+        "kind": "upgrade_exact_nonself",
+        "trigger": "gain",
+        "cost_delta": 2,
+        "label": "Gain: Develop +2"
+      }
+    ]
+  },
+  {
+    "id": "firefly_gold",
+    "name": "Fool's Gold",
+    "type": "resource",
+    "group": "Hinterlands",
+    "art_id": "firefly_gold",
+    "cost": 2,
+    "description": "Gain 1 coin the first time you play this each turn. Gain 4 coins each later time.",
+    "special_effects": [
+      {
+        "kind": "progressive_resource",
+        "first_amount": 1,
+        "later_amount": 4,
+        "label": "First +1, Then +4"
+      }
+    ]
+  },
+  {
+    "id": "silverleaf_broker",
+    "name": "Trader",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "silverleaf_broker",
+    "cost": 4,
+    "description": "Trash a card from your hand. Gain one Silver for each coin it costs. When you gain a card while this is in your hand, you may exchange that card for a Silver.",
+    "special_effects": [
+      {
+        "kind": "trash_for_copies",
+        "card_id": "silver_leaf",
+        "label": "Trash for Silvers"
+      },
+      {
+        "kind": "replace_gain",
+        "trigger": "gain_reaction",
+        "card_id": "silver_leaf",
+        "prompt": "Reveal Trader to exchange the gained card for a Silver?",
+        "label": "React: Take Silver"
+      }
+    ]
+  },
+  {
+    "id": "river_magistrate",
+    "multiplayer_only": true,
+    "name": "Margrave",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "river_magistrate",
+    "cost": 5,
+    "description": "Draw 3 cards. Gain 1 buy. Attack: discard down to 3 cards in hand.",
+    "draw_cards": 3,
+    "gain_buys": 1,
+    "special_effects": [
+      {
+        "kind": "attack",
+        "mode": "discard_down",
+        "target_hand_size": 3,
+        "label": "Attack: Discard Down"
+      }
+    ]
+  },
+  {
+    "id": "bellfoundry_village",
+    "name": "Border Village",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "bellfoundry_village",
+    "cost": 6,
+    "description": "Draw 1 card. Gain 2 actions. When you gain this, gain a cheaper card.",
+    "draw_cards": 1,
+    "gain_actions": 2,
+    "special_effects": [
+      {
+        "kind": "gain_cheaper",
+        "trigger": "gain",
+        "destination": "discard",
+        "label": "Gain: Cheaper Card"
+      }
+    ]
+  },
+  {
+    "id": "orchard_surveyor",
+    "name": "Cartographer",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "orchard_surveyor",
+    "cost": 5,
+    "description": "Draw 1 card. Gain 1 action. Look at the top 4 cards of your deck. Discard any number, then return the rest in any order.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "survey_top",
+        "amount": 4,
+        "label": "Survey Top 4"
+      }
+    ]
+  },
+  {
+    "id": "wishing_crossroads",
+    "name": "Crossroads",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "wishing_crossroads",
+    "cost": 2,
+    "description": "Draw 1 card for each victory card in your hand. The first time you play this each turn, gain 3 actions.",
+    "special_effects": [
+      {
+        "kind": "draw_per_type_in_hand",
+        "card_type": "victory",
+        "amount": 1,
+        "label": "Draw per Victory"
+      },
+      {
+        "kind": "first_play_actions",
+        "amount": 3,
+        "label": "First Play +3 Actions"
+      }
+    ]
+  },
+  {
+    "id": "tinkers_development",
+    "name": "Develop",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "tinkers_development",
+    "cost": 3,
+    "description": "Trash a card from your hand. Gain one card costing exactly 1 more and one costing exactly 1 less on top of your deck, in either order.",
+    "special_effects": [
+      {
+        "kind": "develop",
+        "label": "Develop +/-1"
+      }
+    ]
+  },
+  {
+    "id": "lantern_bargainer",
+    "name": "Haggler",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "lantern_bargainer",
+    "cost": 5,
+    "description": "Gain 2 coins. This turn, whenever you buy a card, gain a cheaper non-victory card.",
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "register_buy_bonus",
+        "label": "Buy: Gain Cheaper"
+      }
+    ]
+  },
+  {
+    "id": "starlit_causeway",
+    "name": "Highway",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "starlit_causeway",
+    "cost": 5,
+    "description": "Draw 1 card. Gain 1 action. Cards cost 1 less this turn, to a minimum of 0.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "reduce_costs",
+        "amount": 1,
+        "label": "Costs -1 This Turn"
+      }
+    ]
+  },
+  {
+    "id": "hearthside_lodge",
+    "name": "Inn",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "hearthside_lodge",
+    "cost": 5,
+    "description": "Draw 2 cards. Gain 2 actions. Discard 2 cards. When you gain this, you may shuffle any action cards from your discard pile into your deck.",
+    "draw_cards": 2,
+    "gain_actions": 2,
+    "special_effects": [
+      {
+        "kind": "discard_filtered",
+        "amount": 2,
+        "required": true,
+        "prompt": "Choose 2 cards from your hand to discard.",
+        "label": "Discard 2"
+      },
+      {
+        "kind": "shuffle_actions_from_discard",
+        "trigger": "gain",
+        "label": "Gain: Recover Actions"
+      }
+    ]
+  },
+  {
+    "id": "village_handyman",
+    "name": "Jack of All Trades",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "village_handyman",
+    "cost": 4,
+    "description": "Gain a Silver. Look at the top card of your deck and choose whether to discard it. Draw until you have 5 cards in hand. You may trash a non-resource card from your hand.",
+    "special_effects": [
+      {
+        "kind": "gain_card",
+        "card_id": "silver_leaf",
+        "destination": "discard",
+        "label": "Gain Silver"
+      },
+      {
+        "kind": "inspect_top_one",
+        "label": "Look at Top Card"
+      },
+      {
+        "kind": "draw_to_size",
+        "amount": 5,
+        "label": "Draw to 5"
+      },
+      {
+        "kind": "trash_filtered",
+        "amount": 1,
+        "exclude_type": "resource",
+        "required": false,
+        "prompt": "You may trash a non-resource card from your hand.",
+        "label": "Trash Non-Resource"
+      }
+    ]
+  },
+  {
+    "id": "moonwell_rest",
+    "name": "Oasis",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "moonwell_rest",
+    "cost": 3,
+    "description": "Draw 1 card. Gain 1 action and 1 coin. Discard 1 card.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "discard_filtered",
+        "amount": 1,
+        "required": true,
+        "prompt": "Choose 1 card from your hand to discard.",
+        "label": "Discard 1"
+      }
+    ]
+  },
+  {
+    "id": "quiet_stratagem",
+    "name": "Scheme",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "quiet_stratagem",
+    "cost": 3,
+    "description": "Draw 1 card. Gain 1 action. During cleanup, you may put one action card from play on top of your deck.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "topdeck_action_at_cleanup",
+        "amount": 1,
+        "label": "Cleanup: Save Action"
+      }
+    ]
+  },
+  {
+    "id": "acorn_spicebroker",
+    "name": "Spice Merchant",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "acorn_spicebroker",
+    "cost": 4,
+    "description": "You may discard a resource from your hand. If you do, choose one: draw 2 cards and gain 1 action; gain 1 buy and 2 coins; or gain 3 coins.",
+    "special_effects": [
+      {
+        "kind": "discard_resource_choose_bonus",
+        "modes": [
+          {
+            "id": "cards",
+            "label": "+2 CARDS, +1 ACTION",
+            "draw_cards": 2,
+            "gain_actions": 1
+          },
+          {
+            "id": "trade",
+            "label": "+1 BUY, +2 COINS",
+            "gain_buys": 1,
+            "gain_coins": 2
+          },
+          {
+            "id": "coins",
+            "label": "+3 COINS",
+            "gain_coins": 3
+          }
+        ],
+        "label": "Discard Resource: Choose"
+      }
+    ]
+  },
+  {
+    "id": "mosswood_stable",
+    "name": "Stables",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "mosswood_stable",
+    "cost": 5,
+    "description": "You may discard a resource. If you do, draw 3 cards and gain 1 action.",
+    "special_effects": [
+      {
+        "kind": "discard_resource_bonus",
+        "draw_cards": 3,
+        "gain_actions": 1,
+        "label": "Discard Resource: +3"
+      }
+    ]
+  },
+  {
+    "id": "candlecap_kettle",
+    "multiplayer_only": true,
+    "name": "Kettle",
+    "type": "resource",
+    "group": "Hinterlands",
+    "art_id": "candlecap_kettle",
+    "cost": 5,
+    "description": "Gain 2 coins and 1 buy. This turn, whenever you gain an action card, attack: gain a Curse.",
+    "coin_value": 2,
+    "gain_buys": 1,
+    "special_effects": [
+      {
+        "kind": "register_gain_attack",
+        "card_type": "action",
+        "attack": {
+          "mode": "gain_curse",
+          "card_id": "briar_hex"
+        },
+        "label": "Action Gain: Attack"
+      }
+    ]
+  },
+  {
+    "id": "briar_hound",
+    "name": "Hound",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "briar_hound",
+    "cost": 3,
+    "description": "Draw 2 cards. If you then have 5 or fewer cards in hand, draw 2 more cards.",
+    "draw_cards": 2,
+    "special_effects": [
+      {
+        "kind": "conditional_draw",
+        "maximum_hand_size": 5,
+        "amount": 2,
+        "label": "Small Hand: +2 Cards"
+      }
+    ]
+  },
+  {
+    "id": "river_trail",
+    "name": "Trail",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "river_trail",
+    "cost": 4,
+    "description": "Draw 1 card. Gain 1 action. When you gain, trash, or discard this outside cleanup, you may play it.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "play_self_optional",
+        "trigger": "gain",
+        "label": "Event: Play This"
+      },
+      {
+        "kind": "play_self_optional",
+        "trigger": "trash",
+        "label": "Event: Play This"
+      },
+      {
+        "kind": "play_self_optional",
+        "trigger": "discard",
+        "label": "Event: Play This"
+      }
+    ]
+  },
+  {
+    "id": "moss_weaver",
+    "name": "Weaver",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "moss_weaver",
+    "cost": 4,
+    "description": "Choose either to gain 2 Silvers or to gain a card costing up to 4. When you discard this outside cleanup, you may play it.",
+    "special_effects": [
+      {
+        "kind": "choose_named_or_supply",
+        "prompt": "Choose what Weaver should gain.",
+        "modes": [
+          {
+            "id": "silvers",
+            "label": "GAIN 2 SILVERS",
+            "card_id": "silver_leaf",
+            "amount": 2,
+            "destination": "discard"
+          },
+          {
+            "id": "card",
+            "label": "GAIN CARD COST 4",
+            "max_cost": 4,
+            "destination": "discard"
+          }
+        ],
+        "label": "Choose 2 Silvers / Cost 4"
+      },
+      {
+        "kind": "play_self_optional",
+        "trigger": "discard",
+        "label": "Discard: Play This"
+      }
+    ]
+  },
+  {
+    "id": "stonewall_raider",
+    "multiplayer_only": true,
+    "name": "Raider",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "stonewall_raider",
+    "cost": 5,
+    "description": "Gain a cheaper card. Attack: gain a Curse. When you gain this while another action card is in play, play this immediately.",
+    "special_effects": [
+      {
+        "kind": "gain_cheaper",
+        "destination": "discard",
+        "label": "Gain Cheaper Card"
+      },
+      {
+        "kind": "attack",
+        "mode": "gain_curse",
+        "card_id": "briar_hex",
+        "label": "Attack: Gain Curse"
+      },
+      {
+        "kind": "play_self_if_action_in_play",
+        "trigger": "gain",
+        "label": "Gain: Play with Action"
+      }
+    ]
+  },
+  {
+    "id": "briar_hut",
+    "multiplayer_only": true,
+    "name": "Hut",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "briar_hut",
+    "cost": 5,
+    "description": "Draw 4 cards. Discard 2 cards. If you discarded an action card this way, attack: gain a Curse.",
+    "draw_cards": 4,
+    "special_effects": [
+      {
+        "kind": "discard_filtered",
+        "amount": 2,
+        "required": true,
+        "prompt": "Choose 2 cards from your hand to discard.",
+        "attack_if_discarded_type": "action",
+        "attack": {
+          "mode": "gain_curse",
+          "card_id": "briar_hex"
+        },
+        "label": "Discard 2, Attack"
+      }
+    ]
+  },
+  {
+    "id": "starlit_caravan",
+    "name": "Starfall",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "starlit_caravan",
+    "cost": 4,
+    "description": "Gain 1 buy and 2 coins. When you gain or trash this, gain 2 coins.",
+    "gain_buys": 1,
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "gain_coins_trigger",
+        "trigger": "gain",
+        "amount": 2,
+        "label": "Event: +2 Coins"
+      },
+      {
+        "kind": "gain_coins_trigger",
+        "trigger": "trash",
+        "amount": 2,
+        "label": "Event: +2 Coins"
+      }
+    ]
+  },
+  {
+    "id": "lantern_bazaar",
+    "name": "Bazaar",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "lantern_bazaar",
+    "cost": 5,
+    "description": "Gain 1 buy and 7 coins, then lose 1 of those coins for each card left in your hand, to a minimum of 0. When you gain this, trash up to 2 cards from your hand.",
+    "gain_buys": 1,
+    "special_effects": [
+      {
+        "kind": "dynamic_hand_coins",
+        "base_amount": 7,
+        "per_card": 1,
+        "label": "+7 Minus Hand"
+      },
+      {
+        "kind": "trash_from_hand",
+        "trigger": "gain",
+        "amount": 2,
+        "label": "Gain: Trash up to 2"
+      }
+    ]
+  },
+  {
+    "id": "tinker_wheelwright",
+    "name": "Wheelwright",
+    "type": "action",
+    "group": "Hinterlands",
+    "art_id": "tinker_wheelwright",
+    "cost": 5,
+    "description": "Draw 1 card. Gain 1 action. You may discard a card to gain an action card costing no more than it.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "discard_for_action_gain",
+        "label": "Discard for Action"
+      }
+    ]
+  },
+  {
+    "id": "sunspire_bell",
+    "name": "Sunspire",
+    "type": "action",
+    "art_id": "sunspire_monument",
+    "cost": 5,
+    "description": "Gain 1 action. Reduce your end-turn cooldown by 1 second this turn.",
+    "gain_actions": 1,
+    "multiplayer_only": true,
+    "special_effects": [
+      {
+        "kind": "reduce_end_turn_cooldown",
+        "amount": 1,
+        "label": "Cooldown -1s"
+      }
+    ]
+  },
+  {
+    "id": "hourglass_reliquary",
+    "name": "Hourglass",
+    "type": "action",
+    "art_id": "hourglass_reliquary",
+    "cost": 6,
+    "description": "Reduce your end-turn cooldown by 0.5 seconds for the rest of the conquest, then trash this.",
+    "multiplayer_only": true,
+    "special_effects": [
+      {
+        "kind": "reduce_end_turn_cooldown_game",
+        "amount": 0.5,
+        "label": "Cooldown -0.5s (conquest)"
+      },
+      {
+        "kind": "trash_self",
+        "label": "Trash this"
+      }
+    ]
+  },
+  {
+    "id": "twilight_retreat",
+    "name": "Dusk",
+    "type": "action",
+    "art_id": "twilight_retreat",
+    "cost": 5,
+    "description": "Reduce your end-turn cooldown by 3 seconds this turn, then end your turn.",
+    "multiplayer_only": true,
+    "special_effects": [
+      {
+        "kind": "reduce_end_turn_cooldown",
+        "amount": 3,
+        "label": "Cooldown -3s"
+      },
+      {
+        "kind": "end_turn",
+        "label": "End your turn"
+      }
+    ]
+  },
+  {
+    "id": "witchs_bargain",
+    "name": "Bargain",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "witchs_bargain",
+    "cost": 2,
+    "description": "Gain 3 coins. Gain a Curse to your hand.",
+    "gain_coins": 3,
+    "special_effects": [
+      {
+        "kind": "gain_card",
+        "card_id": "briar_hex",
+        "destination": "hand",
+        "label": "Gain Curse to Hand"
+      }
+    ]
+  },
+  {
+    "id": "hex_eater",
+    "name": "Hexeater",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "hex_eater",
+    "cost": 3,
+    "description": "Draw 1 card. Gain 1 action. You may trash up to 2 Curses from your hand. Draw 1 card and gain 1 coin for each one trashed this way.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "trash_filtered_bonus",
+        "card_type": "curse",
+        "amount": 2,
+        "per_draw_cards": 1,
+        "per_gain_coins": 1,
+        "prompt": "You may trash up to 2 Curses from your hand.",
+        "label": "Trash Curses for Bonus"
+      }
+    ]
+  },
+  {
+    "id": "hedgewarden",
+    "multiplayer_only": true,
+    "name": "Hedgewarden",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "hedgewarden",
+    "cost": 3,
+    "description": "Draw 1 card. Gain 1 action. While this is in your hand, attacks do not affect you.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "attack_immunity",
+        "trigger": "passive",
+        "zone": "hand",
+        "label": "Hand: Block Attacks"
+      }
+    ]
+  },
+  {
+    "id": "thornbinder",
+    "multiplayer_only": true,
+    "name": "Thornbinder",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "thornbinder",
+    "cost": 4,
+    "description": "Gain 2 coins. You may trash a Curse from your hand. If you do, gain 2 coins. Attack: gain a Curse.",
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "trash_filtered_bonus",
+        "card_type": "curse",
+        "amount": 1,
+        "per_gain_coins": 2,
+        "prompt": "You may trash a Curse from your hand.",
+        "label": "Trash Curse for +2"
+      },
+      {
+        "kind": "attack",
+        "mode": "gain_curse",
+        "card_id": "briar_hex",
+        "label": "Attack: Gain Curse"
+      }
+    ]
+  },
+  {
+    "id": "bramble_idol",
+    "name": "Idol",
+    "type": "victory",
+    "group": "Witching Hour",
+    "art_id": "bramble_idol",
+    "cost": 4,
+    "description": "Worth 1 VP. Worth 1 more VP for each Curse you own.",
+    "victory_points": 1,
+    "score_card_id": "briar_hex",
+    "score_card_points": 1
+  },
+  {
+    "id": "cursed_ingot",
+    "name": "Ingot",
+    "type": "resource",
+    "group": "Witching Hour",
+    "art_id": "cursed_ingot",
+    "cost": 4,
+    "description": "Gain 3 coins. When you gain this, gain a Curse.",
+    "coin_value": 3,
+    "special_effects": [
+      {
+        "kind": "gain_card",
+        "trigger": "gain",
+        "card_id": "briar_hex",
+        "destination": "discard",
+        "label": "Gain: Take Curse"
+      }
+    ]
+  },
+  {
+    "id": "hex_mill",
+    "name": "Hexmill",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "hex_mill",
+    "cost": 2,
+    "description": "Draw 1 card. Gain 1 action. You may discard a Curse. If you do, gain 2 coins.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "discard_filtered_bonus",
+        "card_type": "curse",
+        "amount": 1,
+        "per_gain_coins": 2,
+        "prompt": "You may discard a Curse.",
+        "label": "Discard Curse for +2"
+      }
+    ]
+  },
+  {
+    "id": "bone_cart",
+    "name": "Bonecart",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "bone_cart",
+    "cost": 4,
+    "description": "Gain 1 coin. You may put a card costing up to 4 from your trash pile into your discard pile.",
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "gain_from_trash",
+        "max_cost": 4,
+        "prompt": "You may put a card costing up to 4 from your trash pile into your discard pile.",
+        "label": "Reclaim from Trash"
+      }
+    ]
+  },
+  {
+    "id": "bonepicker_crow",
+    "name": "Bonepicker",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "bonepicker_crow",
+    "cost": 3,
+    "description": "Draw 1 card. Gain 1 action. If your trash pile has 5 or more cards, gain 2 coins.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "trash_size_bonus",
+        "threshold": 5,
+        "gain_coins": 2,
+        "label": "Full Trash: +2 Coins"
+      }
+    ]
+  },
+  {
+    "id": "moth_shrine",
+    "name": "Shrine",
+    "type": "victory",
+    "group": "Witching Hour",
+    "art_id": "moth_shrine",
+    "cost": 5,
+    "description": "Worth 1 VP. Worth 1 more VP per 4 cards in your trash pile.",
+    "victory_points": 1,
+    "score_per_trashed": 4
+  },
+  {
+    "id": "reliquary_key",
+    "name": "Keystone",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "reliquary_key",
+    "cost": 5,
+    "description": "Draw 1 card for each relic you have. Gain 1 action.",
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "draw_per_relic",
+        "amount": 1,
+        "label": "Draw per Relic"
+      }
+    ]
+  },
+  {
+    "id": "pilgrim_stone",
+    "name": "Pilgrim",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "pilgrim_stone",
+    "cost": 4,
+    "description": "Gain 2 coins. Trash this. You may replace one of your relics with a newly drafted relic.",
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "trash_self",
+        "label": "Trash This"
+      },
+      {
+        "kind": "offer_relic_draft",
+        "replace_owned": true,
+        "label": "Replace a Relic"
+      }
+    ]
+  },
+  {
+    "id": "stolen_minute",
+    "name": "Minute",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "stolen_minute",
+    "cost": 3,
+    "description": "Gain 1 action and 1 coin. Attack: your end-turn cooldown is 2 seconds longer this turn.",
+    "gain_actions": 1,
+    "gain_coins": 1,
+    "multiplayer_only": true,
+    "special_effects": [
+      {
+        "kind": "attack",
+        "mode": "extend_cooldown",
+        "amount": 2,
+        "label": "Attack: Slow Timer"
+      }
+    ]
+  },
+  {
+    "id": "lantern_vigil",
+    "name": "Vigil",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "lantern_vigil",
+    "cost": 3,
+    "description": "Gain 1 coin. At the start of your next turn, reduce your end-turn cooldown by 2 seconds that turn. Keep this card in play until then.",
+    "gain_coins": 1,
+    "multiplayer_only": true,
+    "special_effects": [
+      {
+        "kind": "reduce_end_turn_cooldown",
+        "trigger": "next_turn",
+        "amount": 2,
+        "label": "Next Turn: Timer -2s"
+      }
+    ]
+  },
+  {
+    "id": "moonlit_caravan",
+    "name": "Caravan",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "moonlit_caravan",
+    "cost": 5,
+    "description": "Draw 1 card. Gain 1 coin. At the start of your next turn, draw 1 card and gain 1 coin. Keep this card in play until then.",
+    "draw_cards": 1,
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "draw_cards": 1,
+        "gain_coins": 1,
+        "label": "Next: +1 Card, +1 Coin"
+      }
+    ]
+  },
+  {
+    "id": "night_ferry",
+    "name": "Ferry",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "night_ferry",
+    "cost": 4,
+    "description": "Gain 1 action. At the start of your next turn, draw 2 cards. Keep this card in play until then.",
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "draw_cards": 2,
+        "label": "Next Turn: +2 Cards"
+      }
+    ]
+  },
+  {
+    "id": "merchant_barge",
+    "name": "Merchant Ship",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "merchant_barge",
+    "cost": 5,
+    "description": "Gain 2 coins. At the start of your next turn, gain 2 coins. Keep this card in play until then.",
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "gain_coins": 2,
+        "label": "Next Turn: +2 Coins"
+      }
+    ]
+  },
+  {
+    "id": "fen_lighthouse",
+    "name": "Lighthouse",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "fen_lighthouse",
+    "cost": 4,
+    "description": "Gain 1 coin. At the start of your next turn, gain 1 coin. Keep this card in play until then. While this is in play, attacks do not affect you.",
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "gain_coins": 1,
+        "label": "Next Turn: +1 Coin"
+      },
+      {
+        "kind": "attack_immunity",
+        "trigger": "passive",
+        "zone": "play",
+        "label": "In Play: Block Attacks"
+      }
+    ]
+  },
+  {
+    "id": "dream_courier",
+    "name": "Courier",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "dream_courier",
+    "cost": 3,
+    "description": "At the start of your next turn, draw 1 card and gain 1 action and 1 coin. Keep this card in play until then.",
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "draw_cards": 1,
+        "gain_actions": 1,
+        "gain_coins": 1,
+        "label": "Next Turn: +1/+1/+1"
+      }
+    ]
+  },
+  {
+    "id": "owl_post",
+    "name": "Owl",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "owl_post",
+    "cost": 4,
+    "description": "Draw 1 card. At the start of your next turn, gain 1 buy and 2 coins. Keep this card in play until then.",
+    "draw_cards": 1,
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "gain_buys": 1,
+        "gain_coins": 2,
+        "label": "Next: +1 Buy, +2 Coins"
+      }
+    ]
+  },
+  {
+    "id": "sowing_moon",
+    "name": "Haven",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "sowing_moon",
+    "cost": 3,
+    "description": "Draw 1 card. Gain 1 action. You may set a card from your hand aside. At the start of your next turn, put it into your hand. Keep this card in play until then.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "set_aside_from_hand",
+        "amount": 1,
+        "prompt": "You may set a card from your hand aside until your next turn.",
+        "label": "Set a Card Aside"
+      },
+      {
+        "kind": "return_set_aside",
+        "trigger": "next_turn",
+        "label": "Next Turn: Take It Back"
+      }
+    ]
+  },
+  {
+    "id": "long_causeway",
+    "name": "Causeway",
+    "type": "action",
+    "group": "Witching Hour",
+    "art_id": "long_causeway",
+    "cost": 5,
+    "description": "Gain 1 buy and 1 coin. At the start of your next turn, cards cost 1 less that turn. Keep this card in play until then.",
+    "gain_buys": 1,
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "reduce_costs",
+        "trigger": "next_turn",
+        "amount": 1,
+        "label": "Next Turn: Costs -1"
+      }
+    ]
+  },
+  {
+    "id": "gilded_ledger",
+    "name": "Vault",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "gilded_ledger",
+    "cost": 5,
+    "description": "Draw 2 cards. You may discard any number of cards for 1 coin each. Each other player may discard 2 cards to draw 1 card.",
+    "draw_cards": 2,
+    "special_effects": [
+      {
+        "kind": "vault",
+        "label": "Discard for Coins"
+      }
+    ]
+  },
+  {
+    "id": "cairn_appraiser",
+    "name": "Bishop",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "cairn_appraiser",
+    "cost": 4,
+    "description": "Gain 1 coin and 1 VP token. Trash a card from your hand. Gain 1 VP token for each 2 coins in its cost. Each other player may trash a card from their hand.",
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "gain_vp_tokens",
+        "amount": 1,
+        "label": "Gain a VP Token"
+      },
+      {
+        "kind": "bishop",
+        "label": "Trash for VP Tokens"
+      }
+    ]
+  },
+  {
+    "id": "skyline_foundry",
+    "name": "City",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "skyline_foundry",
+    "cost": 5,
+    "description": "Draw 1 card. Gain 2 actions. If at least 1 supply pile is empty, draw 1 card. If at least 2 supply piles are empty, gain 1 buy and 1 coin.",
+    "draw_cards": 1,
+    "gain_actions": 2,
+    "special_effects": [
+      {
+        "kind": "city_empty_bonus",
+        "buy_at": 2,
+        "coin_at": 2,
+        "draw_at": 1,
+        "label": "Empty-Pile Bonuses"
+      }
+    ]
+  },
+  {
+    "id": "sealed_treaty",
+    "multiplayer_only": true,
+    "name": "Clerk",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "sealed_treaty",
+    "cost": 4,
+    "description": "Gain 2 coins. Each other player with at least 5 cards in hand puts a card from their hand on top of their deck. At the start of your turn, you may play this from your hand without using an action.",
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "attack",
+        "mode": "topdeck_hand_size",
+        "target_hand_size": 5,
+        "label": "Put on Deck at 5 Cards"
+      },
+      {
+        "kind": "start_turn",
+        "trigger": "start_turn",
+        "label": "Start-Turn Play"
+      }
+    ]
+  },
+  {
+    "id": "ember_forge",
+    "name": "Forge",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "ember_forge",
+    "cost": 7,
+    "description": "Trash any number of cards from your hand. Gain a card costing exactly the total cost of the trashed cards.",
+    "special_effects": [
+      {
+        "kind": "forge",
+        "label": "Forge Exact Total"
+      }
+    ]
+  },
+  {
+    "id": "royal_exchange",
+    "name": "War Chest",
+    "type": "resource",
+    "group": "Prosperity",
+    "art_id": "royal_exchange",
+    "cost": 5,
+    "description": "The player to your left names a card. Gain a card costing up to 5, except cards named for War Chests this turn.",
+    "special_effects": [
+      {
+        "kind": "war_chest",
+        "max_cost": 5,
+        "label": "Name and Gain"
+      }
+    ]
+  },
+  {
+    "id": "grand_bazaar",
+    "name": "Grand Market",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "grand_bazaar",
+    "cost": 6,
+    "description": "Draw 1 card. Gain 1 action, 1 buy, and 2 coins. You cannot buy this while a Copper is in play.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "gain_buys": 1,
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "buy_restriction",
+        "requirement_card_id": "pebble_coin",
+        "label": "No Copper in Play"
+      }
+    ]
+  },
+  {
+    "id": "copper_harbor",
+    "name": "Investment",
+    "type": "resource",
+    "group": "Prosperity",
+    "art_id": "copper_harbor",
+    "cost": 4,
+    "description": "Trash a card from your hand. Choose one: gain 1 coin, or trash this and reveal your hand to gain 1 VP token for each differently named resource there.",
+    "special_effects": [
+      {
+        "kind": "investment",
+        "label": "Invest for Coins or VP"
+      }
+    ]
+  },
+  {
+    "id": "courtly_echo",
+    "name": "King's Court",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "courtly_echo",
+    "cost": 7,
+    "description": "You may play an action card from your hand three times without spending another action.",
+    "special_effects": [
+      {
+        "kind": "replay_action",
+        "repetitions": 3,
+        "label": "Play an Action Three Times"
+      }
+    ]
+  },
+  {
+    "id": "sable_loan",
+    "multiplayer_only": true,
+    "name": "Charlatan",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "sable_loan",
+    "cost": 5,
+    "description": "Gain 3 coins. Each other player gains a Curse. Curses are resources worth 1 coin when played.",
+    "gain_coins": 3,
+    "special_effects": [
+      {
+        "kind": "attack",
+        "mode": "gain_curse",
+        "card_id": "briar_hex",
+        "label": "Attack: Give a Curse"
+      },
+      {
+        "kind": "global_card_rule",
+        "target_card_id": "briar_hex",
+        "add_type": "resource",
+        "coin_value": 1,
+        "label": "Curses Give 1 Coin"
+      }
+    ]
+  },
+  {
+    "id": "minted_seal",
+    "name": "Mint",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "minted_seal",
+    "cost": 5,
+    "description": "You may reveal a resource from your hand, then gain a copy. When you gain this, trash the non-duration resources you played this turn.",
+    "special_effects": [
+      {
+        "kind": "mint_copy_resource",
+        "label": "Reveal and Copy Resource"
+      },
+      {
+        "kind": "mint_gain_cleanup",
+        "trigger": "gain",
+        "label": "Gain: Clear Played Resources"
+      }
+    ]
+  },
+  {
+    "id": "stone_monument",
+    "name": "Monument",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "stone_monument",
+    "cost": 4,
+    "description": "Gain 2 coins and 1 VP token.",
+    "gain_coins": 2,
+    "special_effects": [
+      {
+        "kind": "gain_vp_tokens",
+        "amount": 1,
+        "label": "Gain a VP Token"
+      }
+    ]
+  },
+  {
+    "id": "veil_broker",
+    "name": "Bank",
+    "type": "resource",
+    "group": "Prosperity",
+    "art_id": "veil_broker",
+    "cost": 7,
+    "description": "Gain 1 coin for each resource in play.",
+    "special_effects": [
+      {
+        "kind": "bank",
+        "per_resource": 1,
+        "label": "Coin per Resource in Play"
+      }
+    ]
+  },
+  {
+    "id": "quarry_mark",
+    "name": "Quarry",
+    "type": "resource",
+    "group": "Prosperity",
+    "art_id": "quarry_mark",
+    "cost": 4,
+    "description": "Gain 1 coin. Action cards cost 2 less this turn, to a minimum of 0.",
+    "coin_value": 1,
+    "special_effects": [
+      {
+        "kind": "reduce_costs",
+        "amount": 2,
+        "card_type": "action",
+        "label": "Costs -2 This Turn"
+      }
+    ]
+  },
+  {
+    "id": "raucous_bell",
+    "multiplayer_only": true,
+    "name": "Rabble",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "raucous_bell",
+    "cost": 5,
+    "description": "Draw 3 cards. Attack: each other player reveals the top 3 cards of their deck, discards the resources and actions, and puts the rest back on top in any order.",
+    "draw_cards": 3,
+    "special_effects": [
+      {
+        "kind": "attack",
+        "mode": "reveal_discard_reorder",
+        "amount": 3,
+        "label": "Attack: Scatter the Top 3"
+      }
+    ]
+  },
+  {
+    "id": "crown_vessel",
+    "name": "Hoard",
+    "type": "resource",
+    "group": "Prosperity",
+    "art_id": "crown_vessel",
+    "cost": 6,
+    "description": "Gain 2 coins. This turn, when you gain a victory card that you bought, gain a Gold.",
+    "coin_value": 2,
+    "special_effects": [
+      {
+        "kind": "hoard_buy",
+        "trigger": "buy",
+        "trigger_scope": "in_play",
+        "label": "Bought Victory: Gain Gold"
+      }
+    ]
+  },
+  {
+    "id": "watchtower_chart",
+    "name": "Watchtower",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "watchtower_chart",
+    "cost": 3,
+    "description": "Draw until you have 6 cards in hand. When you gain a card, you may reveal this from hand to trash it or put it on top of your deck.",
+    "special_effects": [
+      {
+        "kind": "simple_draw_to_size",
+        "amount": 6,
+        "label": "Draw to 6"
+      },
+      {
+        "kind": "watchtower_reaction",
+        "trigger": "gain_reaction",
+        "label": "React to a Gain"
+      }
+    ]
+  },
+  {
+    "id": "chance_engine",
+    "name": "Crystal Ball",
+    "type": "resource",
+    "group": "Prosperity",
+    "art_id": "chance_engine",
+    "cost": 5,
+    "description": "Gain 1 coin. Look at the top card of your deck. You may trash it, discard it, or play it if it is a resource or action; otherwise leave it on top.",
+    "coin_value": 1,
+    "special_effects": [
+      {
+        "kind": "crystal_ball",
+        "label": "Choose the Top Card"
+      }
+    ]
+  },
+  {
+    "id": "twin_pillars",
+    "name": "Worker's Village",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "twin_pillars",
+    "cost": 4,
+    "description": "Draw 1 card. Gain 2 actions and 1 buy.",
+    "draw_cards": 1,
+    "gain_actions": 2,
+    "gain_buys": 1
+  },
+  {
+    "id": "venture_compass",
+    "name": "Tiara",
+    "type": "resource",
+    "group": "Prosperity",
+    "art_id": "venture_compass",
+    "cost": 4,
+    "description": "Gain 1 buy. You may play a resource from your hand twice without using an action. This turn, when you gain a card, you may put it on top of your deck.",
+    "gain_buys": 1,
+    "special_effects": [
+      {
+        "kind": "tiara_play_resource",
+        "label": "Play a Resource Twice"
+      },
+      {
+        "kind": "tiara_gain_reaction",
+        "trigger": "gain",
+        "trigger_scope": "in_play",
+        "label": "Put a Gain on Deck"
+      }
+    ]
+  },
+  {
+    "id": "artisan_vault",
+    "name": "Anvil",
+    "type": "resource",
+    "group": "Prosperity",
+    "art_id": "artisan_vault",
+    "cost": 3,
+    "description": "Gain 1 coin. You may discard a resource from your hand to gain a card costing up to 4.",
+    "coin_value": 1,
+    "special_effects": [
+      {
+        "kind": "anvil",
+        "label": "Discard Resource for a Gain"
+      }
+    ]
+  },
+  {
+    "id": "merchant_guild",
+    "name": "Peddler",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "merchant_guild",
+    "cost": 8,
+    "description": "Draw 1 card. Gain 1 action and 1 coin. During your Buy phase, only this card costs 2 less per action card in play, to a minimum of 0.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "peddler_discount",
+        "amount": 2,
+        "label": "Actions in Play: Cost -2"
+      }
+    ]
+  },
+  {
+    "id": "route_toll",
+    "name": "Collection",
+    "type": "resource",
+    "group": "Prosperity",
+    "art_id": "route_toll",
+    "cost": 5,
+    "description": "Gain 2 coins and 1 buy. This turn, whenever you gain an action card, gain 1 VP token.",
+    "coin_value": 2,
+    "gain_buys": 1,
+    "special_effects": [
+      {
+        "kind": "collection_gain",
+        "trigger": "gain",
+        "trigger_scope": "in_play",
+        "amount": 1,
+        "reward": "vp_token",
+        "label": "Action Gain: +1 VP Token"
+      }
+    ]
+  },
+  {
+    "id": "capital_mirror",
+    "name": "Expand",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "capital_mirror",
+    "cost": 7,
+    "description": "Trash a card from your hand. Gain a card costing up to 3 more.",
+    "special_effects": [
+      {
+        "kind": "remodel",
+        "cost_delta": 3,
+        "label": "Expand Up to +3"
+      }
+    ]
+  },
+  {
+    "id": "granary_riddle",
+    "name": "Granary",
+    "type": "action",
+    "group": "Prosperity",
+    "art_id": "granary_riddle",
+    "cost": 5,
+    "description": "Reveal your hand. Draw 1 card for each resource in it.",
+    "special_effects": [
+      {
+        "kind": "draw_per_type_in_hand",
+        "card_type": "resource",
+        "amount": 1,
+        "label": "Draw per Resource"
+      }
+    ]
+  },
+  {
+    "id": "auric_reserve",
+    "name": "Platinum",
+    "type": "resource",
+    "group": "Prosperity",
+    "art_id": "auric_reserve",
+    "cost": 9,
+    "description": "Gain 5 coins.",
+    "coin_value": 5,
+    "market_enabled": false
+  },
+  {
+    "id": "crownland_expanse",
+    "name": "Colony",
+    "type": "victory",
+    "group": "Prosperity",
+    "art_id": "crownland_expanse",
+    "cost": 11,
+    "description": "Worth 10 VP.",
+    "victory_points": 10,
+    "market_enabled": false
+  },
+  {
+    "id": "amulet",
+    "name": "Amulet",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "amulet",
+    "cost": 3,
+    "description": "Now and at the start of your next turn, choose one: +1 coin; trash a card from your hand; or gain a Silver.",
+    "special_effects": [
+      {
+        "kind": "choose_one_of_standard",
+        "modes": [
+          {
+            "id": "coin",
+            "label": "+1 Coin",
+            "gain_coins": 1
+          },
+          {
+            "id": "trash",
+            "label": "Trash a Card",
+            "effects": [
+              {
+                "kind": "trash_from_hand",
+                "amount": 1,
+                "required": true,
+                "label": "trash from hand"
+              }
+            ]
+          },
+          {
+            "id": "silver",
+            "label": "Gain a Silver",
+            "effects": [
+              {
+                "kind": "gain_card",
+                "card_id": "silver_leaf",
+                "destination": "discard",
+                "label": "gain card"
+              }
+            ]
+          }
+        ],
+        "label": "choose one of standard"
+      },
+      {
+        "kind": "choose_one_of_standard",
+        "trigger": "next_turn",
+        "modes": [
+          {
+            "id": "coin",
+            "label": "+1 Coin",
+            "gain_coins": 1
+          },
+          {
+            "id": "trash",
+            "label": "Trash a Card",
+            "effects": [
+              {
+                "kind": "trash_from_hand",
+                "amount": 1,
+                "required": true,
+                "label": "trash from hand"
+              }
+            ]
+          },
+          {
+            "id": "silver",
+            "label": "Gain a Silver",
+            "effects": [
+              {
+                "kind": "gain_card",
+                "card_id": "silver_leaf",
+                "destination": "discard",
+                "label": "gain card"
+              }
+            ]
+          }
+        ],
+        "label": "choose one of standard"
+      }
+    ]
+  },
+  {
+    "id": "artificer",
+    "name": "Artificer",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "artificer",
+    "cost": 5,
+    "description": "+1 Card, +1 Action, and +1 coin. Discard any number of cards. You may gain a card onto your deck costing exactly 1 coin per card discarded.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "artificer",
+        "label": "Discard for Exact-Cost Gain"
+      }
+    ]
+  },
+  {
+    "id": "bridge_troll",
+    "name": "Bridge Troll",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "bridge_troll",
+    "cost": 5,
+    "description": "Each other player takes their -1 coin token. Now and at the start of your next turn, +1 Buy. While this is in play, cards cost 1 less on your turns.",
+    "gain_buys": 1,
+    "special_effects": [
+      {
+        "kind": "player_token",
+        "token": "minus_coin",
+        "amount": 1,
+        "trigger": "attack",
+        "label": "player token"
+      },
+      {
+        "kind": "reduce_costs",
+        "amount": 1,
+        "trigger_scope": "in_play",
+        "label": "reduce costs"
+      },
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "gain_buys": 1,
+        "label": "turn start bonus"
+      }
+    ],
+    "tags": [
+      "attack",
+      "duration"
+    ]
+  },
+  {
+    "id": "caravan_guard",
+    "name": "Caravan Guard",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "caravan_guard",
+    "cost": 3,
+    "description": "+1 Card and +1 Action. At the start of your next turn, +1 coin. When another player plays an Attack card, you may first play this from your hand.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "gain_coins": 1,
+        "label": "turn start bonus"
+      },
+      {
+        "kind": "reaction",
+        "trigger": "attack",
+        "label": "React to an Attack"
+      }
+    ],
+    "tags": [
+      "duration",
+      "reaction"
+    ]
+  },
+  {
+    "id": "coin_of_the_realm",
+    "name": "Coin of the Realm",
+    "type": "resource",
+    "group": "Adventures",
+    "art_id": "coin_of_the_realm",
+    "cost": 2,
+    "description": "Worth 1 coin. Put it on your Tavern mat. After you play an Action card, you may call this for +2 Actions.",
+    "coin_value": 1,
+    "reserve": true,
+    "tags": [
+      "reserve"
+    ]
+  },
+  {
+    "id": "distant_lands",
+    "name": "Distant Lands",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "distant_lands",
+    "cost": 5,
+    "description": "Put this on your Tavern mat. Worth 4 VP if it is on your Tavern mat at the end of the game, otherwise 0 VP.",
+    "reserve": true,
+    "victory_points": 0,
+    "tags": [
+      "reserve",
+      "victory"
+    ],
+    "special_effects": [
+      {
+        "kind": "distant_lands_score",
+        "trigger": "scoring",
+        "on_mat_points": 4,
+        "label": "distant lands score"
+      }
+    ]
+  },
+  {
+    "id": "dungeon",
+    "name": "Dungeon",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "dungeon",
+    "cost": 3,
+    "description": "+1 Action. Now and at the start of your next turn, +2 Cards, then discard 2 Cards.",
+    "gain_actions": 1,
+    "draw_cards": 2,
+    "special_effects": [
+      {
+        "kind": "discard_filtered",
+        "amount": 2,
+        "required": true,
+        "label": "discard filtered"
+      },
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "draw_cards": 2,
+        "discard_cards": 2,
+        "label": "turn start bonus"
+      }
+    ],
+    "tags": [
+      "duration"
+    ]
+  },
+  {
+    "id": "duplicate",
+    "name": "Duplicate",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "duplicate",
+    "cost": 4,
+    "description": "Put this on your Tavern mat. When you gain a card costing up to 6 coins, you may call this to gain a copy of that card.",
+    "reserve": true,
+    "tags": [
+      "reserve"
+    ],
+    "special_effects": [
+      {
+        "kind": "reserve_store",
+        "label": "reserve store"
+      },
+      {
+        "kind": "reserve_duplicate_gain",
+        "max_cost": 6,
+        "label": "reserve duplicate gain"
+      }
+    ]
+  },
+  {
+    "id": "gear",
+    "name": "Gear",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "gear",
+    "cost": 3,
+    "description": "+2 Cards. Set aside up to 2 cards from your hand face down under this. At the start of your next turn, put them into your hand.",
+    "draw_cards": 2,
+    "special_effects": [
+      {
+        "kind": "set_aside_from_hand",
+        "amount": 2,
+        "return_next_turn": true,
+        "label": "set aside from hand"
+      },
+      {
+        "kind": "duration_marker",
+        "trigger": "next_turn",
+        "label": "duration marker"
+      }
+    ],
+    "tags": [
+      "duration"
+    ]
+  },
+  {
+    "id": "giant",
+    "name": "Giant",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "giant",
+    "cost": 5,
+    "description": "Turn your Journey token over (it starts face up). Then if it is face down, +1 coin. If it is face up, +5 coins, and each other player reveals the top card of their deck, trashes it if it costs from 3 to 6 coins, and otherwise discards it and gains a Curse.",
+    "special_effects": [
+      {
+        "kind": "journey_flip",
+        "on_active": [
+          {
+            "kind": "gain_coins",
+            "amount": 5
+          }
+        ],
+        "on_inactive": [
+          {
+            "kind": "gain_coins",
+            "amount": 1
+          }
+        ],
+        "label": "journey flip"
+      },
+      {
+        "kind": "journey_attack",
+        "attack": {
+          "mode": "giant",
+          "amount": 1
+        },
+        "label": "journey attack"
+      }
+    ],
+    "tags": [
+      "attack"
+    ]
+  },
+  {
+    "id": "guide",
+    "name": "Guide",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "guide",
+    "cost": 3,
+    "description": "+1 Card and +1 Action. Put this on your Tavern mat. At the start of your turn, you may call this to discard your hand and draw 5 cards.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "reserve": true,
+    "tags": [
+      "reserve"
+    ],
+    "special_effects": [
+      {
+        "kind": "reserve_store",
+        "label": "reserve store"
+      },
+      {
+        "kind": "reserve_redraw",
+        "trigger": "call",
+        "label": "reserve redraw"
+      }
+    ]
+  },
+  {
+    "id": "haunted_woods",
+    "name": "Haunted Woods",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "haunted_woods",
+    "cost": 5,
+    "description": "Until your next turn, when any other player buys a card, they put their hand onto their deck in any order. At the start of your next turn, +3 Cards.",
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "draw_cards": 3,
+        "label": "turn start bonus"
+      },
+      {
+        "kind": "register_buy_attack",
+        "trigger_scope": "in_play",
+        "attack": {
+          "mode": "topdeck_hand"
+        },
+        "label": "register buy attack"
+      }
+    ],
+    "tags": [
+      "attack",
+      "duration"
+    ]
+  },
+  {
+    "id": "hireling",
+    "name": "Hireling",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "hireling",
+    "cost": 6,
+    "description": "At the start of each of your turns for the rest of the game, +1 Card. This stays in play.",
+    "special_effects": [
+      {
+        "kind": "duration_hand_size",
+        "amount": 1,
+        "trigger": "next_turn",
+        "repeat": true,
+        "label": "duration hand size"
+      }
+    ],
+    "tags": [
+      "duration"
+    ]
+  },
+  {
+    "id": "lost_city",
+    "name": "Lost City",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "lost_city",
+    "cost": 5,
+    "description": "+2 Cards and +2 Actions. When you gain this, each other player draws a card.",
+    "draw_cards": 2,
+    "gain_actions": 2,
+    "special_effects": [
+      {
+        "kind": "each_other_player_draws",
+        "amount": 1,
+        "trigger": "gain",
+        "label": "each other player draws"
+      }
+    ]
+  },
+  {
+    "id": "magpie",
+    "name": "Magpie",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "magpie",
+    "cost": 4,
+    "description": "+1 Card and +1 Action. Reveal the top card of your deck. If it is a Treasure, put it into your hand. If it is an Action or Victory card, gain a Magpie.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "magpie_reveal",
+        "label": "magpie reveal"
+      }
+    ]
+  },
+  {
+    "id": "messenger",
+    "name": "Messenger",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "messenger",
+    "cost": 4,
+    "description": "+1 Buy and +1 coin. You may put your deck into your discard pile. When this is your first buy in a turn, gain a card costing up to 4 coins, and each other player gains a copy of it.",
+    "gain_buys": 1,
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "discard_deck",
+        "label": "discard deck"
+      },
+      {
+        "kind": "messenger_first_buy",
+        "max_cost": 4,
+        "label": "messenger first buy"
+      }
+    ]
+  },
+  {
+    "id": "miser",
+    "name": "Miser",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "miser",
+    "cost": 4,
+    "description": "Choose one: put a Copper from your hand onto your Tavern mat; or +1 coin per Copper on your Tavern mat.",
+    "special_effects": [
+      {
+        "kind": "choose_one_of_standard",
+        "modes": [
+          {
+            "id": "deposit",
+            "label": "Put a Copper on your Tavern mat",
+            "effects": [
+              {
+                "kind": "coin_mat_deposit",
+                "card_id": "pebble_coin",
+                "amount": 1,
+                "label": "coin mat deposit"
+              }
+            ]
+          },
+          {
+            "id": "coins",
+            "label": "+1 Coin per Copper",
+            "effects": [
+              {
+                "kind": "miser_spend_tokens",
+                "token": "coin",
+                "value": 1,
+                "label": "miser spend tokens"
+              }
+            ]
+          }
+        ],
+        "label": "choose one of standard"
+      }
+    ]
+  },
+  {
+    "id": "page",
+    "name": "Page",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "page",
+    "cost": 2,
+    "description": "+1 Card and +1 Action. When you discard this from play, you may exchange it for a Treasure Hunter.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "traveller": true,
+    "traveller_upgrade_id": "treasure_hunter",
+    "tags": [
+      "traveller",
+      "page_path"
+    ],
+    "special_effects": [
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
+  },
+  {
+    "id": "peasant",
+    "name": "Peasant",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "peasant",
+    "cost": 2,
+    "description": "+1 Buy and +1 coin. When you discard this from play, you may exchange it for a Soldier.",
+    "gain_buys": 1,
+    "gain_coins": 1,
+    "traveller": true,
+    "traveller_upgrade_id": "soldier",
+    "tags": [
+      "traveller",
+      "peasant_path"
+    ],
+    "special_effects": [
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
+  },
+  {
+    "id": "port",
+    "name": "Port",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "port",
+    "cost": 4,
+    "description": "+1 Card and +2 Actions. When you gain this, gain another Port.",
+    "draw_cards": 1,
+    "gain_actions": 2,
+    "special_effects": [
+      {
+        "kind": "gain_card",
+        "card_id": "port",
+        "destination": "discard",
+        "trigger": "gain",
+        "once": true,
+        "label": "gain card"
+      }
+    ]
+  },
+  {
+    "id": "ranger",
+    "name": "Ranger",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "ranger",
+    "cost": 4,
+    "description": "+1 Buy. Turn your Journey token over (it starts face up). Then if it is face up, +5 Cards.",
+    "gain_buys": 1,
+    "special_effects": [
+      {
+        "kind": "journey_flip",
+        "on_active": [
+          {
+            "kind": "draw_cards",
+            "amount": 5
+          }
+        ],
+        "on_inactive": [],
+        "label": "journey flip"
+      }
+    ]
+  },
+  {
+    "id": "ratcatcher",
+    "name": "Ratcatcher",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "ratcatcher",
+    "cost": 2,
+    "description": "+1 Card and +1 Action. Put this on your Tavern mat. At the start of your turn, you may call this to trash a card from your hand.",
+    "draw_cards": 1,
+    "gain_actions": 1,
+    "reserve": true,
+    "tags": [
+      "reserve"
+    ],
+    "special_effects": [
+      {
+        "kind": "reserve_store",
+        "label": "reserve store"
+      },
+      {
+        "kind": "reserve_trash",
+        "trigger": "call",
+        "amount": 1,
+        "label": "reserve trash"
+      }
+    ]
+  },
+  {
+    "id": "raze",
+    "name": "Raze",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "raze",
+    "cost": 2,
+    "description": "+1 Action. Trash this or a card from your hand. Look at one card from the top of your deck per coin the trashed card costs. Put one into your hand and discard the rest.",
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "raze",
+        "label": "raze"
+      }
+    ]
+  },
+  {
+    "id": "relic",
+    "name": "Relic",
+    "type": "resource",
+    "group": "Adventures",
+    "art_id": "relic",
+    "cost": 5,
+    "description": "Worth 2 coins. Each other player puts their -1 Card token on their deck.",
+    "coin_value": 2,
+    "special_effects": [
+      {
+        "kind": "attack",
+        "mode": "minus_card_token",
+        "label": "attack"
+      }
+    ],
+    "tags": [
+      "attack"
+    ]
+  },
+  {
+    "id": "royal_carriage",
+    "name": "Royal Carriage",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "royal_carriage",
+    "cost": 5,
+    "description": "+1 Action. Put this on your Tavern mat. After you play an Action card, if it is still in play, you may call this to replay that Action.",
+    "gain_actions": 1,
+    "reserve": true,
+    "tags": [
+      "reserve"
+    ],
+    "special_effects": [
+      {
+        "kind": "reserve_store",
+        "label": "reserve store"
+      },
+      {
+        "kind": "reserve_replay",
+        "trigger": "call",
+        "repetitions": 1,
+        "label": "reserve replay"
+      }
+    ]
+  },
+  {
+    "id": "storyteller",
+    "name": "Storyteller",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "storyteller",
+    "cost": 5,
+    "description": "+1 Action. Play up to 3 Treasures from your hand. +1 Card. Pay all your coins. +1 Card per coin paid.",
+    "gain_actions": 1,
+    "special_effects": [
+      {
+        "kind": "storyteller",
+        "label": "storyteller"
+      }
+    ]
+  },
+  {
+    "id": "swamp_hag",
+    "name": "Swamp Hag",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "swamp_hag",
+    "cost": 5,
+    "description": "Until your next turn, when any other player buys a card, they gain a Curse. At the start of your next turn, +3 coins.",
+    "special_effects": [
+      {
+        "kind": "turn_start_bonus",
+        "trigger": "next_turn",
+        "gain_coins": 3,
+        "label": "turn start bonus"
+      },
+      {
+        "kind": "register_gain_attack",
+        "trigger_scope": "in_play",
+        "attack": {
+          "mode": "gain_curse",
+          "card_id": "briar_hex"
+        },
+        "label": "register gain attack"
+      }
+    ],
+    "tags": [
+      "attack",
+      "duration"
+    ]
+  },
+  {
+    "id": "transmogrify",
+    "name": "Transmogrify",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "transmogrify",
+    "cost": 4,
+    "description": "+1 Action. Put this on your Tavern mat. At the start of your turn, you may call this to trash a card from your hand and gain a card costing up to 1 more onto your hand.",
+    "gain_actions": 1,
+    "reserve": true,
+    "tags": [
+      "reserve"
+    ],
+    "special_effects": [
+      {
+        "kind": "reserve_store",
+        "label": "reserve store"
+      },
+      {
+        "kind": "reserve_remodel",
+        "trigger": "call",
+        "cost_delta": 1,
+        "destination": "hand",
+        "label": "reserve remodel"
+      }
+    ]
+  },
+  {
+    "id": "treasure_trove",
+    "name": "Treasure Trove",
+    "type": "resource",
+    "group": "Adventures",
+    "art_id": "treasure_trove",
+    "cost": 5,
+    "description": "Worth 2 coins. When you play this, gain a Gold and a Copper.",
+    "coin_value": 2,
+    "special_effects": [
+      {
+        "kind": "gain_card",
+        "card_id": "amber_circlet",
+        "destination": "discard",
+        "trigger": "play",
+        "label": "gain card"
+      },
+      {
+        "kind": "gain_card",
+        "card_id": "pebble_coin",
+        "destination": "discard",
+        "trigger": "play",
+        "label": "gain card"
+      }
+    ]
+  },
+  {
+    "id": "wine_merchant",
+    "name": "Wine Merchant",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "wine_merchant",
+    "cost": 5,
+    "description": "+1 Buy and +4 coins. Put this on your Tavern mat. At the end of your Buy phase, if you have at least 2 coins, you may discard this from your Tavern mat.",
+    "gain_buys": 1,
+    "gain_coins": 4,
+    "reserve": true,
+    "tags": [
+      "reserve"
+    ],
+    "special_effects": [
+      {
+        "kind": "reserve_store",
+        "label": "reserve store"
+      },
+      {
+        "kind": "wine_merchant_call",
+        "trigger": "buy_phase_end",
+        "gain_buys": 0,
+        "label": "wine merchant call"
+      }
+    ]
+  },
+  {
+    "id": "treasure_hunter",
+    "name": "Treasure Hunter",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "treasure_hunter",
+    "cost": 3,
+    "description": "+1 Action and +1 coin. Gain a Silver per card the player to your right gained in their last turn. When you discard this from play, you may exchange it for a Warrior.",
+    "gain_actions": 1,
+    "gain_coins": 1,
+    "market_enabled": false,
+    "support_pile": true,
+    "traveller": true,
+    "traveller_upgrade_id": "warrior",
+    "tags": [
+      "traveller",
+      "non_supply"
+    ],
+    "special_effects": [
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
+  },
+  {
+    "id": "warrior",
+    "name": "Warrior",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "warrior",
+    "cost": 4,
+    "description": "+2 Cards. For each Traveller you have in play, each other player discards the top card of their deck and trashes it if it costs exactly 3 or 4 coins. When you discard this from play, you may exchange it for a Hero.",
+    "draw_cards": 2,
+    "market_enabled": false,
+    "support_pile": true,
+    "traveller": true,
+    "traveller_upgrade_id": "hero",
+    "tags": [
+      "traveller",
+      "non_supply",
+      "attack"
+    ],
+    "special_effects": [
+      {
+        "kind": "attack",
+        "mode": "warrior",
+        "label": "attack"
+      },
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
+  },
+  {
+    "id": "hero",
+    "name": "Hero",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "hero",
+    "cost": 5,
+    "description": "+2 coins. Gain a Treasure. When you discard this from play, you may exchange it for a Champion.",
+    "gain_coins": 2,
+    "market_enabled": false,
+    "support_pile": true,
+    "traveller": true,
+    "traveller_upgrade_id": "champion",
+    "tags": [
+      "traveller",
+      "non_supply"
+    ],
+    "special_effects": [
+      {
+        "kind": "gain_from_supply",
+        "card_type": "resource",
+        "max_cost": 99,
+        "label": "gain from supply"
+      },
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
+  },
+  {
+    "id": "champion",
+    "name": "Champion",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "champion",
+    "cost": 6,
+    "description": "+1 Action. For the rest of the game, when another player plays an Attack, it does not affect you, and when you play an Action card, +1 Action. This stays in play.",
+    "gain_actions": 1,
+    "market_enabled": false,
+    "support_pile": true,
+    "tags": [
+      "non_supply",
+      "duration"
+    ],
+    "special_effects": [
+      {
+        "kind": "champion",
+        "label": "champion"
+      }
+    ]
+  },
+  {
+    "id": "soldier",
+    "name": "Soldier",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "soldier",
+    "cost": 3,
+    "description": "+2 coins, plus +1 coin per other Attack you have in play. Each other player with 4 or more cards in hand discards a card. When you discard this from play, you may exchange it for a Fugitive.",
+    "gain_coins": 2,
+    "market_enabled": false,
+    "support_pile": true,
+    "traveller": true,
+    "traveller_upgrade_id": "fugitive",
+    "tags": [
+      "traveller",
+      "non_supply",
+      "attack"
+    ],
+    "special_effects": [
+      {
+        "kind": "attack",
+        "mode": "soldier",
+        "label": "attack"
+      },
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
+  },
+  {
+    "id": "fugitive",
+    "name": "Fugitive",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "fugitive",
+    "cost": 4,
+    "description": "+2 Cards and +1 Action. Discard a card. When you discard this from play, you may exchange it for a Disciple.",
+    "draw_cards": 2,
+    "gain_actions": 1,
+    "market_enabled": false,
+    "support_pile": true,
+    "traveller": true,
+    "traveller_upgrade_id": "disciple",
+    "tags": [
+      "traveller",
+      "non_supply"
+    ],
+    "special_effects": [
+      {
+        "kind": "discard_from_hand_draw",
+        "amount": 1,
+        "label": "discard from hand draw"
+      },
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
+  },
+  {
+    "id": "disciple",
+    "name": "Disciple",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "disciple",
+    "cost": 5,
+    "description": "You may play an Action card from your hand twice. Gain a copy of it. When you discard this from play, you may exchange it for a Teacher.",
+    "market_enabled": false,
+    "support_pile": true,
+    "traveller": true,
+    "traveller_upgrade_id": "teacher",
+    "tags": [
+      "traveller",
+      "non_supply"
+    ],
+    "special_effects": [
+      {
+        "kind": "replay_action",
+        "repetitions": 2,
+        "label": "replay action"
+      },
+      {
+        "kind": "traveller_upgrade",
+        "label": "traveller upgrade"
+      }
+    ]
+  },
+  {
+    "id": "teacher",
+    "name": "Teacher",
+    "type": "action",
+    "group": "Adventures",
+    "art_id": "teacher",
+    "cost": 6,
+    "description": "Put this on your Tavern mat. At the start of your turn, you may call this to move your +1 Card, +1 Action, +1 Buy, or +1 coin token to an Action Supply pile.",
+    "market_enabled": false,
+    "support_pile": true,
+    "reserve": true,
+    "tags": [
+      "reserve",
+      "non_supply"
+    ],
+    "special_effects": [
+      {
+        "kind": "reserve_store",
+        "label": "reserve store"
+      },
+      {
+        "kind": "teacher_token",
+        "trigger": "call",
+        "label": "teacher token"
+      }
+    ]
+  },
+  {
+    "id": "alms",
+    "name": "Alms",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "alms",
+    "event_cost": 0,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Once per turn: If you have no Treasures in play, gain a card costing up to 4 coins.",
+    "special_effects": [
+      {
+        "kind": "gain_from_supply",
+        "max_cost": 4,
+        "label": "gain from supply"
+      }
+    ]
+  },
+  {
+    "id": "ball",
+    "name": "Ball",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "ball",
+    "event_cost": 5,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Take your -1 coin token. Gain 2 cards each costing up to 4 coins.",
+    "special_effects": [
+      {
+        "kind": "player_token",
+        "token": "minus_coin",
+        "amount": 1,
+        "label": "player token"
+      },
+      {
+        "kind": "gain_from_supply",
+        "max_cost": 4,
+        "label": "gain from supply"
+      },
+      {
+        "kind": "gain_from_supply",
+        "max_cost": 4,
+        "label": "gain from supply"
+      }
+    ]
+  },
+  {
+    "id": "bonfire",
+    "name": "Bonfire",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "bonfire",
+    "event_cost": 3,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Trash up to 2 cards you have in play.",
+    "special_effects": [
+      {
+        "kind": "trash_from_play",
+        "amount": 2,
+        "label": "trash from play"
+      }
+    ]
+  },
+  {
+    "id": "borrow",
+    "name": "Borrow",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "borrow",
+    "event_cost": 0,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Once per turn: +1 Buy. If your -1 Card token is not on your deck, put it there and +1 coin.",
+    "gain_buys": 1,
+    "gain_coins": 1,
+    "special_effects": [
+      {
+        "kind": "player_token",
+        "token": "minus_card",
+        "amount": 1,
+        "label": "player token"
+      }
+    ]
+  },
+  {
+    "id": "expedition",
+    "name": "Expedition",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "expedition",
+    "event_cost": 3,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Draw 2 extra cards for your next hand.",
+    "special_effects": [
+      {
+        "kind": "next_hand_draw_bonus",
+        "amount": 2,
+        "label": "next hand draw bonus"
+      }
+    ]
+  },
+  {
+    "id": "ferry",
+    "name": "Ferry",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "ferry",
+    "event_cost": 3,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Move your -2 coin cost token to an Action Supply pile. Cards from that pile cost 2 less on your turns.",
+    "special_effects": [
+      {
+        "kind": "supply_tokens",
+        "token": "minus_cost",
+        "amount": 1,
+        "label": "supply tokens"
+      }
+    ]
+  },
+  {
+    "id": "inheritance",
+    "name": "Inheritance",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "inheritance",
+    "event_cost": 7,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Once per game: Set aside a non-Command Action card from the Supply costing up to 5 coins. Move your Estate token to it. During your turns, Estates are also Actions with that card's text.",
+    "special_effects": [
+      {
+        "kind": "inheritance",
+        "max_cost": 5,
+        "label": "inheritance"
+      }
+    ]
+  },
+  {
+    "id": "lost_arts",
+    "name": "Lost Arts",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "lost_arts",
+    "event_cost": 6,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Move your +1 Action token to an Action Supply pile. When you play a card from that pile, you first get +1 Action.",
+    "special_effects": [
+      {
+        "kind": "supply_tokens",
+        "token": "action",
+        "amount": 1,
+        "label": "supply tokens"
+      }
+    ]
+  },
+  {
+    "id": "mission",
+    "name": "Mission",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "mission",
+    "event_cost": 4,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Once per turn: If the previous turn was not yours, take another turn after this one, during which you cannot buy cards.",
+    "special_effects": [
+      {
+        "kind": "mission",
+        "label": "mission"
+      }
+    ]
+  },
+  {
+    "id": "pathfinding",
+    "name": "Pathfinding",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "pathfinding",
+    "event_cost": 8,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Move your +1 Card token to an Action Supply pile. When you play a card from that pile, you first get +1 Card.",
+    "special_effects": [
+      {
+        "kind": "supply_tokens",
+        "token": "card",
+        "amount": 1,
+        "label": "supply tokens"
+      }
+    ]
+  },
+  {
+    "id": "pilgrimage",
+    "name": "Pilgrimage",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "pilgrimage",
+    "event_cost": 4,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Once per turn: Turn your Journey token over (it starts face up); then if it is face up, choose up to 3 differently named cards you have in play and gain a copy of each.",
+    "special_effects": [
+      {
+        "kind": "pilgrimage",
+        "label": "pilgrimage"
+      }
+    ]
+  },
+  {
+    "id": "plan",
+    "name": "Plan",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "plan",
+    "event_cost": 3,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Move your Trashing token to an Action Supply pile. When you buy a card from that pile, you may trash a card from your hand.",
+    "special_effects": [
+      {
+        "kind": "supply_tokens",
+        "token": "trash",
+        "amount": 1,
+        "label": "supply tokens"
+      }
+    ]
+  },
+  {
+    "id": "quest",
+    "name": "Quest",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "quest",
+    "event_cost": 0,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "You may discard an Attack, two Curses, or six cards. If you do, gain a Gold.",
+    "special_effects": [
+      {
+        "kind": "quest",
+        "label": "quest"
+      }
+    ]
+  },
+  {
+    "id": "raid",
+    "name": "Raid",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "raid",
+    "event_cost": 5,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Gain a Silver per Silver you have in play. Each other player puts their -1 Card token on their deck.",
+    "special_effects": [
+      {
+        "kind": "raid",
+        "label": "raid"
+      }
+    ],
+    "tags": [
+      "attack"
+    ]
+  },
+  {
+    "id": "save",
+    "name": "Save",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "save",
+    "event_cost": 1,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Once per turn: +1 Buy. Set aside a card from your hand, and put it into your hand at end of turn after drawing.",
+    "gain_buys": 1,
+    "special_effects": [
+      {
+        "kind": "set_aside_from_hand",
+        "amount": 1,
+        "return_next_turn": true,
+        "label": "set aside from hand"
+      }
+    ]
+  },
+  {
+    "id": "scouting_party",
+    "name": "Scouting Party",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "scouting_party",
+    "event_cost": 2,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "+1 Buy. Look at the top 5 cards of your deck. Discard 3 and put the rest back in any order.",
+    "gain_buys": 1,
+    "special_effects": [
+      {
+        "kind": "survey_top",
+        "amount": 5,
+        "discard_count": 3,
+        "label": "survey top"
+      }
+    ]
+  },
+  {
+    "id": "seaway",
+    "name": "Seaway",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "seaway",
+    "event_cost": 5,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Gain an Action card costing up to 4 coins. Move your +1 Buy token to its pile.",
+    "special_effects": [
+      {
+        "kind": "gain_from_supply",
+        "max_cost": 4,
+        "card_type": "action",
+        "label": "gain from supply"
+      },
+      {
+        "kind": "supply_tokens",
+        "token": "buy",
+        "amount": 1,
+        "label": "supply tokens"
+      }
+    ]
+  },
+  {
+    "id": "trade",
+    "name": "Trade",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "trade",
+    "event_cost": 5,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Trash up to 2 cards from your hand. Gain a Silver per card you trashed.",
+    "special_effects": [
+      {
+        "kind": "trade",
+        "amount": 2,
+        "label": "trade"
+      }
+    ]
+  },
+  {
+    "id": "training",
+    "name": "Training",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "training",
+    "event_cost": 6,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "Move your +1 coin token to an Action Supply pile. When you play a card from that pile, you first get +1 coin.",
+    "special_effects": [
+      {
+        "kind": "supply_tokens",
+        "token": "coin",
+        "amount": 1,
+        "label": "supply tokens"
+      }
+    ]
+  },
+  {
+    "id": "travelling_fair",
+    "name": "Travelling Fair",
+    "type": "event",
+    "group": "Adventures",
+    "event_group": "Adventures",
+    "art_id": "travelling_fair",
+    "event_cost": 2,
+    "market_enabled": false,
+    "event_enabled": true,
+    "description": "+2 Buys. When you gain a card this turn, you may put it onto your deck.",
+    "gain_buys": 2,
+    "special_effects": [
+      {
+        "kind": "travelling_fair",
+        "label": "travelling fair"
+      }
+    ]
   }
 ]
