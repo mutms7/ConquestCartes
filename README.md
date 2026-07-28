@@ -12,7 +12,7 @@ An original fantasy deck-builder, built in Godot 4.7. You start with a thin deck
 
 It's a compact but complete deck-builder. The highlights:
 
-- **63 data-driven cards** with painted artwork, plus a named 26-card *Hinterlands* group inside the catalog.
+- **172 data-driven card records**, each linked to a painted illustration: 130 random-market candidates, four fixed market piles, two starters, eight Adventures support piles, 20 Adventures events, and eight archived or side-supply records.
 - Expansion provenance is explicit: *Prosperity* is the canonical label for a renamed legacy group, *Adventures* is the authorized Dominion implementation, *Hinterlands* is an original mechanics group, and *Witching Hour* is intentionally custom with no Dominion counterpart.
 - A **14-card kingdom market** each game: 2 resources, 10 actions, and 2 victory cards, laid out art-first (resources left, actions center, victory right).
 - The full deck-builder verb set: draw, **trash, gain, upgrade, replay**, and variable scoring, with interactive prompts whenever a card asks you to choose (discard this, trash that, gain a card up to a cost, reorder your draw).
@@ -142,6 +142,6 @@ This is a compact prototype, balanced as one, not a finished commercial release.
 - Local direct-IP multiplayer needs LAN reachability, port forwarding, or a VPN.
 - The online relay keeps rooms in memory in a single process, so it must run as exactly one always-on instance, and open rooms are lost on restart or redeploy.
 - No save system or full accessibility menu yet, and rival-only reaction clauses are omitted in the solo ruleset.
-- The art library has 29 finished illustrations; the 63-card catalog references them, so related cards share paintings via the data-driven `art_id` field.
+- `assets/cards/` contains 193 PNG illustrations; all 172 catalog records have a populated `art_id` link with a matching file. Archived and support records retain their artwork even when they are excluded from the random market.
 
 Writing new cards? Follow `docs/card_design_rules.md` and `docs/card_wording_conventions.md`.
