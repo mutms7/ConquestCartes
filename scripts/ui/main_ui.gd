@@ -58,10 +58,10 @@ const CARD_META_Y := 153.0
 const CARD_META_HEIGHT := 10.0
 const HUD_LEDGER_WIDTH := 158.0
 const RIGHT_DOCK_WIDTH := 202.0
-const ADVENTURES_OVERLAY_WIDTH := 348.0
-const ADVENTURES_OVERLAY_HEIGHT := 224.0
-const ADVENTURES_EVENT_PREVIEW_SIZE := Vector2(72.0, 96.0)
-const ADVENTURES_EVENT_FACE_SCALE := 0.52
+const ADVENTURES_OVERLAY_WIDTH := 246.0
+const ADVENTURES_OVERLAY_HEIGHT := 72.0
+const ADVENTURES_EVENT_PREVIEW_SIZE := Vector2(40.0, 45.0)
+const ADVENTURES_EVENT_FACE_SCALE := 0.28
 const END_TURN_BUTTON_WIDTH := 188.0
 const PLAYER_STATUS_ROW_HEIGHT := 49.0
 const PLAYER_STATUS_COOLDOWN_BAR_HEIGHT := 5.0
@@ -274,6 +274,9 @@ var expansion_player_tokens_label: Label
 var expansion_supply_tokens_label: Label
 var expansion_coin_mat_label: Label
 var expansion_event_container: HBoxContainer
+var expansion_tavern_button: Button
+var tavern_viewer: PanelContainer
+var tavern_viewer_cards: HBoxContainer
 var home_settings_panel: PanelContainer
 var home_multiplayer_panel: PanelContainer
 var home_lobby_panel: PanelContainer
@@ -1548,15 +1551,17 @@ func _create_network_snapshot(recipient_player_index: int = -1) -> Dictionary:
 		"supply": game_state.supply_piles.duplicate(true),
 		"event_purchases": game_state.event_purchases.duplicate(true),
 		"event_total_purchases": _generic_state_value(game_state, "event_total_purchases", {}).duplicate(true),
+		# Keep the host's small offer explicit.  The full Event catalog remains
+		# local typed data on every peer and is never reconstructed from records.
+		"selected_event_ids": game_state.get_selected_event_ids() if game_state.has_method("get_selected_event_ids") else [],
 		"reserve_mat": _expansion_snapshot_records(_expansion_alias_records(["reserve_mat", "tavern_mat", "tavern_cards"], ["get_reserve_mat", "get_reserve_cards", "get_tavern_mat", "get_tavern_cards"])),
 		"tavern_mat": _expansion_snapshot_records(_expansion_alias_records(["tavern_mat", "reserve_mat", "tavern_cards"], ["get_tavern_mat", "get_tavern_cards", "get_reserve_mat", "get_reserve_cards"])),
-		"journey_face_up": _serialize_expansion_value(_expansion_alias_value(["journey_face_up", "journey", "journey_state"], ["get_journey_face_up", "get_journey_state", "get_journey"])),
-		"journey": _serialize_expansion_value(_expansion_alias_value(["journey", "journey_face_up", "journey_state"], ["get_journey", "get_journey_face_up", "get_journey_state"])),
+		"journey_face_up": _serialize_expansion_value(_expansion_alias_value(["journey_face_up", "journey", "journey_state"], ["is_journey_face_up", "get_journey_face_up", "get_journey_state", "get_journey"])),
+		"journey": _serialize_expansion_value(_expansion_alias_value(["journey", "journey_face_up", "journey_state"], ["is_journey_face_up", "get_journey", "get_journey_face_up", "get_journey_state"])),
 		"supply_tokens": _serialize_expansion_value(_expansion_alias_value(["supply_tokens", "player_supply_tokens", "pile_tokens", "supply_markers", "token_supply"], ["get_supply_tokens", "get_player_supply_tokens", "get_pile_tokens"])),
 		"player_supply_tokens": _serialize_expansion_value(_expansion_alias_value(["player_supply_tokens", "supply_tokens", "pile_tokens", "supply_markers", "token_supply"], ["get_player_supply_tokens", "get_supply_tokens", "get_pile_tokens"])),
 		"pile_tokens": _serialize_expansion_value(_expansion_alias_value(["pile_tokens", "player_supply_tokens", "supply_tokens", "supply_markers", "token_supply"], ["get_pile_tokens", "get_player_supply_tokens", "get_supply_tokens"])),
 		"events": _expansion_snapshot_records(_expansion_alias_records(["events", "event_row", "active_events"], ["get_event_row", "get_events", "get_event_candidates"])),
-		"event_catalog": _expansion_snapshot_records(_expansion_alias_records(["event_catalog", "events", "event_row", "active_events"], ["get_event_catalog", "get_events", "get_event_row", "get_event_candidates"])),
 		"traveller_piles": _serialize_expansion_value(_expansion_alias_value(["traveller_piles", "traveller_supply", "traveller_side_supply", "side_supply", "side_supplies"], ["get_traveller_piles", "get_traveller_supply", "get_side_supply"])),
 		"side_supply": _serialize_expansion_value(_expansion_alias_value(["side_supply", "side_supplies", "traveller_piles", "traveller_supply", "traveller_side_supply"], ["get_side_supply", "get_traveller_piles", "get_traveller_supply"])),
 		"turn": {
@@ -1864,7 +1869,9 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		and _object_has_property(game_state, "event_total_purchases")
 	):
 		game_state.event_total_purchases = snapshot["event_total_purchases"].duplicate(true)
-	for expansion_key in ["reserve_mat", "tavern_mat", "journey_face_up", "journey", "supply_tokens", "player_supply_tokens", "pile_tokens", "events", "event_catalog", "traveller_piles", "side_supply"]:
+	if game_state.has_method("set_selected_event_ids") and typeof(snapshot.get("selected_event_ids", [])) == TYPE_ARRAY:
+		game_state.set_selected_event_ids(snapshot.get("selected_event_ids", []))
+	for expansion_key in ["reserve_mat", "tavern_mat", "journey_face_up", "journey", "supply_tokens", "player_supply_tokens", "pile_tokens", "events", "traveller_piles", "side_supply"]:
 		if snapshot.has(expansion_key) and _object_has_property(game_state, expansion_key):
 			var expansion_value: Variant = snapshot[expansion_key]
 			if expansion_key in ["reserve_mat", "tavern_mat"] and expansion_value is Array:
@@ -2701,21 +2708,42 @@ func _position_expansion_overlay() -> void:
 	var mat_rect := play_area_panel.get_global_rect()
 	if mat_rect.size.x <= 0.0 or mat_rect.size.y <= 0.0:
 		return
-	# The panel overlaps the right side of the mat by design.  Keep a small
-	# portion of the mat visible to the left so played-card chips remain legible,
-	# and clamp to the viewport when the table is narrow.
+	# The compact mat lives wholly inside the In Play panel.  Keeping its origin
+	# inside that rectangle prevents the Adventures surface from obscuring the
+	# hand, market, or status dock even on narrow tables.
 	var viewport_rect := get_viewport_rect()
-	var target_x := mat_rect.end.x - ADVENTURES_OVERLAY_WIDTH - 8.0
-	var target_y := mat_rect.position.y - 18.0
+	var target_x := mat_rect.position.x + 4.0
+	var target_y := mat_rect.position.y + 2.0
+	var max_width := maxf(80.0, mat_rect.size.x - 8.0)
+	var max_height := maxf(54.0, mat_rect.size.y - 4.0)
+	var panel_width := minf(ADVENTURES_OVERLAY_WIDTH, max_width)
+	var panel_height := minf(ADVENTURES_OVERLAY_HEIGHT, max_height)
+	target_x = mat_rect.end.x - panel_width - 4.0
 	if viewport_rect.size.x > 0.0:
-		target_x = clampf(target_x, 8.0, maxf(8.0, viewport_rect.size.x - ADVENTURES_OVERLAY_WIDTH - 8.0))
+		target_x = clampf(target_x, 8.0, maxf(8.0, viewport_rect.size.x - panel_width - 8.0))
 	if viewport_rect.size.y > 0.0:
-		target_y = clampf(target_y, 8.0, maxf(8.0, viewport_rect.size.y - ADVENTURES_OVERLAY_HEIGHT - 8.0))
+		target_y = clampf(target_y, 8.0, maxf(8.0, viewport_rect.size.y - panel_height - 8.0))
 	expansion_overlay.position = Vector2(target_x, target_y)
-	expansion_overlay.size = Vector2(ADVENTURES_OVERLAY_WIDTH, ADVENTURES_OVERLAY_HEIGHT)
+	expansion_overlay.size = Vector2(panel_width, panel_height)
 	expansion_panel.position = Vector2.ZERO
-	expansion_panel.custom_minimum_size = Vector2(ADVENTURES_OVERLAY_WIDTH, ADVENTURES_OVERLAY_HEIGHT)
-	expansion_panel.size = Vector2(ADVENTURES_OVERLAY_WIDTH, ADVENTURES_OVERLAY_HEIGHT)
+	expansion_panel.custom_minimum_size = Vector2(panel_width, panel_height)
+	expansion_panel.size = Vector2(panel_width, panel_height)
+	_position_tavern_viewer()
+
+
+func _position_tavern_viewer() -> void:
+	if tavern_viewer == null or not is_instance_valid(tavern_viewer) or expansion_overlay == null:
+		return
+	var viewport_rect := get_viewport_rect()
+	var origin := expansion_overlay.position + Vector2(0, ADVENTURES_OVERLAY_HEIGHT + 6.0)
+	var size := tavern_viewer.size
+	if size.x <= 0.0:
+		size = tavern_viewer.custom_minimum_size
+	if viewport_rect.size.x > 0.0:
+		origin.x = clampf(origin.x, 8.0, maxf(8.0, viewport_rect.size.x - size.x - 8.0))
+	if viewport_rect.size.y > 0.0:
+		origin.y = clampf(origin.y, 8.0, maxf(8.0, viewport_rect.size.y - size.y - 8.0))
+	tavern_viewer.position = origin
 
 
 func _create_expansion_panel() -> PanelContainer:
@@ -2735,34 +2763,51 @@ func _create_expansion_panel() -> PanelContainer:
 	var margin := MarginContainer.new()
 	margin.name = "Margin"
 	for side in ["left", "top", "right", "bottom"]:
-		margin.add_theme_constant_override("margin_%s" % side, 3)
+		margin.add_theme_constant_override("margin_%s" % side, 2)
 	panel.add_child(margin)
 	var layout := VBoxContainer.new()
 	layout.name = "Layout"
-	layout.add_theme_constant_override("separation", 2)
+	layout.add_theme_constant_override("separation", 1)
 	margin.add_child(layout)
+
+	var header := HBoxContainer.new()
+	header.name = "CompactHeader"
+	header.add_theme_constant_override("separation", 4)
+	layout.add_child(header)
 
 	var title := Label.new()
 	title.name = "Title"
 	title.text = "ADVENTURES"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.add_theme_color_override("font_color", COLOR_BRASS)
-	title.add_theme_font_size_override("font_size", 9)
+	title.add_theme_font_size_override("font_size", 8)
 	if title_font != null:
 		title.add_theme_font_override("font", title_font)
-	layout.add_child(title)
+	header.add_child(title)
+
+	expansion_tavern_button = Button.new()
+	expansion_tavern_button.name = "TavernButton"
+	expansion_tavern_button.text = "TAVERN 0"
+	expansion_tavern_button.tooltip_text = "Open or close the Tavern mat viewer"
+	expansion_tavern_button.custom_minimum_size = Vector2(92, 20)
+	expansion_tavern_button.focus_mode = Control.FOCUS_ALL
+	expansion_tavern_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	expansion_tavern_button.add_theme_font_size_override("font_size", 8)
+	expansion_tavern_button.add_theme_stylebox_override("normal", _make_pill_style(Color(0.18, 0.12, 0.05, 0.95), COLOR_BRASS, 4))
+	expansion_tavern_button.add_theme_stylebox_override("hover", _make_pill_style(Color(0.27, 0.18, 0.08, 0.98), COLOR_BRASS.lightened(0.16), 4))
+	expansion_tavern_button.pressed.connect(_toggle_tavern_viewer)
+	header.add_child(expansion_tavern_button)
 
 	var reserve_title := Label.new()
 	reserve_title.name = "ReserveTitle"
 	reserve_title.text = "TAVERN MAT"
-	reserve_title.visible = true
-	reserve_title.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
-	reserve_title.add_theme_font_size_override("font_size", 8)
+	reserve_title.visible = false
 	layout.add_child(reserve_title)
 	expansion_reserve_container = HBoxContainer.new()
 	expansion_reserve_container.name = "ReserveMat"
+	expansion_reserve_container.visible = false
 	expansion_reserve_container.add_theme_constant_override("separation", 3)
-	expansion_reserve_container.custom_minimum_size = Vector2(0, 14)
+	expansion_reserve_container.custom_minimum_size = Vector2.ZERO
 	layout.add_child(expansion_reserve_container)
 	expansion_tavern_container = expansion_reserve_container
 	expansion_coin_mat_label = Label.new()
@@ -2771,11 +2816,15 @@ func _create_expansion_panel() -> PanelContainer:
 	expansion_coin_mat_label.add_theme_color_override("font_color", COLOR_RESOURCE_ACCENT)
 	expansion_coin_mat_label.add_theme_font_size_override("font_size", 8)
 	expansion_reserve_container.add_child(expansion_coin_mat_label)
+	# Keep the legacy ReserveMat node populated for compatibility, but it stays
+	# hidden; the compact TavernButton below is the sole surface affordance.
+	expansion_reserve_container.visible = false
 
 	var journey_row := HBoxContainer.new()
 	journey_row.name = "JourneyIndicator"
-	journey_row.add_theme_constant_override("separation", 4)
-	layout.add_child(journey_row)
+	journey_row.add_theme_constant_override("separation", 2)
+	journey_row.custom_minimum_size = Vector2(70, 18)
+	header.add_child(journey_row)
 	expansion_journey_label = Label.new()
 	expansion_journey_label.name = "Value"
 	expansion_journey_label.text = "JOURNEY  —"
@@ -2785,38 +2834,16 @@ func _create_expansion_panel() -> PanelContainer:
 	expansion_journey_label.add_theme_font_size_override("font_size", 8)
 	journey_row.add_child(expansion_journey_label)
 
-	var token_row := HBoxContainer.new()
-	token_row.name = "TokenIndicators"
-	token_row.add_theme_constant_override("separation", 3)
-	layout.add_child(token_row)
-	expansion_player_tokens_label = Label.new()
-	expansion_player_tokens_label.name = "PlayerTokens"
-	expansion_player_tokens_label.text = "YOU 0"
-	expansion_player_tokens_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	expansion_player_tokens_label.clip_text = true
-	expansion_player_tokens_label.add_theme_color_override("font_color", COLOR_VICTORY_ACCENT)
-	expansion_player_tokens_label.add_theme_font_size_override("font_size", 8)
-	token_row.add_child(expansion_player_tokens_label)
-	expansion_supply_tokens_label = Label.new()
-	expansion_supply_tokens_label.name = "SupplyTokens"
-	expansion_supply_tokens_label.text = "SUPPLY 0"
-	expansion_supply_tokens_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	expansion_supply_tokens_label.clip_text = true
-	expansion_supply_tokens_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	expansion_supply_tokens_label.add_theme_color_override("font_color", COLOR_RESOURCE_ACCENT)
-	expansion_supply_tokens_label.add_theme_font_size_override("font_size", 8)
-	token_row.add_child(expansion_supply_tokens_label)
-
 	var event_title := Label.new()
 	event_title.name = "EventTitle"
 	event_title.text = "EVENTS"
-	event_title.visible = true
+	event_title.visible = false
 	event_title.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
 	event_title.add_theme_font_size_override("font_size", 8)
 	layout.add_child(event_title)
 	var event_scroll := ScrollContainer.new()
 	event_scroll.name = "EventScroll"
-	event_scroll.custom_minimum_size = Vector2(0, ADVENTURES_EVENT_PREVIEW_SIZE.y + 4.0)
+	event_scroll.custom_minimum_size = Vector2(0, ADVENTURES_EVENT_PREVIEW_SIZE.y)
 	event_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	event_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	event_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -2838,10 +2865,128 @@ func _create_expansion_panel() -> PanelContainer:
 	layout.add_child(traveller_title)
 	expansion_traveller_container = HBoxContainer.new()
 	expansion_traveller_container.name = "TravellerPiles"
+	expansion_traveller_container.visible = false
 	expansion_traveller_container.add_theme_constant_override("separation", 3)
-	expansion_traveller_container.custom_minimum_size = Vector2(0, 14)
+	expansion_traveller_container.custom_minimum_size = Vector2.ZERO
 	layout.add_child(expansion_traveller_container)
+	# Full Tavern cards are intentionally deferred to this viewer so the mat
+	# surface stays readable and does not permanently display token/traveller
+	# clutter.
+	_create_tavern_viewer()
 	return panel
+
+
+func _create_tavern_viewer() -> void:
+	tavern_viewer = PanelContainer.new()
+	tavern_viewer.name = "TavernViewer"
+	tavern_viewer.custom_minimum_size = Vector2(330, 188)
+	tavern_viewer.size = tavern_viewer.custom_minimum_size
+	tavern_viewer.visible = false
+	tavern_viewer.z_index = 80
+	tavern_viewer.mouse_filter = Control.MOUSE_FILTER_STOP
+	tavern_viewer.add_theme_stylebox_override(
+		"panel",
+		_make_panel_style(Color(0.055, 0.038, 0.022, 0.98), COLOR_BRASS, 1)
+	)
+	add_child(tavern_viewer)
+	var margin := MarginContainer.new()
+	margin.name = "Margin"
+	for side in ["left", "top", "right", "bottom"]:
+		margin.add_theme_constant_override("margin_%s" % side, 7)
+	tavern_viewer.add_child(margin)
+	var layout := VBoxContainer.new()
+	layout.name = "Layout"
+	layout.add_theme_constant_override("separation", 5)
+	margin.add_child(layout)
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 6)
+	layout.add_child(header)
+	var title := Label.new()
+	title.text = "TAVERN MAT"
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.add_theme_color_override("font_color", COLOR_BRASS)
+	title.add_theme_font_size_override("font_size", 11)
+	header.add_child(title)
+	var close := Button.new()
+	close.name = "Close"
+	close.text = "CLOSE"
+	close.custom_minimum_size = Vector2(58, 22)
+	close.add_theme_font_size_override("font_size", 8)
+	close.pressed.connect(_toggle_tavern_viewer)
+	header.add_child(close)
+	var scroll := ScrollContainer.new()
+	scroll.name = "CardsScroll"
+	scroll.custom_minimum_size = Vector2(0, 142)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	layout.add_child(scroll)
+	tavern_viewer_cards = HBoxContainer.new()
+	tavern_viewer_cards.name = "Cards"
+	tavern_viewer_cards.add_theme_constant_override("separation", 5)
+	scroll.add_child(tavern_viewer_cards)
+
+
+func _toggle_tavern_viewer() -> void:
+	if tavern_viewer == null:
+		return
+	if not game_state.is_kingdom_enabled(GameState.ADVENTURES_GROUP):
+		tavern_viewer.hide()
+		return
+	if tavern_viewer.visible:
+		tavern_viewer.hide()
+		return
+	_refresh_tavern_viewer()
+	tavern_viewer.show()
+	_position_tavern_viewer()
+
+
+func _refresh_tavern_viewer() -> void:
+	if tavern_viewer_cards == null:
+		return
+	_clear_container(tavern_viewer_cards)
+	var reserve_records := _expansion_target_alias_records(
+		game_state.player,
+		["tavern_mat", "reserve_mat", "tavern_cards"],
+		["get_tavern_mat", "get_tavern_cards", "get_reserve_mat", "get_reserve_cards"]
+	)
+	if reserve_records.is_empty():
+		var empty := Label.new()
+		empty.text = "No callable cards on the Tavern mat."
+		empty.add_theme_color_override("font_color", COLOR_PARCHMENT_MUTED)
+		empty.add_theme_font_size_override("font_size", 10)
+		tavern_viewer_cards.add_child(empty)
+		return
+	for index in range(reserve_records.size()):
+		var record: Variant = reserve_records[index]
+		var card := _expansion_card(record)
+		if card == null:
+			continue
+		tavern_viewer_cards.add_child(_create_tavern_card_preview(record, index))
+
+
+func _create_tavern_card_preview(record: Variant, index: int) -> Control:
+	var card := _expansion_card(record)
+	var holder := Control.new()
+	holder.name = "TavernCard_%d" % (index + 1)
+	holder.custom_minimum_size = Vector2(70, 100)
+	holder.size = holder.custom_minimum_size
+	holder.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	holder.mouse_filter = Control.MOUSE_FILTER_PASS
+	var face := _create_card_button(card, "tavern_preview")
+	face.name = "TavernCardFace"
+	face.custom_minimum_size = Vector2.ZERO
+	face.size = CARD_FACE_SIZE
+	face.position = Vector2(3, 2)
+	face.scale = Vector2(0.52, 0.52)
+	face.set_meta("compact_base_scale", face.scale)
+	face.set_meta("expansion_action", "reserve")
+	face.set_meta("expansion_token", _expansion_record_token(record, index))
+	face.tooltip_text = "%s\nLeft-click: call from Tavern. Right-click: preview." % card.card_name
+	face.disabled = not _expansion_record_available(record, index)
+	face.pressed.connect(_on_expansion_reserve_pressed.bind(record, index))
+	holder.add_child(face)
+	return holder
 
 
 func _build_top_bar() -> void:
@@ -7611,10 +7756,11 @@ func _create_traveller_pile_button(record: Variant, index: int) -> Button:
 func _refresh_expansion_ui() -> void:
 	if expansion_panel == null:
 		return
-	# Adventures state is useful at every table size.  The right dock can shrink
-	# the rows above this panel, so never silently hide the mat, token, event, or
-	# Traveller state just because more seats are occupied.
-	expansion_panel.show()
+	var adventures_enabled := game_state.is_kingdom_enabled(GameState.ADVENTURES_GROUP)
+	expansion_panel.visible = adventures_enabled
+	expansion_overlay.visible = adventures_enabled
+	if not adventures_enabled and tavern_viewer != null:
+		tavern_viewer.hide()
 	var reserve_records := _expansion_target_alias_records(
 		game_state.player,
 		["tavern_mat", "reserve_mat", "tavern_cards"],
@@ -7634,6 +7780,8 @@ func _refresh_expansion_ui() -> void:
 	expansion_coin_mat_label.add_theme_color_override("font_color", COLOR_RESOURCE_ACCENT)
 	expansion_coin_mat_label.add_theme_font_size_override("font_size", 8)
 	expansion_reserve_container.add_child(expansion_coin_mat_label)
+	if expansion_tavern_button != null:
+		expansion_tavern_button.text = "TAVERN  %d" % reserve_records.size()
 	if reserve_records.is_empty():
 		var empty_reserve := Label.new()
 		empty_reserve.text = "—"
@@ -7650,10 +7798,10 @@ func _refresh_expansion_ui() -> void:
 
 	var journey: Variant = _expansion_alias_value(
 		["journey_face_up", "journey", "journey_state"],
-		["get_journey_face_up", "get_journey_state", "get_journey"]
+		["is_journey_face_up", "get_journey_state", "get_journey_face_up", "get_journey"]
 	)
 	if journey == null:
-		journey = _expansion_target_alias_value(game_state.player, ["journey_face_up", "journey", "journey_state"], ["get_journey_face_up", "get_journey_state", "get_journey"])
+		journey = _expansion_target_alias_value(game_state.player, ["journey_face_up", "journey", "journey_state"], ["is_journey_face_up", "get_journey_face_up", "get_journey_state", "get_journey"])
 	var traveller_progress: Variant = _expansion_target_alias_value(
 		game_state.player,
 		["traveller_progress", "traveller_state", "traveller_tokens", "trail_tokens"],
@@ -7662,24 +7810,24 @@ func _refresh_expansion_ui() -> void:
 	var traveller_suffix := ""
 	if traveller_progress != null and _format_token_count(traveller_progress) != "0":
 		traveller_suffix = " · PATH %s · TRAVELLER %s" % [_format_token_count(traveller_progress), _format_token_count(traveller_progress)]
-	if journey is Array:
-		expansion_journey_label.text = "JOURNEY  %d face-up%s" % [(journey as Array).size(), traveller_suffix]
-	elif journey is Dictionary:
+	var journey_face_up := true
+	if typeof(journey) == TYPE_BOOL:
+		journey_face_up = bool(journey)
+	elif typeof(journey) == TYPE_ARRAY:
+		journey_face_up = not (journey as Array).is_empty()
+	elif typeof(journey) == TYPE_DICTIONARY:
 		var journey_data: Dictionary = journey
-		var progress: Variant = journey_data.get("progress", journey_data.get("step", ""))
-		var total: Variant = journey_data.get("total", journey_data.get("steps", ""))
-		if progress == "" and total == "":
-			var active_count := 0
+		if journey_data.has("face_up"):
+			journey_face_up = bool(journey_data.get("face_up", true))
+		elif not journey_data.is_empty():
+			journey_face_up = false
 			for active in journey_data.values():
 				if bool(active):
-					active_count += 1
-			expansion_journey_label.text = "JOURNEY  %d active%s" % [active_count, traveller_suffix]
-		else:
-			expansion_journey_label.text = "JOURNEY  %s%s%s" % [str(progress), ("/%s" % str(total)) if not str(total).is_empty() else "", traveller_suffix]
+					journey_face_up = true
+					break
 	elif journey == null:
-		expansion_journey_label.text = "JOURNEY  —%s" % traveller_suffix
-	else:
-		expansion_journey_label.text = "JOURNEY  %s%s" % [_expansion_record_label(journey), traveller_suffix]
+		journey_face_up = false
+	expansion_journey_label.text = "JOURNEY  ▲" if journey_face_up else "JOURNEY  ▼"
 	expansion_journey_label.set_meta("journey_face_up", journey)
 
 	var player_tokens: Variant = _expansion_target_alias_value(
@@ -7695,17 +7843,17 @@ func _refresh_expansion_ui() -> void:
 	)
 	if supply_tokens == null:
 		supply_tokens = []
-	expansion_player_tokens_label.text = "YOU  %s" % _format_token_count(player_tokens)
-	expansion_supply_tokens_label.text = "SUPPLY  %s" % _format_token_count(supply_tokens)
-	expansion_player_tokens_label.set_meta("tokens", player_tokens)
-	expansion_supply_tokens_label.set_meta("tokens", supply_tokens)
+	if expansion_player_tokens_label != null:
+		expansion_player_tokens_label.text = "YOU  %s" % _format_token_count(player_tokens)
+		expansion_player_tokens_label.set_meta("tokens", player_tokens)
+	if expansion_supply_tokens_label != null:
+		expansion_supply_tokens_label.text = "SUPPLY  %s" % _format_token_count(supply_tokens)
+		expansion_supply_tokens_label.set_meta("tokens", supply_tokens)
 
 	var event_records := _expansion_alias_records(
 		["events", "event_row", "active_events"],
 		["get_event_row", "get_events", "get_event_candidates"]
 	)
-	if event_records.is_empty():
-		event_records = _expansion_alias_records(["event_catalog"], ["get_event_catalog"])
 	_clear_container(expansion_event_container)
 	if event_records.is_empty():
 		var empty_events := Label.new()
@@ -7742,6 +7890,8 @@ func _refresh_expansion_ui() -> void:
 	else:
 		for index in range(traveller_records.size()):
 			expansion_traveller_container.add_child(_create_traveller_pile_button(traveller_records[index], index))
+	if tavern_viewer != null and tavern_viewer.visible:
+		_refresh_tavern_viewer()
 
 
 func _format_token_count(value: Variant) -> String:

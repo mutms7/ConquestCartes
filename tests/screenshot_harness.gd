@@ -68,6 +68,21 @@ func _run() -> void:
 	await _wait(6)
 	await _shot(main, "06c_relic_rail")
 
+	# Compact Adventures mat with its on-demand Tavern viewer open.
+	var reserve_card: CardDefinition = null
+	for candidate in main.game_state.card_catalog.values():
+		var card := candidate as CardDefinition
+		if card != null and card.is_reserve_card():
+			reserve_card = card
+			break
+	if reserve_card != null:
+		main.game_state.player.store_tavern(reserve_card)
+		main._refresh_ui()
+		main._toggle_tavern_viewer()
+		await _wait(6)
+		await _shot(main, "06d_tavern_viewer")
+		main._toggle_tavern_viewer()
+
 	# Turn-based local game (2 players, no timer)
 	main.game_state.turn_based_enabled = true
 	main.lobby_max_players = 2

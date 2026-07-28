@@ -87,6 +87,11 @@ var market: Array[CardDefinition] = []
 # Events are a separate offer.  They have no finite card pile and never enter a
 # player's deck; buying one resolves its effects immediately.
 var event_catalog: Array[CardDefinition] = []
+# The full typed catalog above is immutable definition data.  A game table owns
+# a much smaller, explicit Adventures Event offer so every peer can render and
+# validate the same one or two selected Events without replacing the catalog
+# with untyped snapshot dictionaries.
+var selected_event_ids: Array[String] = []
 var event_purchases: Dictionary = {}
 var event_total_purchases: Dictionary = {}
 var supply_piles: Dictionary = {}
@@ -150,6 +155,7 @@ func setup_starting_game(player_count: int = 1) -> bool:
 	turn_flags.clear()
 	event_purchases.clear()
 	event_total_purchases.clear()
+	selected_event_ids.clear()
 	supply_tokens.clear()
 	player_supply_tokens.clear()
 	player_supply_tokens.resize(players.size())
@@ -177,7 +183,10 @@ func setup_starting_game(player_count: int = 1) -> bool:
 			% [game_player.player_name, game_player.draw_pile.size()]
 		)
 
-	return _setup_random_market()
+	var setup_ok := _setup_random_market()
+	if setup_ok:
+		_select_event_offer()
+	return setup_ok
 
 
 func _create_players(player_count: int) -> void:
@@ -326,17 +335,71 @@ func get_market_candidates() -> Array[CardDefinition]:
 
 
 func get_event_candidates() -> Array[CardDefinition]:
-	"""Return the separate event offer; events never become market piles."""
+	"""Return this game's authoritative Adventures Event offer."""
 	var candidates: Array[CardDefinition] = []
-	for card in event_catalog:
-		if card.multiplayer_only and not multiplayer_enabled:
+	if not is_kingdom_enabled(ADVENTURES_GROUP):
+		return candidates
+	for card_id in selected_event_ids:
+		var card := card_catalog.get(card_id) as CardDefinition
+		if card == null or not card.is_event_card():
 			continue
-		if not is_kingdom_enabled(get_card_kingdom(card)):
+		if card.multiplayer_only and not multiplayer_enabled:
 			continue
 		if not is_card_enabled_for_market(card.id):
 			continue
 		candidates.append(card)
 	return candidates
+
+
+func get_event_catalog() -> Array[CardDefinition]:
+	"""Return all loaded Event definitions, not the per-game offer."""
+	return event_catalog.duplicate()
+
+
+func get_selected_event_ids() -> Array[String]:
+	if not is_kingdom_enabled(ADVENTURES_GROUP):
+		return []
+	return selected_event_ids.duplicate()
+
+
+func set_selected_event_ids(ids: Array) -> void:
+	# Snapshot data is untyped, so validate every id against the local catalog
+	# before storing it.  This keeps event_catalog a typed Array[CardDefinition]
+	# while allowing guests to share the host's offer by stable ids.
+	selected_event_ids.clear()
+	if not is_kingdom_enabled(ADVENTURES_GROUP):
+		return
+	for raw_id in ids:
+		var card_id := str(raw_id)
+		var card := card_catalog.get(card_id) as CardDefinition
+		if card == null or not card.is_event_card() or card.event_group != ADVENTURES_GROUP:
+			continue
+		if selected_event_ids.has(card_id):
+			continue
+		selected_event_ids.append(card_id)
+		if selected_event_ids.size() >= 2:
+			break
+
+
+func _select_event_offer() -> void:
+	selected_event_ids.clear()
+	if not is_kingdom_enabled(ADVENTURES_GROUP):
+		return
+	var eligible: Array[CardDefinition] = []
+	for card in event_catalog:
+		if card.event_group != ADVENTURES_GROUP or not card.event_enabled:
+			continue
+		if card.multiplayer_only and not multiplayer_enabled:
+			continue
+		if not is_card_enabled_for_market(card.id):
+			continue
+		eligible.append(card)
+	if eligible.is_empty():
+		return
+	eligible.shuffle()
+	var offer_size := mini(eligible.size(), randi_range(1, 2))
+	for index in range(offer_size):
+		selected_event_ids.append(eligible[index].id)
 
 
 # Lightweight expansion accessors used by UI and snapshot adapters.  They
@@ -464,7 +527,7 @@ func _event_purchase_restricted(card: CardDefinition) -> bool:
 
 
 func buy_event(card: CardDefinition) -> bool:
-	if card == null or not is_event_card(card) or not get_event_candidates().has(card):
+	if card == null or not is_event_card(card) or not selected_event_ids.has(card.id) or not get_event_candidates().has(card):
 		return false
 	if has_pending_choice() or player.buys <= 0 or bool(turn_flags.get("mission_no_buys", false)) or _event_purchase_restricted(card):
 		return false
@@ -583,6 +646,11 @@ func set_kingdom_enabled(kingdom: String, enabled: bool) -> void:
 		_set_prosperity_side_supplies(enabled)
 	if kingdom == ADVENTURES_GROUP and not supply_piles.is_empty():
 		_set_adventures_traveller_piles(enabled)
+	if kingdom == ADVENTURES_GROUP:
+		if not enabled:
+			selected_event_ids.clear()
+		elif selected_event_ids.is_empty() and not event_catalog.is_empty():
+			_select_event_offer()
 
 
 func is_card_enabled_for_market(card_id: String) -> bool:

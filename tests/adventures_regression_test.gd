@@ -84,6 +84,7 @@ var failure_count := 0
 func _initialize() -> void:
 	seed(1337)
 	_test_catalog_contracts()
+	_test_event_offer_contract()
 	_test_port_is_non_recursive()
 	_test_treasure_trove_on_play()
 	_test_storyteller_order()
@@ -174,6 +175,29 @@ func _test_catalog_contracts() -> void:
 		_check(event_card.event_group == GameState.ADVENTURES_GROUP, "%s should use Adventures events." % card_id)
 		_check(event_card.get_event_cost() == int(row[1]), "%s should cost %d." % [card_id, int(row[1])])
 	_check(game_state.event_catalog.size() >= 20, "All 20 Adventures Events should enter the event catalog.")
+
+
+func _test_event_offer_contract() -> void:
+	var game_state := _new_expansion_game()
+	if game_state == null:
+		return
+	var offer := game_state.get_selected_event_ids()
+	_check(offer.size() >= 1 and offer.size() <= 2, "An enabled Adventures game should offer one or two Events.")
+	_check(game_state.get_event_candidates().size() == offer.size(), "The visible Event row should match the authoritative offer.")
+	var rejected: CardDefinition = null
+	for card in game_state.event_catalog:
+		if not offer.has(card.id):
+			rejected = card
+			break
+	if rejected != null:
+		game_state.player.coins = 100
+		game_state.player.buys = 100
+		_check(not game_state.buy_event(rejected), "An unselected Event must be rejected by the authoritative buy path.")
+	game_state.set_kingdom_enabled(GameState.ADVENTURES_GROUP, false)
+	_check(game_state.get_selected_event_ids().is_empty(), "Disabling Adventures should clear the Event offer.")
+	_check(game_state.get_event_candidates().is_empty(), "Disabled Adventures should expose no Events.")
+	if rejected != null:
+		_check(not game_state.buy_event(rejected), "Disabled Adventures must reject Event purchases.")
 
 
 func _test_port_is_non_recursive() -> void:
@@ -310,6 +334,7 @@ func _test_mission_eligibility_and_extra_turn() -> void:
 	var mission: CardDefinition = mission_game.card_catalog["mission"]
 	mission_game.player.coins = 100
 	mission_game.player.buys = 1
+	mission_game.set_selected_event_ids([mission.id])
 	_check(not mission_game.buy_event(mission), "Mission should be unavailable before another player's turn has occurred.")
 	mission_game.advance_active_player()
 	mission_game.player.coins = 100
@@ -330,6 +355,7 @@ func _test_mission_eligibility_and_extra_turn() -> void:
 	game_state.player.coins = 100
 	game_state.player.buys = 1
 	mission = game_state.card_catalog["mission"]
+	game_state.set_selected_event_ids([mission.id])
 	_check(game_state.buy_event(mission), "Mission should be buyable by the player whose previous turn was another seat.")
 	_drain_choices(game_state)
 	var guide: CardDefinition = game_state.card_catalog["guide"]
@@ -362,6 +388,7 @@ func _test_journey_flip() -> void:
 func _test_tokens() -> void:
 	var game_state := _new_expansion_game()
 	var borrow: CardDefinition = game_state.card_catalog["borrow"]
+	game_state.set_selected_event_ids([borrow.id])
 	game_state.player.coins = 10
 	game_state.player.buys = 1
 	_check(game_state.buy_event(borrow), "Borrow should be purchasable.")
@@ -370,6 +397,7 @@ func _test_tokens() -> void:
 
 	game_state = _new_expansion_game()
 	var ball: CardDefinition = game_state.card_catalog["ball"]
+	game_state.set_selected_event_ids([ball.id])
 	game_state.player.coins = 10
 	game_state.player.buys = 1
 	_check(game_state.buy_event(ball), "Ball should be purchasable.")
@@ -378,6 +406,7 @@ func _test_tokens() -> void:
 
 	game_state = _new_expansion_game()
 	var ferry: CardDefinition = game_state.card_catalog["ferry"]
+	game_state.set_selected_event_ids([ferry.id])
 	game_state.player.coins = 10
 	game_state.player.buys = 1
 	_check(game_state.buy_event(ferry), "Ferry should be purchasable.")
@@ -428,6 +457,7 @@ func _test_all_records_and_effects() -> void:
 		# Play every Kingdom/Traveller record and buy every Event record.  Choices
 		# are resolved deterministically so this remains a true headless exercise.
 		if card.is_event_card():
+			game_state.set_selected_event_ids([card.id])
 			game_state.player.coins = 100
 			game_state.player.buys = 100
 			_check(game_state.buy_event(card), "%s should resolve as an Event." % card_id)

@@ -1834,8 +1834,10 @@ func _run_expansion_ui_regression() -> void:
 		and expansion_ui.expansion_traveller_container.name == "TravellerPiles"
 		and expansion_ui.expansion_event_container.name == "EventRow"
 		and (expansion_ui.expansion_panel.find_child("Title", true, false) as Label).text == "ADVENTURES"
-		and (expansion_ui.expansion_panel.find_child("ReserveTitle", true, false) as Label).text == "TAVERN MAT",
-		"The Adventures surface should expose Tavern, Traveller, and event rows."
+		and (expansion_ui.expansion_panel.find_child("ReserveTitle", true, false) as Label).text == "TAVERN MAT"
+		and expansion_ui.expansion_tavern_button != null
+		and expansion_ui.tavern_viewer != null,
+		"The Adventures surface should expose compact Journey, Event, and Tavern controls."
 	)
 	var expansion_mat_rect: Rect2 = expansion_ui.play_area_panel.get_global_rect()
 	var expansion_overlay_rect: Rect2 = expansion_ui.expansion_panel.get_global_rect()
@@ -1843,9 +1845,10 @@ func _run_expansion_ui_regression() -> void:
 		expansion_ui.expansion_overlay.mouse_filter == Control.MOUSE_FILTER_PASS
 		and expansion_ui.expansion_overlay.z_index > expansion_ui.play_area_panel.z_index
 		and expansion_ui.expansion_panel.z_index > expansion_ui.play_area_panel.z_index
-		and expansion_overlay_rect.intersects(expansion_mat_rect)
-		and expansion_overlay_rect.position.x > expansion_mat_rect.position.x,
-		"Adventures should be a layered, right-anchored overlay with its own compact input region."
+		and expansion_mat_rect.encloses(expansion_overlay_rect)
+		and expansion_overlay_rect.size.x < 300.0
+		and expansion_overlay_rect.size.y < 100.0,
+		"Adventures should be a compact mat wholly inside In Play."
 	)
 
 	var reserve_card: CardDefinition = null
@@ -1880,49 +1883,84 @@ func _run_expansion_ui_regression() -> void:
 	expansion_ui._refresh_ui()
 	_check(
 		expansion_ui.expansion_journey_label.text.contains("JOURNEY")
-		and expansion_ui.expansion_journey_label.text.contains("PATH 2")
-		and expansion_ui.expansion_player_tokens_label.text.contains("2")
-		and expansion_ui.expansion_supply_tokens_label.text.contains("2")
-		and expansion_ui.expansion_coin_mat_label.text.contains("MAT 3")
-		and expansion_ui.expansion_traveller_container.find_child("TravellerPile_1", true, false) != null,
-		"Journey, traveller, coin-mat, and player/supply token indicators should mirror generic state."
+		and (expansion_ui.expansion_journey_label.text.contains("face-up") or expansion_ui.expansion_journey_label.text.contains("active") or expansion_ui.expansion_journey_label.text.contains("▲"))
+		and expansion_ui.expansion_tavern_button.text.contains("TAVERN")
+		and expansion_ui.expansion_event_container.get_child_count() >= 1
+		and expansion_ui.expansion_event_container.get_child_count() <= 2,
+		"Compact Adventures mat should show the Journey token, selected Events, and Tavern count."
 	)
+	expansion_ui.game_state.player.set_journey("journey", false)
+	expansion_ui._refresh_ui()
+	_check(expansion_ui.expansion_journey_label.text.contains("▼"), "Flipping Journey face-down should update the compact token.")
+	expansion_ui.game_state.player.set_journey("journey", true)
+	expansion_ui._refresh_ui()
 	if reserve_card != null:
-		var reserve_button: Button = null
-		for child in expansion_ui.expansion_reserve_container.get_children():
-			if child is Button:
-				reserve_button = child as Button
-				break
+		expansion_ui.expansion_tavern_button.pressed.emit()
+		await process_frame
 		_check(
-			reserve_button != null
-			and reserve_button.get_meta("expansion_action", "") == "reserve",
-			"Reserved cards should render with a call button."
+			expansion_ui.tavern_viewer.visible
+			and expansion_ui.tavern_viewer_cards.get_child_count() >= 1,
+			"TAVERN should open an on-demand viewer for callable cards."
 		)
-		if reserve_button != null:
-			reserve_button.pressed.emit()
+		var viewer_call_button: Button = null
+		for viewer_child in expansion_ui.tavern_viewer_cards.get_children():
+			var viewer_face := viewer_child.find_child("TavernCardFace", true, false) as Button
+			if viewer_face != null and viewer_face.get_meta("expansion_action", "") == "reserve":
+				viewer_call_button = viewer_face
+				break
+		if viewer_call_button != null:
+			_right_click_control(viewer_call_button)
+			await process_frame
+			_check(
+				expansion_ui.card_preview.visible
+				and expansion_ui.active_preview_id == reserve_card.id,
+				"Right-clicking a Tavern card face should open the shared preview."
+			)
+			_right_click_control(viewer_call_button)
+			await process_frame
+			viewer_call_button.pressed.emit()
+			await process_frame
 		_check(
 			_expansion_fixture_tavern_cards(expansion_ui.game_state.player).is_empty()
 			and expansion_ui.game_state.player.play_area.has(reserve_card)
 			and expansion_ui.last_animation_event == "reserve_call",
-			"Calling a reserve card should use the authoritative GameState path and enter play."
+			"Tavern viewer calls should preserve the authoritative GameState path."
 		)
+		expansion_ui.expansion_tavern_button.pressed.emit()
+		_check(not expansion_ui.tavern_viewer.visible, "TAVERN should close its on-demand viewer.")
 
 	var saved_disabled_kingdoms: Dictionary = expansion_ui.game_state.disabled_kingdoms.duplicate(true)
 	var saved_disabled_cards: Dictionary = expansion_ui.game_state.disabled_market_card_ids.duplicate(true)
 	var adventures_kingdom := _adventures_kingdom_name()
 	if adventures_kingdom.is_empty():
 		adventures_kingdom = "Adventures"
-	expansion_ui.game_state.disabled_kingdoms[adventures_kingdom] = true
+	expansion_ui.game_state.set_kingdom_enabled(adventures_kingdom, false)
 	expansion_ui.game_state.disabled_market_card_ids[token_card.id] = true
 	var expansion_snapshot: Dictionary = expansion_ui._create_network_snapshot()
 	_check(
 		expansion_snapshot.get("disabled_kingdoms", {}).get(adventures_kingdom, false)
 		and expansion_snapshot.get("disabled_market_card_ids", {}).get(token_card.id, false)
+		and expansion_snapshot.has("selected_event_ids")
 		and expansion_snapshot.has("events"),
-		"Network snapshots should carry kingdom/card filters used to derive the event row."
+		"Network snapshots should carry explicit Event offer ids and kingdom/card filters."
 	)
 	expansion_ui.game_state.disabled_kingdoms = saved_disabled_kingdoms
 	expansion_ui.game_state.disabled_market_card_ids = saved_disabled_cards
+	expansion_ui.game_state.set_kingdom_enabled(adventures_kingdom, true)
+	expansion_ui._refresh_ui()
+	var offer_before_round_trip: Array[String] = expansion_ui.game_state.get_selected_event_ids()
+	var offer_snapshot: Dictionary = expansion_ui._create_network_snapshot()
+	expansion_ui._apply_network_snapshot(offer_snapshot)
+	var catalog_typed := true
+	for catalog_entry in expansion_ui.game_state.event_catalog:
+		if not catalog_entry is CardDefinition:
+			catalog_typed = false
+			break
+	_check(
+		expansion_ui.game_state.get_selected_event_ids() == offer_before_round_trip
+		and catalog_typed,
+		"Network round-trip should preserve selected Event ids without corrupting the typed catalog."
+	)
 
 	var event_candidates: Array[CardDefinition] = expansion_ui.game_state.get_event_candidates()
 	if not event_candidates.is_empty():
