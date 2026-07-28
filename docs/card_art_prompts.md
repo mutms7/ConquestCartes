@@ -1,12 +1,13 @@
 # Card Art Library Prompts
 
-Ready-to-paste prompts for the existing illustration library under
-`assets/cards/`. Card definitions select these images through `art_id`, and their
-player-facing names retain the subject identity of the assigned painting. The
-63-card rules catalog can temporarily reuse the 29 finished paintings. It
-currently references 28 unique paintings, with Sunspire Monument held in reserve.
-The goal
-is a warm, painterly storybook look with a consistent style across the whole set.
+Ready-to-paste prompts for the illustration library under `assets/cards/`.
+Card definitions select these images through `art_id`, and their player-facing
+names retain the subject identity of the assigned painting. The art refresh is
+complete for 172 cards; Sunspire and Hourglass intentionally retain their
+existing reference paintings. For refreshed cards, `art_id` normally matches
+the card `id` (the two retained references are the explicit exceptions). The
+goal is a cohesive painterly storybook look while allowing deliberately varied
+cool and warm palette families across the set.
 Each prompt is a fixed **style block** plus a per-image **subject**.
 
 ## How to use
@@ -20,19 +21,26 @@ Each prompt is a fixed **style block** plus a per-image **subject**.
      prompt so the set shares one style.
    - **ChatGPT / DALL-E:** upload the hero image with each new prompt and say
      "match this exact painting style, palette, and lighting." This fights drift.
-3. Generate **square or 4:5 portrait** at high resolution, then crop in-engine.
+3. Generate **square or 4:5 portrait** at high resolution. Keep the subject and
+   important edges comfortably inside the center-safe area so either crop is
+   safe in the card frame.
 4. **No text and no border in the image.** The card UI already draws the name,
    cost, and type, so baked-in lettering would just fight the layout.
 5. Save each file by card id: `assets/cards/<id>.png` (e.g.
    `assets/cards/village_bell.png`) so the game can load art by convention.
 
-## Style block (identical for every card)
+## Shared style foundation
 
 > painterly fantasy illustration, traditional digital oil painting with soft
-> visible brushwork, warm earthy muted palette, parchment and amber tones, gentle
-> golden-hour light, single central subject, simple uncluttered background, subtle
-> vignette, cozy storybook medieval European countryside mood, no text, no
-> lettering, no border, no frame
+> visible brushwork, a restrained but varied cool-or-warm storybook palette,
+> gentle directional light, single central subject, simple uncluttered
+> background, subtle vignette, cozy medieval European countryside mood,
+> portrait/square crop-safe composition, no text, no lettering, no border,
+> no frame
+
+Choose a palette family that suits the subject (for example, moss/teal/blue
+for night, water, or scholarly scenes; ochre/coral/amber for hearth, harvest,
+or market scenes). Do not force every image into the same amber/brown treatment.
 
 **Optional Midjourney suffix** (append to every prompt once you have a style code):
 `--ar 4:5 --style raw --sref <YOUR_CODE> --sw 80`
@@ -110,11 +118,9 @@ medieval) on its own.
 
 ## Keeping this in sync
 
-When a replacement card receives dedicated art, create a new prompt with the same
-style block, save the result as `assets/cards/<new_art_id>.png`, and update the
-card's `art_id`. Until then, intentional reuse is preferable to blank card faces.
-
-Every definition must have a valid `art_id`. Multiple cards may point to one
-painting when their names share the same visible subject. Market eligibility is
-independent of artwork: archived cards remain in the catalog with their art even
-when `market_enabled` is `false`.
+The refresh is now complete. Keep every definition's `art_id` valid and aligned
+with its card `id` when adding or revising cards; preserve the explicit Sunspire
+and Hourglass reference-art mappings. New artwork should follow the style block,
+remain safe for both portrait and square crops, and contain no lettering, border,
+or frame. Market eligibility is independent of artwork: archived cards remain
+in the catalog with their art even when `market_enabled` is `false`.
