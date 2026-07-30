@@ -81,6 +81,30 @@ jobs:
             echo 'Background music must not be embedded in web/index.pck.' >&2
             exit 1
           fi
+          if grep -a -F -q 'design_handoff_conquest_cartes_ui' web/index.pck; then
+            echo 'Design handoff assets must not be embedded in web/index.pck.' >&2
+            exit 1
+          fi
+          # The optimized export is currently about 66 MiB of PCK and 104 MiB
+          # of startup payload (PCK + wasm + loader). Keep enough headroom for
+          # ordinary content growth while failing if uncompressed card art or
+          # other accidental payloads return a 400 MB-class regression.
+          pck_bytes=$(stat -c%s web/index.pck)
+          wasm_bytes=$(stat -c%s web/index.wasm)
+          js_bytes=$(stat -c%s web/index.js)
+          html_bytes=$(stat -c%s web/index.html)
+          startup_bytes=$((pck_bytes + wasm_bytes + js_bytes + html_bytes))
+          max_pck_bytes=$((160 * 1024 * 1024))
+          max_startup_bytes=$((180 * 1024 * 1024))
+          if [ "$pck_bytes" -gt "$max_pck_bytes" ]; then
+            echo "Web PCK is ${pck_bytes} bytes; limit is ${max_pck_bytes}." >&2
+            exit 1
+          fi
+          if [ "$startup_bytes" -gt "$max_startup_bytes" ]; then
+            echo "Web startup payload is ${startup_bytes} bytes; limit is ${max_startup_bytes}." >&2
+            exit 1
+          fi
+          echo "Web startup payload: ${startup_bytes} bytes (PCK ${pck_bytes}, wasm ${wasm_bytes})."
 
       - name: Verify Vercel secrets
         env:
