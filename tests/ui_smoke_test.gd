@@ -2108,14 +2108,16 @@ func _run_expansion_ui_regression() -> void:
 	)
 
 	var event_candidates: Array[CardDefinition] = expansion_ui.game_state.get_event_candidates()
-	if not event_candidates.is_empty():
-		var event_card: CardDefinition = event_candidates[0]
-		# Alms is conditional (no Treasures in play). Choose an unconditional event
-		# so this checks the UI buy wiring rather than a deliberate rules rejection.
-		for candidate in event_candidates:
-			if candidate.id == "scouting_party":
-				event_card = candidate
-				break
+	var event_card := expansion_ui.game_state.card_catalog.get("scouting_party") as CardDefinition
+	if event_card != null and event_card.is_event_card():
+		# Pin the offer to an unconditional Event so this checks UI buy wiring
+		# rather than a deliberate rules rejection from a restricted Event.
+		expansion_ui.game_state.set_selected_event_ids([event_card.id])
+		expansion_ui.game_state.turn_flags.clear()
+		expansion_ui.game_state.pending_choice = null
+		expansion_ui.game_state.resolution_queue.clear()
+		event_candidates = expansion_ui.game_state.get_event_candidates()
+	if not event_candidates.is_empty() and event_card != null:
 		expansion_ui.game_state.player.coins = expansion_ui.game_state.get_event_cost(event_card)
 		expansion_ui.game_state.player.buys = 1
 		expansion_ui._refresh_ui()
