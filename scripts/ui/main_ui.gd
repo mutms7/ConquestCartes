@@ -2211,7 +2211,12 @@ func _load_optional_assets() -> void:
 		add_child(player)
 		ui_sound_players[sound_name] = player
 
-	if ResourceLoader.exists(BACKGROUND_MUSIC_PATH):
+	if _is_web_export():
+		# The browser owns the Web music element.  Its metadata request starts as
+		# soon as the HTML shell is parsed, while playback remains gated behind
+		# the same user-gesture path used by the native AudioStreamPlayer below.
+		_setup_web_background_music()
+	elif ResourceLoader.exists(BACKGROUND_MUSIC_PATH):
 		# Keep music loading off the main thread so entering or restarting a game
 		# never waits on the audio stream.
 		background_music_player = AudioStreamPlayer.new()
@@ -2223,6 +2228,20 @@ func _load_optional_assets() -> void:
 			background_music_loading = true
 		else:
 			push_warning("Background music load request failed for %s." % BACKGROUND_MUSIC_PATH)
+
+
+func _is_web_export() -> bool:
+	return OS.has_feature("web")
+
+
+func _setup_web_background_music() -> void:
+	# The HTML shell creates ConquestCartesMusic before the Godot engine starts.
+	# Keep the call here intentionally small: this only synchronizes the
+	# initial volume/enabled state; _request_background_music_playback() still
+	# records the startup request and asks the browser to play.
+	_web_background_music_set_volume(_get_background_music_output_linear_volume())
+	_web_background_music_set_enabled(music_enabled)
+	_request_background_music_playback()
 
 
 func _build_bottom_docks() -> void:
@@ -10074,6 +10093,12 @@ func _attach_background_music_stream(music_stream: AudioStream) -> void:
 
 
 func _refresh_background_music() -> void:
+	if _is_web_export():
+		_web_background_music_set_volume(_get_background_music_output_linear_volume())
+		_web_background_music_set_enabled(music_enabled)
+		if music_enabled and background_music_volume > 0.0 and background_music_start_requested:
+			_web_background_music_play()
+		return
 	if background_music_player == null:
 		return
 	if music_enabled:
@@ -10106,7 +10131,22 @@ func _get_background_music_linear_volume() -> float:
 	return pow(slider_volume, VOLUME_RESPONSE_EXPONENT)
 
 
+func _get_background_music_output_linear_volume() -> float:
+	# Match the native AudioStreamPlayer's fixed -3 dB mix offset when the
+	# browser owns playback.  HTMLAudioElement.volume is a linear gain value.
+	return clampf(
+		_get_background_music_linear_volume() * db_to_linear(BACKGROUND_MUSIC_VOLUME_DB),
+		0.0,
+		1.0
+	)
+
+
 func _keep_background_music_alive() -> void:
+	if _is_web_export():
+		# HTMLAudioElement.loop keeps the stream alive.  Do not call play() every
+		# frame: a rejected autoplay Promise would otherwise create a noisy stream
+		# of browser console errors until the next user gesture unlocks audio.
+		return
 	# If the music player ever ends up stopped while audio is on (audio device
 	# hiccup, slow audio-server startup on some platforms), quietly restart it.
 	if background_music_player == null or not music_enabled:
@@ -10120,9 +10160,20 @@ func _keep_background_music_alive() -> void:
 
 
 func _request_background_music_playback() -> void:
-	if background_music_player == null or not music_enabled:
+	if not music_enabled:
 		return
 	if background_music_volume <= 0.0:
+		return
+	if _is_web_export():
+		# Record the request even before the browser element is ready; the shell
+		# creates it before the Godot engine starts and play() safely retries on
+		# the next real input gesture if autoplay policy rejects startup.
+		background_music_start_requested = true
+		_web_background_music_set_volume(_get_background_music_output_linear_volume())
+		_web_background_music_set_enabled(true)
+		_web_background_music_play()
+		return
+	if background_music_player == null:
 		return
 	# Record the request even if the stream is still loading; once it attaches,
 	# _refresh_background_music picks up this flag and starts playback.
@@ -10134,6 +10185,36 @@ func _request_background_music_playback() -> void:
 		return
 	background_music_player.stop()
 	background_music_player.play()
+
+
+func _web_background_music_eval(expression: String) -> void:
+	if not _is_web_export():
+		return
+	# JavaScriptBridge is only available on the Web platform.  Passing true
+	# evaluates in the page's global context where the custom HTML shell exposes
+	# window.ConquestCartesMusic.
+	JavaScriptBridge.eval(expression, true)
+
+
+func _web_background_music_set_volume(linear_volume: float) -> void:
+	var safe_volume := clampf(linear_volume, 0.0, 1.0)
+	_web_background_music_eval(
+		"if (window.ConquestCartesMusic) { window.ConquestCartesMusic.setVolume(%s); }"
+		% String.num(safe_volume, 6)
+	)
+
+
+func _web_background_music_set_enabled(enabled: bool) -> void:
+	_web_background_music_eval(
+		"if (window.ConquestCartesMusic) { window.ConquestCartesMusic.setEnabled(%s); }"
+		% ("true" if enabled else "false")
+	)
+
+
+func _web_background_music_play() -> void:
+	_web_background_music_eval(
+		"if (window.ConquestCartesMusic) { window.ConquestCartesMusic.play(); }"
+	)
 
 
 func _clear_container(container: Container) -> void:

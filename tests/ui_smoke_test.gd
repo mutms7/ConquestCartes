@@ -257,6 +257,10 @@ func _initialize() -> void:
 		"Background music should use the renamed Afterlight ambience MP3."
 	)
 	_check(
+		_web_music_uses_progressive_asset(),
+		"Web builds should stream ambience from the HTML audio bridge outside the PCK."
+	)
+	_check(
 		main_ui.background_music_start_requested,
 		"Background music playback should be requested as soon as the scene loads."
 	)
@@ -2767,6 +2771,19 @@ func _music_uses_afterlight_ambience_mp3() -> bool:
 	return (
 		main_ui.BACKGROUND_MUSIC_PATH == "res://assets/audio/afterlight_catalogue_ambience.mp3"
 		and main_ui.background_music_player.stream is AudioStreamMP3
+	)
+
+
+func _web_music_uses_progressive_asset() -> bool:
+	var shell_text := FileAccess.get_file_as_string("res://web_shell.html")
+	var export_text := FileAccess.get_file_as_string("res://export_presets.cfg")
+	var ui_script_text := FileAccess.get_file_as_string("res://scripts/ui/main_ui.gd")
+	return (
+		shell_text.contains("preload = 'metadata'")
+		and shell_text.contains("ConquestCartesMusic")
+		and shell_text.contains("afterlight_catalogue_ambience.mp3")
+		and export_text.contains("assets/audio/afterlight_catalogue_ambience.mp3")
+		and ui_script_text.contains("JavaScriptBridge.eval")
 	)
 
 

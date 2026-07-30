@@ -73,6 +73,14 @@ jobs:
           test -f web/index.html
           test -f web/index.wasm
           test -f web/index.pck
+          # Keep the large ambience MP3 out of index.pck so the browser can
+          # request metadata and range-stream the track independently.
+          cp assets/audio/afterlight_catalogue_ambience.mp3 web/afterlight_catalogue_ambience.mp3
+          test -f web/afterlight_catalogue_ambience.mp3
+          if grep -a -F -q 'afterlight_catalogue_ambience.mp3' web/index.pck; then
+            echo 'Background music must not be embedded in web/index.pck.' >&2
+            exit 1
+          fi
 
       - name: Verify Vercel secrets
         env:
