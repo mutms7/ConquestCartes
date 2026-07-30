@@ -95,12 +95,53 @@ func _initialize() -> void:
 	# Both seats open in the reading respite; skip it so the play regressions run.
 	host_ui._end_respite()
 	guest_ui._end_respite()
+	# Keep this regression focused and quick while still using the real
+	# authoritative cooldown/snapshot path.
+	host_ui.game_state.end_turn_cooldown_seconds = 0.5
+	host_ui._broadcast_network_snapshot()
 	await process_frame
 
 	# The guest must be viewing its own seat, not the host's hand.
 	_check(
 		guest_ui.game_state.active_player_index == 1,
 		"Guest view should sit on seat 1, got %d." % guest_ui.game_state.active_player_index
+	)
+
+	# The action-phase button intentionally only opens BUY. The first completed
+	# guest turn must then clean up and redraw from the host-authoritative state.
+	if guest_ui.game_state.is_action_phase():
+		guest_ui._on_end_turn_pressed()
+		await _wait_until(func(): return guest_ui.game_state.is_buy_phase(), 10.0)
+	_check(guest_ui.game_state.is_buy_phase(), "Guest should enter BUY before ending the turn.")
+	var guest_turn_before: int = guest_ui.game_state.players[1].turn_number
+	guest_ui._on_end_turn_pressed()
+	await _wait_until(
+		func(): return host_ui.game_state.players[1].cooldown_remaining > 0.0,
+		10.0
+	)
+	_check(
+		host_ui.game_state.players[1].cooldown_remaining > 0.0,
+		"Host should start the guest's end-turn cooldown."
+	)
+	await _wait_until(
+		func(): return host_ui.game_state.players[1].turn_number > guest_turn_before,
+		10.0
+	)
+	_check(
+		host_ui.game_state.players[1].turn_number == guest_turn_before + 1,
+		"Host should increment the guest turn after authoritative cleanup."
+	)
+	await _wait_until(
+		func(): return guest_ui.game_state.players[1].turn_number > guest_turn_before,
+		10.0
+	)
+	var guest_hand_after := _card_ids(guest_ui.game_state.players[1].hand)
+	_check(
+		guest_ui.game_state.players[1].turn_number == guest_turn_before + 1
+		and guest_hand_after == _card_ids(host_ui.game_state.players[1].hand)
+		and guest_hand_after.size()
+			== host_ui.game_state.get_turn_draw_count(host_ui.game_state.players[1]),
+		"Guest should receive the fresh hand and incremented turn after cleanup."
 	)
 
 	# Bug 3 regression: a guest play must leave seat 1's hand on the host and
@@ -173,6 +214,14 @@ func _host_seat_title(index: int) -> String:
 	if labels.size() < 2:
 		return ""
 	return (labels[1] as Label).text
+
+
+func _card_ids(cards: Array) -> Array[String]:
+	var ids: Array[String] = []
+	for card in cards:
+		if card is CardDefinition:
+			ids.append((card as CardDefinition).id)
+	return ids
 
 
 func _wait_until(condition: Callable, timeout_seconds: float) -> void:

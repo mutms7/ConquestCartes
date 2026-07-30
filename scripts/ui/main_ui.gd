@@ -1416,7 +1416,10 @@ func _finish_network_player_turn(player_index: int) -> void:
 	var game_player := game_state.player
 	if not game_player.ending_turn:
 		return
-	pending_cleanup_ghosts = _capture_cleanup_cards() if player_index == local_player_index else []
+	if player_index == local_player_index:
+		pending_cleanup_ghosts = _capture_cleanup_cards()
+	else:
+		pending_cleanup_ghosts.clear()
 	var previous_turn_manager_ending := turn_manager.ending_turn
 	turn_manager.ending_turn = false
 	game_state.begin_cleanup()
@@ -6780,11 +6783,23 @@ func _create_player_status_row(index: int) -> PanelContainer:
 	var track := PanelContainer.new()
 	track.name = "CooldownBar"
 	track.custom_minimum_size = Vector2(0, PLAYER_STATUS_COOLDOWN_BAR_HEIGHT)
+	track.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	track.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	track.clip_contents = true
 	track.add_theme_stylebox_override(
 		"panel",
 		_make_pill_style(Color(0, 0, 0, 0.28), Color.TRANSPARENT, 3)
 	)
+	# PanelContainer is a layout container and will position its direct child at
+	# the panel's full content rect. Keep the fill one level deeper so its
+	# anchors remain meaningful when the remaining cooldown changes.
+	var fill_host := Control.new()
+	fill_host.name = "FillHost"
+	fill_host.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fill_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fill_host.clip_contents = true
+	track.add_child(fill_host)
 	var fill := ColorRect.new()
 	fill.name = "Fill"
 	fill.color = COLOR_VICTORY_ACCENT
@@ -6792,7 +6807,12 @@ func _create_player_status_row(index: int) -> PanelContainer:
 	fill.anchor_top = 0.0
 	fill.anchor_right = 0.0
 	fill.anchor_bottom = 1.0
-	track.add_child(fill)
+	fill.offset_left = 0.0
+	fill.offset_top = 0.0
+	fill.offset_right = 0.0
+	fill.offset_bottom = 0.0
+	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fill_host.add_child(fill)
 	track.modulate.a = 0.0
 	stack.add_child(track)
 

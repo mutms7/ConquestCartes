@@ -1662,6 +1662,34 @@ func _initialize() -> void:
 		),
 		"Player status panel should not resize when a cooldown bar appears."
 	)
+	var cooldown_bar := _player_row(1).find_child("CooldownBar", true, false) as Control
+	var cooldown_fill := cooldown_bar.find_child("Fill", true, false) as ColorRect if cooldown_bar != null else null
+	var cooldown_fill_host := cooldown_bar.find_child("FillHost", true, false) as Control if cooldown_bar != null else null
+	_check(
+		cooldown_bar != null
+		and is_equal_approx(cooldown_bar.custom_minimum_size.y, main_ui.PLAYER_STATUS_COOLDOWN_BAR_HEIGHT)
+		and is_equal_approx(cooldown_bar.size.y, main_ui.PLAYER_STATUS_COOLDOWN_BAR_HEIGHT),
+		"Cooldown bars should keep their intended fixed height."
+	)
+	_check(
+		cooldown_fill != null
+		and cooldown_fill_host != null
+		and cooldown_fill.get_parent() == cooldown_fill_host
+		and cooldown_fill_host.get_parent() == cooldown_bar,
+		"Cooldown fill should be nested below the PanelContainer layout owner."
+	)
+	if cooldown_fill != null and cooldown_fill_host != null and cooldown_fill_host.size.x > 0.0:
+		var expected_progress := clampf(
+			main_ui.game_state.players[0].cooldown_remaining
+				/ maxf(0.001, main_ui.game_state.players[0].cooldown_duration),
+			0.0,
+			1.0
+		)
+		_check(
+			is_equal_approx(cooldown_fill.size.x / cooldown_fill_host.size.x, expected_progress)
+				and is_equal_approx(cooldown_fill.anchor_right, expected_progress),
+			"Cooldown fill width should match remaining time over duration."
+		)
 	var cooldown_resource_button := _find_card_button(_hand_container(), "pebble_coin")
 	_check(cooldown_resource_button != null, "Cooldown hand should include a playable Pebble Coin.")
 	if cooldown_resource_button != null:
