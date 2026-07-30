@@ -947,6 +947,26 @@ func _test_turn_phases() -> void:
 		"An action phase with no action cards in hand should auto-advance to buys."
 	)
 
+	# The host snapshot must carry that authoritative phase too; clients should
+	# never have to infer a turn-start promotion from a phase-specific signal.
+	var multiplayer_state := _empty_multiplayer_game()
+	multiplayer_state.players[0].hand.assign([coin])
+	multiplayer_state.players[0].actions = 1
+	multiplayer_state.set_active_player_index(0)
+	multiplayer_state.begin_turn_phase()
+	var host_ui = MAIN_UI_SCRIPT.new()
+	host_ui.game_state = multiplayer_state
+	host_ui.network_enabled = true
+	host_ui.network_is_host = true
+	host_ui.local_player_index = 0
+	var host_snapshot: Dictionary = host_ui._create_network_snapshot(0)
+	_check(
+		str((host_snapshot["players"][0] as Dictionary).get("turn_phase", ""))
+			== GameState.TURN_PHASE_BUY,
+		"Host snapshots should preserve an automatic buy phase for no-action turns."
+	)
+	host_ui.free()
+
 
 func _test_turn_based_mode() -> void:
 	# Turn-based is a no-timer, sequential variation: play passes to the next

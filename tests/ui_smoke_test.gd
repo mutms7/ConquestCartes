@@ -1772,6 +1772,53 @@ func _initialize() -> void:
 		main_ui.game_state.active_player_index == 0,
 		"The host view should return to its own seat after handling a request."
 	)
+	# A guest resource intent can arrive while the host still has Action. The
+	# host must validate it, promote to Buy, and play it in one authoritative step.
+	var coalesced_player: PlayerState = main_ui.game_state.players[1]
+	coalesced_player.hand.assign([main_ui.game_state.card_catalog["pebble_coin"]])
+	coalesced_player.actions = 1
+	coalesced_player.buys = 1
+	coalesced_player.turn_phase = GameState.TURN_PHASE_ACTION
+	coalesced_player.pending_choice = null
+	coalesced_player.cleanup_in_progress = false
+	main_ui._handle_network_play_card_request(1, "pebble_coin", 900)
+	_check(
+		coalesced_player.turn_phase == GameState.TURN_PHASE_BUY
+		and coalesced_player.play_area.has(main_ui.game_state.card_catalog["pebble_coin"])
+		and int(main_ui.network_last_intent_by_player.get(1, 0)) == 900,
+		"Host should coalesce and acknowledge a valid resource play from Action."
+	)
+	# Action cards are never valid Buy-phase intents, even when a guest has an
+	# optimistic Buy view.
+	var action_card: CardDefinition = main_ui.game_state.card_catalog["forge_hall"]
+	coalesced_player.hand.assign([action_card])
+	coalesced_player.turn_phase = GameState.TURN_PHASE_BUY
+	coalesced_player.actions = 1
+	main_ui._handle_network_play_card_request(1, action_card.id, 901)
+	_check(
+		coalesced_player.hand.has(action_card)
+		and not coalesced_player.play_area.has(action_card),
+		"Host should reject action-card misuse in the Buy phase."
+	)
+	var duplicate_revision_before: int = main_ui.network_snapshot_revision
+	main_ui._handle_network_play_card_request(1, "forge_hall", 901)
+	main_ui._handle_network_play_card_request(1, "forge_hall", 900)
+	_check(
+		coalesced_player.hand.has(action_card)
+		and int(main_ui.network_last_intent_by_player.get(1, 0)) == 901
+		and main_ui.network_snapshot_revision >= duplicate_revision_before + 2,
+		"Duplicate and reordered intents should be idempotent and acknowledge only the requester."
+	)
+	var reserve_card: CardDefinition = main_ui.game_state.card_catalog["coin_of_the_realm"]
+	coalesced_player.hand.clear()
+	coalesced_player.reserve_mat.assign([reserve_card])
+	coalesced_player.turn_phase = GameState.TURN_PHASE_ACTION
+	main_ui._handle_network_call_reserve_request(1, reserve_card.id, 902)
+	_check(
+		coalesced_player.play_area.has(reserve_card)
+		and not coalesced_player.reserve_mat.has(reserve_card),
+		"Action-phase Coin of the Realm calls should remain valid Reserve actions."
+	)
 	var client_race_snapshot: Dictionary = main_ui._create_network_snapshot()
 	main_ui.network_is_host = false
 	main_ui.local_player_index = 0
@@ -1801,7 +1848,9 @@ func _initialize() -> void:
 		main_ui.local_player_index == 1,
 		"A stale solo game must not clamp a client's assigned network seat."
 	)
-	main_ui._apply_network_snapshot(client_race_snapshot)
+	var reassigned_client_snapshot: Dictionary = client_race_snapshot.duplicate(true)
+	reassigned_client_snapshot["snapshot_revision"] = main_ui.network_last_snapshot_revision + 1
+	main_ui._apply_network_snapshot(reassigned_client_snapshot)
 	await process_frame
 	_check(
 		main_ui.game_state.active_player_index == 1
@@ -1822,6 +1871,70 @@ func _initialize() -> void:
 	_check(
 		main_ui.player_vp_cache.size() == main_ui.game_state.players.size(),
 		"Player VP values should be cached for cooldown-only status refreshes."
+	)
+	# Guests enter Buy locally without a phase-specific relay request. An older
+	# Action snapshot for the same turn must not flicker the view back.
+	main_ui.network_mode = main_ui.NETWORK_MODE_ONLINE
+	main_ui.network_enabled = true
+	main_ui.network_is_host = false
+	main_ui.local_player_index = 1
+	main_ui.game_state.set_active_player_index(1)
+	var optimistic_player: PlayerState = main_ui.game_state.player
+	optimistic_player.pending_choice = null
+	optimistic_player.cleanup_in_progress = false
+	optimistic_player.turn_phase = GameState.TURN_PHASE_ACTION
+	optimistic_player.hand.assign([main_ui.game_state.card_catalog["forge_hall"]])
+	optimistic_player.actions = 1
+	main_ui._refresh_ui()
+	var intent_count_before: int = main_ui.network_intent_counter
+	main_ui._on_end_turn_pressed()
+	_check(
+		main_ui.optimistic_buy_phase
+		and main_ui.game_state.is_buy_phase()
+		and main_ui.network_intent_counter == intent_count_before,
+		"Guest End Actions should render Buy immediately without sending a phase request."
+	)
+	optimistic_player.turn_phase = GameState.TURN_PHASE_ACTION
+	var stale_action_snapshot: Dictionary = main_ui._create_network_snapshot(1)
+	var stale_revision: int = main_ui.network_last_snapshot_revision + 1
+	stale_action_snapshot["snapshot_revision"] = stale_revision
+	main_ui._apply_network_snapshot(stale_action_snapshot)
+	_check(
+		main_ui.game_state.is_buy_phase(),
+		"An older Action snapshot should not flicker an optimistic guest back to Action."
+	)
+	var confirmed_buy_snapshot: Dictionary = stale_action_snapshot.duplicate(true)
+	(confirmed_buy_snapshot["players"][1] as Dictionary)["turn_phase"] = GameState.TURN_PHASE_BUY
+	(confirmed_buy_snapshot["players"][1] as Dictionary)["intent_ack"] = 902
+	confirmed_buy_snapshot["snapshot_revision"] = stale_revision + 1
+	main_ui._apply_network_snapshot(confirmed_buy_snapshot)
+	_check(
+		not main_ui.optimistic_buy_phase,
+		"A host-confirmed Buy snapshot should clear the guest optimism marker."
+	)
+	main_ui._apply_network_snapshot(stale_action_snapshot)
+	_check(
+		main_ui.game_state.is_buy_phase(),
+		"A reordered old Action snapshot must not roll back a confirmed Buy phase."
+	)
+	# A dropped signal must not leave a guest's End Buys control locked behind a
+	# request that can no longer receive an acknowledgement.
+	main_ui.network_pending_intent_id = 903
+	main_ui.optimistic_buy_phase = true
+	main_ui.online_relay_signal_request_in_flight = true
+	main_ui.online_relay_signal_queue.append({
+		"type": "signal",
+		"target": "host",
+		"payload": {"method": "request_end_turn", "intent_id": 903},
+	})
+	main_ui._clear_online_relay_signal_queue()
+	_check(
+		main_ui.network_pending_intent_id == 0
+		and not main_ui.optimistic_buy_phase
+		and main_ui.online_relay_signal_queue.is_empty()
+		and not main_ui.online_relay_signal_request_in_flight
+		and not main_ui.end_turn_button.disabled,
+		"Dropped relay intents should clear the pending lock and refresh End Buys."
 	)
 	_check(
 		_active_ui_uses_original_assets(),

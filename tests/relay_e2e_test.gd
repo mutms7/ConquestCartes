@@ -203,6 +203,66 @@ func _initialize() -> void:
 			"Host card play must not touch the guest's hand."
 		)
 
+	# End Actions is local-only. The next End Buys intent must still coalesce the
+	# authoritative Action -> Buy transition on the host in one snapshot.
+	host_ui.game_state.players[1].turn_phase = GameState.TURN_PHASE_ACTION
+	host_ui.game_state.players[1].actions = 1
+	host_ui._broadcast_network_snapshot()
+	await _wait_until(func(): return guest_ui.game_state.is_action_phase(), 10.0)
+	var intent_count_before: int = guest_ui.network_intent_counter
+	guest_ui._on_end_turn_pressed()
+	_check(
+		guest_ui.game_state.is_buy_phase()
+		and guest_ui.network_intent_counter == intent_count_before,
+		"Guest End Actions should render Buy without a phase-specific relay signal."
+	)
+	guest_ui._on_end_turn_pressed()
+	await _wait_until(func(): return host_ui.game_state.players[1].cooldown_remaining > 0.0, 10.0)
+	_check(
+		host_ui.game_state.players[1].turn_phase == GameState.TURN_PHASE_BUY,
+		"Host should coalesce a stale Action phase into the guest's End Buys intent."
+	)
+
+	# Distinct guest intents must stay FIFO on the relay. Queue two valid resource
+	# plays while the host is in Action; intent 2 must not overtake intent 1.
+	var queued_player: PlayerState = host_ui.game_state.players[1]
+	var pebble_definition: CardDefinition = host_ui.game_state.card_catalog["pebble_coin"]
+	queued_player.hand.assign([pebble_definition, pebble_definition])
+	queued_player.play_area.clear()
+	queued_player.pending_choice = null
+	queued_player.cleanup_in_progress = false
+	queued_player.cooldown_remaining = 0.0
+	queued_player.cooldown_duration = 0.0
+	queued_player.turn_phase = GameState.TURN_PHASE_ACTION
+	queued_player.actions = 1
+	queued_player.buys = 1
+	host_ui.game_state.set_active_player_index(1)
+	host_ui._broadcast_network_snapshot()
+	await _wait_until(
+		func(): return guest_ui.game_state.players.size() >= 2 and guest_ui.game_state.players[1].hand.size() == 2,
+		10.0
+	)
+	var first_queued_intent: int = guest_ui.network_intent_counter + 1
+	guest_ui._send_network_client_request("request_play_card", {"card_id": "pebble_coin"})
+	guest_ui._send_network_client_request("request_play_card", {"card_id": "pebble_coin"})
+	var last_queued_intent: int = guest_ui.network_intent_counter
+	await _wait_until(
+		func():
+			return (
+				host_ui.game_state.players[1].hand.is_empty()
+				and host_ui.game_state.players[1].play_area.size() >= 2
+				and int(host_ui.network_last_intent_by_player.get(1, 0)) == last_queued_intent
+			),
+		10.0
+	)
+	_check(
+		host_ui.game_state.players[1].hand.is_empty()
+		and host_ui.game_state.players[1].play_area.size() >= 2
+		and last_queued_intent == first_queued_intent + 1
+		and int(host_ui.network_last_intent_by_player.get(1, 0)) == last_queued_intent,
+		"Two distinct valid guest intents should dispatch through the relay in order."
+	)
+
 	_finish()
 
 

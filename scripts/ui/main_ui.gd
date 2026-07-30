@@ -92,6 +92,7 @@ const ONLINE_RELAY_MAX_RECONNECT_ATTEMPTS := 3
 const ONLINE_RELAY_RECONNECT_DELAY_SECONDS := 2.0
 const ONLINE_RELAY_CONNECT_TIMEOUT_SECONDS := 10.0
 const ONLINE_RELAY_POLL_INTERVAL_SECONDS := 0.35
+const ONLINE_RELAY_INTENT_POLL_DELAY_SECONDS := 0.05
 # Players get one minute to read the board before the opening round begins.
 const RESPITE_SECONDS := 60.0
 
@@ -311,6 +312,10 @@ var online_relay_reconnect_timer := 0.0
 var online_relay_connect_timer := 0.0
 var online_relay_poll_timer := 0.0
 var online_relay_poll_in_flight := false
+var online_relay_signal_requests_in_flight := 0
+var online_relay_signal_queue: Array[Dictionary] = []
+var online_relay_signal_request_in_flight := false
+var online_relay_signal_epoch := 0
 var network_ready_seats: Array[int] = []
 var lobby_ready_sent := false
 var lobby_code_banner: PanelContainer
@@ -321,6 +326,16 @@ var kingdom_return_tab := ""
 # lobby panel until the snapshot says the game started.
 var network_table_open := false
 var network_connected_seats: Array[int] = []
+var network_intent_counter := 0
+var network_last_intent_by_player: Dictionary = {}
+var network_pending_intent_id := 0
+var network_snapshot_revision := 0
+var network_last_snapshot_revision := 0
+var network_last_snapshot_intent_ack_by_player: Dictionary = {}
+var optimistic_buy_phase := false
+var optimistic_buy_phase_turn_number := -1
+var optimistic_buy_phase_player_index := -1
+var optimistic_buy_phase_intent_id := 0
 # Opening 60-second turn timer (client-local; it changes no game state, just
 # gates play so each player can read the market and starting hand first). It is
 # shown as a countdown on the End Turn button.
@@ -718,11 +733,28 @@ func _join_online_lobby() -> void:
 	_connect_online_relay()
 
 
+func _clear_online_relay_signal_queue() -> void:
+	# Invalidate any completion callback from the previous connection before
+	# dropping queued signals. A late HTTP response must not dispatch a signal
+	# from an old lobby into a reconnecting instance.
+	var had_pending_intent := network_pending_intent_id > 0 or optimistic_buy_phase
+	online_relay_signal_epoch += 1
+	online_relay_signal_queue.clear()
+	online_relay_signal_request_in_flight = false
+	online_relay_signal_requests_in_flight = 0
+	network_pending_intent_id = 0
+	_clear_optimistic_buy_phase()
+	if had_pending_intent and is_inside_tree():
+		_refresh_ui()
+
+
 func _connect_online_relay() -> void:
+	_clear_online_relay_signal_queue()
 	online_relay_connected = false
 	online_relay_connect_timer = ONLINE_RELAY_CONNECT_TIMEOUT_SECONDS
 	online_relay_poll_timer = 0.0
 	online_relay_poll_in_flight = false
+	online_relay_signal_requests_in_flight = 0
 	_set_lobby_status("Contacting the online relay...")
 	if online_relay_role == "host":
 		_send_online_relay_message({
@@ -741,6 +773,7 @@ func _connect_online_relay() -> void:
 
 
 func _disconnect_network() -> void:
+	_clear_online_relay_signal_queue()
 	var should_leave_online := (
 		network_enabled
 		and network_mode == NETWORK_MODE_ONLINE
@@ -758,6 +791,7 @@ func _disconnect_network() -> void:
 	online_relay_reconnect_timer = 0.0
 	online_relay_poll_timer = 0.0
 	online_relay_poll_in_flight = false
+	online_relay_signal_requests_in_flight = 0
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = null
@@ -766,6 +800,12 @@ func _disconnect_network() -> void:
 	network_mode = NETWORK_MODE_LOCAL
 	local_player_index = 0
 	network_peer_to_player.clear()
+	network_last_intent_by_player.clear()
+	network_pending_intent_id = 0
+	network_snapshot_revision = 0
+	network_last_snapshot_revision = 0
+	network_last_snapshot_intent_ack_by_player.clear()
+	_clear_optimistic_buy_phase()
 	network_table_open = false
 	network_connected_seats.clear()
 	network_ready_seats.clear()
@@ -795,7 +835,7 @@ func _tick_online_relay_poll(delta: float) -> void:
 
 
 func _poll_online_relay() -> void:
-	if online_relay_poll_in_flight:
+	if online_relay_poll_in_flight or online_relay_signal_requests_in_flight > 0:
 		return
 	if online_relay_client_id.is_empty() or online_relay_lobby_code.is_empty():
 		return
@@ -971,27 +1011,32 @@ func _handle_online_relay_signal(sender_id: String, payload: Dictionary) -> void
 		"request_play_card":
 			_handle_network_play_card_request(
 				_player_index_for_relay_client(sender_id),
-				str(payload.get("card_id", ""))
+				str(payload.get("card_id", "")),
+				int(payload.get("intent_id", 0))
 			)
 		"request_buy_card":
 			_handle_network_buy_card_request(
 				_player_index_for_relay_client(sender_id),
-				str(payload.get("card_id", ""))
+				str(payload.get("card_id", "")),
+				int(payload.get("intent_id", 0))
 			)
 		"request_call_reserve":
 			_handle_network_call_reserve_request(
 				_player_index_for_relay_client(sender_id),
-				str(payload.get("card_id", ""))
+				str(payload.get("card_id", "")),
+				int(payload.get("intent_id", 0))
 			)
 		"request_buy_event":
 			_handle_network_buy_event_request(
 				_player_index_for_relay_client(sender_id),
-				str(payload.get("card_id", ""))
+				str(payload.get("card_id", "")),
+				int(payload.get("intent_id", 0))
 			)
 		"request_end_turn":
-			_handle_network_end_turn_request(_player_index_for_relay_client(sender_id))
-		"request_end_action_phase":
-			_handle_network_end_action_phase_request(_player_index_for_relay_client(sender_id))
+			_handle_network_end_turn_request(
+				_player_index_for_relay_client(sender_id),
+				int(payload.get("intent_id", 0))
+			)
 		"request_choice":
 			var raw_tokens = payload.get("tokens", [])
 			if typeof(raw_tokens) == TYPE_ARRAY:
@@ -1026,6 +1071,10 @@ func _send_online_relay_message(message: Dictionary) -> void:
 		relay_message["clientId"] = online_relay_client_id
 	if not online_relay_lobby_code.is_empty() and not relay_message.has("code"):
 		relay_message["code"] = online_relay_lobby_code
+	if str(relay_message.get("type", "")) == "signal":
+		online_relay_signal_queue.append(relay_message)
+		_dispatch_next_online_relay_signal()
+		return
 	_send_online_relay_http_request(relay_message)
 
 
@@ -1040,15 +1089,29 @@ func _send_online_relay_leave(lobby_code: String, client_id: String) -> void:
 	)
 
 
-func _send_online_relay_http_request(message: Dictionary, ignore_response: bool = false) -> void:
+func _dispatch_next_online_relay_signal() -> void:
+	if online_relay_signal_request_in_flight or online_relay_signal_queue.is_empty():
+		return
+	var next_signal: Dictionary = online_relay_signal_queue.pop_front()
+	online_relay_signal_request_in_flight = true
+	_send_online_relay_http_request(next_signal, false, online_relay_signal_epoch)
+
+
+func _send_online_relay_http_request(
+	message: Dictionary,
+	ignore_response: bool = false,
+	signal_epoch: int = -1
+) -> void:
 	var request := HTTPRequest.new()
 	request.timeout = ONLINE_RELAY_CONNECT_TIMEOUT_SECONDS
 	add_child(request)
 	var request_type := str(message.get("type", ""))
 	if ignore_response:
 		request_type = "leave"
+	if request_type == "signal":
+		online_relay_signal_requests_in_flight += 1
 	request.request_completed.connect(
-		_on_online_relay_request_completed.bind(request, request_type)
+		_on_online_relay_request_completed.bind(request, request_type, signal_epoch)
 	)
 	var headers := PackedStringArray([
 		"Content-Type: application/json",
@@ -1062,6 +1125,11 @@ func _send_online_relay_http_request(message: Dictionary, ignore_response: bool 
 	)
 	if error != OK:
 		request.queue_free()
+		if request_type == "signal":
+			online_relay_signal_requests_in_flight = maxi(0, online_relay_signal_requests_in_flight - 1)
+			if signal_epoch == online_relay_signal_epoch:
+				online_relay_signal_request_in_flight = false
+				_clear_online_relay_signal_queue()
 		_handle_online_relay_request_failed(request_type)
 
 
@@ -1071,12 +1139,23 @@ func _on_online_relay_request_completed(
 	_headers: PackedStringArray,
 	body: PackedByteArray,
 	request: HTTPRequest,
-	request_type: String
+	request_type: String,
+	signal_epoch: int = -1
 ) -> void:
 	if is_instance_valid(request):
 		request.queue_free()
+	if request_type == "signal" and signal_epoch != online_relay_signal_epoch:
+		# This completion belongs to a disconnected/replaced relay connection.
+		return
 	if request_type == "poll":
 		online_relay_poll_in_flight = false
+	if request_type == "signal":
+		online_relay_signal_requests_in_flight = maxi(0, online_relay_signal_requests_in_flight - 1)
+		online_relay_signal_request_in_flight = false
+		# A signal request is the guest's intent or the host's snapshot. Poll on
+		# the next idle frame once the relay has queued that signal, but never
+		# overlap the signal request itself.
+		online_relay_poll_timer = minf(online_relay_poll_timer, ONLINE_RELAY_INTENT_POLL_DELAY_SECONDS)
 	if request_type == "leave":
 		return
 	if not network_enabled or network_mode != NETWORK_MODE_ONLINE:
@@ -1101,6 +1180,11 @@ func _on_online_relay_request_completed(
 	if result != HTTPRequest.RESULT_SUCCESS or response_code < 200 or response_code >= 300:
 		if not handled_message:
 			_handle_online_relay_request_failed(request_type)
+	if request_type == "signal" and signal_epoch == online_relay_signal_epoch:
+		if result != HTTPRequest.RESULT_SUCCESS or response_code < 200 or response_code >= 300:
+			_clear_online_relay_signal_queue()
+		else:
+			_dispatch_next_online_relay_signal()
 
 
 func _handle_online_relay_request_failed(request_type: String) -> void:
@@ -1126,24 +1210,36 @@ func _send_online_signal(target: String, payload: Dictionary) -> void:
 
 
 func _send_network_client_request(method: String, payload: Dictionary = {}) -> void:
+	var intent_payload := payload.duplicate(true)
+	var intent_id := 0
+	if _is_network_client() and method in [
+		"request_play_card",
+		"request_buy_card",
+		"request_buy_event",
+		"request_end_turn",
+		"request_call_reserve",
+	]:
+		network_intent_counter += 1
+		intent_id = network_intent_counter
+		intent_payload["intent_id"] = intent_id
+		network_pending_intent_id = intent_id
+		optimistic_buy_phase_intent_id = intent_id if optimistic_buy_phase else optimistic_buy_phase_intent_id
 	if network_mode == NETWORK_MODE_ONLINE:
-		var online_payload := payload.duplicate(true)
+		var online_payload := intent_payload
 		online_payload["method"] = method
 		_send_online_signal("host", online_payload)
 		return
 	match method:
 		"request_play_card":
-			rpc_id(1, "_rpc_request_play_card", str(payload.get("card_id", "")))
+			rpc_id(1, "_rpc_request_play_card", str(intent_payload.get("card_id", "")), intent_id)
 		"request_buy_card":
-			rpc_id(1, "_rpc_request_buy_card", str(payload.get("card_id", "")))
+			rpc_id(1, "_rpc_request_buy_card", str(intent_payload.get("card_id", "")), intent_id)
 		"request_call_reserve":
-			rpc_id(1, "_rpc_request_call_reserve", str(payload.get("card_id", "")))
+			rpc_id(1, "_rpc_request_call_reserve", str(intent_payload.get("card_id", "")), intent_id)
 		"request_buy_event":
-			rpc_id(1, "_rpc_request_buy_event", str(payload.get("card_id", "")))
+			rpc_id(1, "_rpc_request_buy_event", str(intent_payload.get("card_id", "")), intent_id)
 		"request_end_turn":
-			rpc_id(1, "_rpc_request_end_turn")
-		"request_end_action_phase":
-			rpc_id(1, "_rpc_request_end_action_phase")
+			rpc_id(1, "_rpc_request_end_turn", intent_id)
 		"request_choice":
 			rpc_id(1, "_rpc_request_choice", payload.get("tokens", []))
 		"request_relic_choice":
@@ -1461,6 +1557,7 @@ func _complete_network_player_cleanup(player_index: int) -> void:
 func _broadcast_network_snapshot() -> void:
 	if not network_enabled or not network_is_host:
 		return
+	network_snapshot_revision += 1
 	# Every peer gets a view scoped to its own seat.  The host keeps its
 	# authoritative state locally; guests receive their own hand/deck and only
 	# redacted hidden zones and choices for opponents.
@@ -1479,6 +1576,34 @@ func _broadcast_network_snapshot() -> void:
 			var remote_peer := int(peer_id)
 			var seat := int(network_peer_to_player[peer_id])
 			if remote_peer <= 1:
+				continue
+			rpc_id(remote_peer, "_rpc_apply_network_snapshot", _create_network_snapshot(seat))
+	_refresh_ui()
+
+
+func _send_network_snapshot_to_player(recipient_player_index: int) -> void:
+	if not network_enabled or not network_is_host:
+		return
+	network_snapshot_revision += 1
+	if network_mode == NETWORK_MODE_ONLINE:
+		for relay_client in network_peer_to_player.keys():
+			var client_id := str(relay_client)
+			var seat := int(network_peer_to_player[relay_client])
+			if (
+				client_id.is_empty()
+				or client_id == online_relay_client_id
+				or seat != recipient_player_index
+			):
+				continue
+			_send_online_signal(client_id, {
+				"method": "apply_network_snapshot",
+				"snapshot": _create_network_snapshot(seat),
+			})
+	else:
+		for peer_id in network_peer_to_player.keys():
+			var remote_peer := int(peer_id)
+			var seat := int(network_peer_to_player[peer_id])
+			if remote_peer <= 1 or seat != recipient_player_index:
 				continue
 			rpc_id(remote_peer, "_rpc_apply_network_snapshot", _create_network_snapshot(seat))
 	_refresh_ui()
@@ -1530,6 +1655,7 @@ func _create_network_snapshot(recipient_player_index: int = -1) -> Dictionary:
 			"cooldown_remaining": game_player.cooldown_remaining,
 			"cooldown_duration": game_player.cooldown_duration,
 			"times_attacked": game_player.times_attacked,
+			"intent_ack": int(network_last_intent_by_player.get(index, 0)),
 		}
 		# Adventures fields are optional so older peers keep working while a table
 		# can still show each player's Tavern, Journey, token, and Traveller state.
@@ -1573,6 +1699,7 @@ func _create_network_snapshot(recipient_player_index: int = -1) -> Dictionary:
 			"final_score": turn_manager.final_score,
 			"final_scores": turn_manager.final_scores.duplicate(),
 		},
+		"snapshot_revision": network_snapshot_revision,
 	}
 
 
@@ -1771,10 +1898,117 @@ func _rpc_apply_network_snapshot(snapshot: Dictionary) -> void:
 	_apply_network_snapshot(snapshot)
 
 
+func _clear_optimistic_buy_phase() -> void:
+	optimistic_buy_phase = false
+	optimistic_buy_phase_turn_number = -1
+	optimistic_buy_phase_player_index = -1
+	optimistic_buy_phase_intent_id = 0
+
+
+func _set_optimistic_buy_phase() -> void:
+	if not _is_network_client() or game_state.players.is_empty():
+		return
+	var local_index := clampi(local_player_index, 0, game_state.players.size() - 1)
+	var local_player := game_state.players[local_index]
+	if local_player.pending_choice != null or local_player.cleanup_in_progress:
+		return
+	optimistic_buy_phase = true
+	optimistic_buy_phase_turn_number = local_player.turn_number
+	optimistic_buy_phase_player_index = local_index
+	optimistic_buy_phase_intent_id = 0
+	local_player.turn_phase = GameState.TURN_PHASE_BUY
+
+
+func _network_snapshot_preserves_optimistic_buy_phase(snapshot: Dictionary) -> bool:
+	if not optimistic_buy_phase or not _is_network_client():
+		return false
+	var player_data: Array = snapshot.get("players", [])
+	if optimistic_buy_phase_player_index < 0 or optimistic_buy_phase_player_index >= player_data.size():
+		_clear_optimistic_buy_phase()
+		return false
+	if typeof(player_data[optimistic_buy_phase_player_index]) != TYPE_DICTIONARY:
+		_clear_optimistic_buy_phase()
+		return false
+	var local_data: Dictionary = player_data[optimistic_buy_phase_player_index]
+	var incoming_turn := int(local_data.get("turn_number", -1))
+	var incoming_phase := str(local_data.get("turn_phase", GameState.TURN_PHASE_ACTION))
+	var incoming_ack := int(local_data.get("intent_ack", 0))
+	if incoming_turn != optimistic_buy_phase_turn_number:
+		_clear_optimistic_buy_phase()
+		return false
+	if incoming_phase == GameState.TURN_PHASE_BUY:
+		_clear_optimistic_buy_phase()
+		return false
+	if optimistic_buy_phase_intent_id > 0 and incoming_ack >= optimistic_buy_phase_intent_id:
+		# The host has explicitly acknowledged the buy-phase intent. An Action
+		# snapshot at this point is a rejection, so roll back to authority.
+		_clear_optimistic_buy_phase()
+		return false
+	return incoming_phase == GameState.TURN_PHASE_ACTION
+
+
+func _reconcile_pending_network_intent(snapshot: Dictionary) -> void:
+	if network_pending_intent_id <= 0 or not _is_network_client():
+		return
+	var player_data: Array = snapshot.get("players", [])
+	if local_player_index < 0 or local_player_index >= player_data.size():
+		return
+	if typeof(player_data[local_player_index]) != TYPE_DICTIONARY:
+		return
+	var local_data: Dictionary = player_data[local_player_index]
+	if not local_data.has("intent_ack"):
+		# Older hosts do not understand intent acknowledgements. Do not leave the
+		# End Turn button locked forever when such a snapshot arrives.
+		network_pending_intent_id = 0
+		return
+	if int(local_data.get("intent_ack", 0)) >= network_pending_intent_id:
+		network_pending_intent_id = 0
+
+
+func _network_snapshot_is_stale(snapshot: Dictionary) -> bool:
+	if not _is_network_client():
+		return false
+	var incoming_revision := int(snapshot.get("snapshot_revision", 0))
+	if incoming_revision > 0 and incoming_revision <= network_last_snapshot_revision:
+		return true
+	var incoming_players: Array = snapshot.get("players", [])
+	for player_index in range(incoming_players.size()):
+		if typeof(incoming_players[player_index]) != TYPE_DICTIONARY:
+			continue
+		var player_data: Dictionary = incoming_players[player_index]
+		if not player_data.has("intent_ack"):
+			continue
+		var incoming_ack := int(player_data.get("intent_ack", 0))
+		if incoming_ack < int(network_last_snapshot_intent_ack_by_player.get(player_index, 0)):
+			return true
+	return false
+
+
+func _remember_network_snapshot_order(snapshot: Dictionary) -> void:
+	var incoming_revision := int(snapshot.get("snapshot_revision", 0))
+	if incoming_revision > network_last_snapshot_revision:
+		network_last_snapshot_revision = incoming_revision
+	var incoming_players: Array = snapshot.get("players", [])
+	for player_index in range(incoming_players.size()):
+		if typeof(incoming_players[player_index]) != TYPE_DICTIONARY:
+			continue
+		var player_data: Dictionary = incoming_players[player_index]
+		if player_data.has("intent_ack"):
+			network_last_snapshot_intent_ack_by_player[player_index] = maxi(
+				int(network_last_snapshot_intent_ack_by_player.get(player_index, 0)),
+				int(player_data.get("intent_ack", 0))
+			)
+
+
 func _apply_network_snapshot(snapshot: Dictionary) -> void:
+	if _network_snapshot_is_stale(snapshot):
+		return
+	_reconcile_pending_network_intent(snapshot)
+	var preserve_optimistic_phase := _network_snapshot_preserves_optimistic_buy_phase(snapshot)
 	var previous_summary := _capture_local_zone_summary()
 	game_state.players.clear()
-	for player_data in snapshot.get("players", []):
+	for player_index in range(snapshot.get("players", []).size()):
+		var player_data: Dictionary = snapshot.get("players", [])[player_index]
 		var synced_player := PlayerState.new()
 		synced_player.player_name = str(player_data.get("name", "Player"))
 		synced_player.turn_number = int(player_data.get("turn_number", 1))
@@ -1793,6 +2027,8 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		synced_player.actions = int(player_data.get("actions", 1))
 		synced_player.buys = int(player_data.get("buys", 1))
 		synced_player.turn_phase = str(player_data.get("turn_phase", GameState.TURN_PHASE_ACTION))
+		if preserve_optimistic_phase and player_index == optimistic_buy_phase_player_index:
+			synced_player.turn_phase = GameState.TURN_PHASE_BUY
 		synced_player.vp_tokens = int(player_data.get("vp_tokens", 0))
 		synced_player.end_turn_cooldown_reduction = float(
 			player_data.get("cooldown_reduction", 0.0)
@@ -1822,6 +2058,7 @@ func _apply_network_snapshot(snapshot: Dictionary) -> void:
 		game_state.players.append(synced_player)
 	if game_state.players.is_empty():
 		return
+	_remember_network_snapshot_order(snapshot)
 	game_state.active_player_index = clampi(
 		local_player_index,
 		0,
@@ -1966,19 +2203,132 @@ func _sync_choice_overlay_from_network() -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _rpc_request_play_card(card_id: String) -> void:
+func _rpc_request_play_card(card_id: String, intent_id: int = 0) -> void:
 	_handle_network_play_card_request(
 		_player_index_for_peer(multiplayer.get_remote_sender_id()),
-		card_id
+		card_id,
+		intent_id
 	)
 
 
-func _handle_network_play_card_request(player_index: int, card_id: String) -> void:
-	if not network_is_host or player_index < 0:
+func _record_network_intent(player_index: int, intent_id: int) -> void:
+	if intent_id <= 0 or player_index < 0 or player_index >= game_state.players.size():
 		return
-	_set_authoritative_player(player_index)
+	network_last_intent_by_player[player_index] = maxi(
+		intent_id,
+		int(network_last_intent_by_player.get(player_index, 0))
+	)
+
+
+func _network_player_can_receive_intent(player_index: int) -> bool:
+	if not _network_player_index_valid(player_index):
+		return false
+	var target := game_state.players[player_index]
+	return (
+		target.pending_choice == null
+		and not target.cleanup_in_progress
+		and (not game_state.turn_based_enabled or game_state.active_player_index == player_index)
+	)
+
+
+func _network_player_index_valid(player_index: int) -> bool:
+	return network_is_host and player_index >= 0 and player_index < game_state.players.size()
+
+
+func _begin_network_intent(player_index: int, intent_id: int) -> bool:
+	if not _network_player_index_valid(player_index):
+		return false
+	var last_ack := int(network_last_intent_by_player.get(player_index, 0))
+	if intent_id > 0 and intent_id <= last_ack:
+		# Duplicate/reordered client intents are acknowledged idempotently. Return
+		# the current authoritative view only to the requester; do not rebroadcast
+		# an unchanged snapshot to every guest.
+		_send_network_snapshot_to_player(player_index)
+		_restore_local_network_view()
+		return false
+	_record_network_intent(player_index, intent_id)
+	if _network_player_can_receive_intent(player_index):
+		_set_authoritative_player(player_index)
+		return true
+	_reject_network_intent(player_index)
+	return false
+
+
+func _network_can_play_resource_before_buy_phase(card: CardDefinition) -> bool:
+	return (
+		card != null
+		and game_state.player.hand.has(card)
+		and card.card_type == "resource"
+		and game_state.is_card_playable(card)
+		and not game_state.has_pending_choice()
+		and not bool(game_state.turn_flags.get("event_bought", false))
+	)
+
+
+func _network_can_buy_card_before_buy_phase(card: CardDefinition) -> bool:
+	if card == null or game_state.has_pending_choice() or game_state.player.buys <= 0:
+		return false
+	if bool(game_state.turn_flags.get("mission_no_buys", false)):
+		return false
+	if game_state.is_event_card(card):
+		return (
+			game_state.selected_event_ids.has(card.id)
+			and game_state.get_event_candidates().has(card)
+			and not game_state._event_purchase_restricted(card)
+			and game_state.player.coins >= game_state.get_event_cost(card)
+		)
+	if (
+		not game_state.market.has(card)
+		and not game_state.is_side_supply_card(card.id)
+	):
+		return false
+	return (
+		game_state.get_supply_count(card.id) > 0
+		and game_state.player.coins >= game_state.get_effective_cost(card)
+		and not game_state._buy_restricted_by_played_card(card)
+	)
+
+
+func _network_prepare_buy_phase_intent(player_index: int) -> bool:
+	if not _network_player_can_receive_intent(player_index):
+		return false
+	if game_state.is_buy_phase():
+		return true
+	if not game_state.is_action_phase() or game_state.has_pending_choice():
+		return false
+	return game_state.end_action_phase()
+
+
+func _reject_network_intent(player_index: int) -> void:
+	_restore_local_network_view()
+	if network_is_host:
+		_send_network_snapshot_to_player(player_index)
+
+
+func _handle_network_play_card_request(
+	player_index: int,
+	card_id: String,
+	intent_id: int = 0
+) -> void:
+	if not _begin_network_intent(player_index, intent_id):
+		return
 	var card := _find_card_in_active_hand(card_id)
-	if card != null and game_state.play_card(card):
+	if card == null:
+		_reject_network_intent(player_index)
+		return
+	# A resource play is a buy-phase intent even if the guest's latest snapshot
+	# still showed Action. Validate it before changing the authoritative phase.
+	if game_state.is_action_phase() and card.card_type == "resource":
+		if not _network_can_play_resource_before_buy_phase(card):
+			_reject_network_intent(player_index)
+			return
+		if not _network_prepare_buy_phase_intent(player_index):
+			_reject_network_intent(player_index)
+			return
+	elif game_state.is_buy_phase() and card.card_type != "resource":
+		_reject_network_intent(player_index)
+		return
+	if game_state.play_card(card):
 		game_state.evaluate_auto_phase()
 		if game_state.consume_end_turn_request():
 			_start_network_player_cooldown(player_index)
@@ -1986,42 +2336,56 @@ func _handle_network_play_card_request(player_index: int, card_id: String) -> vo
 		_sync_choice_overlay_from_network()
 		_broadcast_network_snapshot()
 	else:
-		_restore_local_network_view()
+		_reject_network_intent(player_index)
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _rpc_request_buy_card(card_id: String) -> void:
+func _rpc_request_buy_card(card_id: String, intent_id: int = 0) -> void:
 	_handle_network_buy_card_request(
 		_player_index_for_peer(multiplayer.get_remote_sender_id()),
-		card_id
+		card_id,
+		intent_id
 	)
 
 
-func _handle_network_buy_card_request(player_index: int, card_id: String) -> void:
-	if not network_is_host or player_index < 0:
+func _handle_network_buy_card_request(
+	player_index: int,
+	card_id: String,
+	intent_id: int = 0
+) -> void:
+	if not _begin_network_intent(player_index, intent_id):
 		return
-	_set_authoritative_player(player_index)
 	var card: CardDefinition = game_state.card_catalog.get(card_id) as CardDefinition
-	if card != null and game_state.buy_card(card):
+	if not _network_can_buy_card_before_buy_phase(card):
+		_reject_network_intent(player_index)
+		return
+	if not _network_prepare_buy_phase_intent(player_index):
+		_reject_network_intent(player_index)
+		return
+	if game_state.buy_card(card):
 		_restore_local_network_view()
 		_sync_choice_overlay_from_network()
 		_broadcast_network_snapshot()
 	else:
-		_restore_local_network_view()
+		_reject_network_intent(player_index)
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _rpc_request_call_reserve(card_id: String) -> void:
+func _rpc_request_call_reserve(card_id: String, intent_id: int = 0) -> void:
 	_handle_network_call_reserve_request(
 		_player_index_for_peer(multiplayer.get_remote_sender_id()),
-		card_id
+		card_id,
+		intent_id
 	)
 
 
-func _handle_network_call_reserve_request(player_index: int, card_id: String) -> void:
-	if not network_is_host or player_index < 0:
+func _handle_network_call_reserve_request(
+	player_index: int,
+	card_id: String,
+	intent_id: int = 0
+) -> void:
+	if not _begin_network_intent(player_index, intent_id):
 		return
-	_set_authoritative_player(player_index)
 	var card := game_state.card_catalog.get(card_id) as CardDefinition
 	if card != null and _call_authoritative_reserve(card):
 		game_state.evaluate_auto_phase()
@@ -2029,60 +2393,61 @@ func _handle_network_call_reserve_request(player_index: int, card_id: String) ->
 		_sync_choice_overlay_from_network()
 		_broadcast_network_snapshot()
 	else:
-		_restore_local_network_view()
+		_reject_network_intent(player_index)
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _rpc_request_buy_event(card_id: String) -> void:
+func _rpc_request_buy_event(card_id: String, intent_id: int = 0) -> void:
 	_handle_network_buy_event_request(
 		_player_index_for_peer(multiplayer.get_remote_sender_id()),
-		card_id
+		card_id,
+		intent_id
 	)
 
 
-func _handle_network_buy_event_request(player_index: int, card_id: String) -> void:
-	if not network_is_host or player_index < 0:
+func _handle_network_buy_event_request(
+	player_index: int,
+	card_id: String,
+	intent_id: int = 0
+) -> void:
+	if not _begin_network_intent(player_index, intent_id):
 		return
-	_set_authoritative_player(player_index)
 	var card := game_state.card_catalog.get(card_id) as CardDefinition
-	if card != null and game_state.buy_event(card):
+	if not _network_can_buy_card_before_buy_phase(card):
+		_reject_network_intent(player_index)
+		return
+	if not _network_prepare_buy_phase_intent(player_index):
+		_reject_network_intent(player_index)
+		return
+	if game_state.buy_event(card):
 		game_state.evaluate_auto_phase()
 		_restore_local_network_view()
 		_sync_choice_overlay_from_network()
 		_broadcast_network_snapshot()
 	else:
-		_restore_local_network_view()
+		_reject_network_intent(player_index)
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _rpc_request_end_turn() -> void:
-	_handle_network_end_turn_request(_player_index_for_peer(multiplayer.get_remote_sender_id()))
+func _rpc_request_end_turn(intent_id: int = 0) -> void:
+	_handle_network_end_turn_request(
+		_player_index_for_peer(multiplayer.get_remote_sender_id()),
+		intent_id
+	)
 
 
-func _handle_network_end_turn_request(player_index: int) -> void:
-	if not network_is_host or player_index < 0:
+func _handle_network_end_turn_request(player_index: int, intent_id: int = 0) -> void:
+	if not _begin_network_intent(player_index, intent_id):
+		return
+	if turn_manager.game_over or game_state.player.cooldown_remaining > 0.0:
+		_reject_network_intent(player_index)
+		return
+	if not _network_prepare_buy_phase_intent(player_index):
+		_reject_network_intent(player_index)
 		return
 	_start_network_player_cooldown(player_index)
 	_sync_choice_overlay_from_network()
 	_broadcast_network_snapshot()
-
-
-@rpc("any_peer", "call_remote", "reliable")
-func _rpc_request_end_action_phase() -> void:
-	_handle_network_end_action_phase_request(
-		_player_index_for_peer(multiplayer.get_remote_sender_id())
-	)
-
-
-func _handle_network_end_action_phase_request(player_index: int) -> void:
-	if not network_is_host or player_index < 0:
-		return
-	_set_authoritative_player(player_index)
-	if game_state.end_action_phase():
-		_restore_local_network_view()
-		_broadcast_network_snapshot()
-	else:
-		_restore_local_network_view()
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -6973,7 +7338,11 @@ func _refresh_end_turn_button() -> void:
 	# During the action phase the button ends actions and opens the buy phase;
 	# during the buy phase it ends the turn.
 	end_turn_button.text = "END ACTIONS" if game_state.is_action_phase() else "END BUYS"
-	end_turn_button.disabled = game_state.has_pending_choice() or not _can_control_active_player()
+	end_turn_button.disabled = (
+		game_state.has_pending_choice()
+		or not _can_control_active_player()
+		or (_is_network_client() and network_pending_intent_id > 0)
+	)
 	end_turn_button.modulate = Color.WHITE
 
 
@@ -10096,7 +10465,9 @@ func _refresh_background_music() -> void:
 	if _is_web_export():
 		_web_background_music_set_volume(_get_background_music_output_linear_volume())
 		_web_background_music_set_enabled(music_enabled)
-		if music_enabled and background_music_volume > 0.0 and background_music_start_requested:
+		if not music_enabled:
+			background_music_start_requested = false
+		elif background_music_volume > 0.0 and background_music_start_requested:
 			_web_background_music_play()
 		return
 	if background_music_player == null:
@@ -10657,7 +11028,11 @@ func _on_end_turn_pressed() -> void:
 	# ends the turn or starts an end-turn cooldown.
 	if game_state.is_action_phase():
 		if _is_network_client():
-			_send_network_client_request("request_end_action_phase")
+			# Guests do not spend a relay round-trip just to render the local phase
+			# transition. The host coalesces the transition into the next validated
+			# buy-phase intent (resource play, purchase, or end turn).
+			_set_optimistic_buy_phase()
+			_refresh_ui()
 			return
 		if game_state.end_action_phase():
 			_play_ui_sound("button_click")
@@ -10668,6 +11043,7 @@ func _on_end_turn_pressed() -> void:
 	_play_ui_sound("end_turn")
 	if _is_network_client():
 		_send_network_client_request("request_end_turn")
+		_refresh_end_turn_button()
 		return
 	if network_enabled and network_is_host:
 		_start_network_player_cooldown(local_player_index)
